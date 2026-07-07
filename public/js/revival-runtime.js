@@ -280,6 +280,8 @@
     return parsed.href;
   }
 
+  var uploadImageInFlight = 0;
+
   function isLegacyMainScript(url) {
     try {
       var parsed = new URL(String(url || ""), window.location.href);
@@ -351,6 +353,8 @@
     var path;
     var requestUrl;
     var requestOptions;
+    var isUploadImageRequest;
+    var releaseUploadImageInflight;
     var jqxhr;
     var aborted = false;
 
@@ -371,6 +375,15 @@
       method: method
     };
     if (method !== "GET") requestOptions.body = settings.data || null;
+    isUploadImageRequest = method === "POST" && path === "/api/upload-image";
+    if (isUploadImageRequest) {
+      uploadImageInFlight += 1;
+      window.__REVIVAL_UPLOAD_REQUESTS__ = uploadImageInFlight;
+      releaseUploadImageInflight = function () {
+        if (uploadImageInFlight > 0) uploadImageInFlight -= 1;
+        window.__REVIVAL_UPLOAD_REQUESTS__ = uploadImageInFlight;
+      };
+    }
     jqxhr = {
       abort: function () {
         aborted = true;
@@ -407,6 +420,9 @@
         jqxhr.responseText = error.text || "";
         if (settings.error) settings.error(jqxhr, "error", error);
         if (settings.complete) settings.complete(jqxhr, "error");
+      })
+      .then(function () {
+        if (releaseUploadImageInflight) releaseUploadImageInflight();
       });
 
     return jqxhr;
@@ -985,6 +1001,9 @@
     var ui = legacyModule("uiController");
     var posts = [];
     if (payload && payload.post) posts.push(payload.post);
+    if (!posts.length && payload && payload.data && payload.data.posts) {
+      posts = payload.data.posts;
+    }
     if (!posts.length && payload && payload.results) posts = payload.results;
     if (!scene || !scene.showSearchedPosts || !posts.length) return false;
     if (ui && ui.hidePost2d) ui.hidePost2d();
@@ -1129,7 +1148,13 @@
   function submitSearchFallback() {
     var raw = searchInputText();
     var tag = normalizeSearchTag(raw);
+    var postController = legacyModule("postController");
     var url;
+
+    if (postController && postController.searchPosts) {
+      postController.searchPosts(tag || raw);
+      return true;
+    }
 
     if (!tag) return false;
     url =
@@ -1150,6 +1175,7 @@
             ? payload.data.posts
             : [];
         if (posts.length > 0) {
+          showLegacySearchResults({ data: { posts: posts } });
           setSearchFallbackNav(raw || tag);
         } else {
           showSearchFallbackNoResult(raw || tag);
@@ -1197,9 +1223,11 @@
 
   function advanceLegacyUpload(fileId) {
     var steps = legacyModule("stepController");
+    var input = legacyModule("inputController");
     if (!steps) return;
     steps.data = steps.data || {};
     steps.data.fileId = fileId;
+    if (input && input.unlock) input.unlock("upload-image");
     var image = new Image();
     image.onload = function () {
       steps.data.image = image;
@@ -1215,7 +1243,12 @@
     input.__revivalUploadFallbackActive = true;
     window.setTimeout(function () {
       var steps = legacyModule("stepController");
+      var inputController = legacyModule("inputController");
       if (steps && steps.data && steps.data.fileId) {
+        input.__revivalUploadFallbackActive = false;
+        return;
+      }
+      if ((window.__REVIVAL_UPLOAD_REQUESTS__ || 0) > 0) {
         input.__revivalUploadFallbackActive = false;
         return;
       }
@@ -1237,9 +1270,15 @@
         .then(function (payload) {
           if (payload && payload.success && payload.data && payload.data.fileId) {
             advanceLegacyUpload(payload.data.fileId);
+          } else if (inputController && inputController.unlock) {
+            inputController.unlock("upload-image");
           }
         })
-        .catch(function () {})
+        .catch(function () {
+          if (inputController && inputController.unlock) {
+            inputController.unlock("upload-image");
+          }
+        })
         .then(function () {
           input.__revivalUploadFallbackActive = false;
         });
