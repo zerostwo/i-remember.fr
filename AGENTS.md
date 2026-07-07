@@ -21,5 +21,6 @@ Current backend/product decisions:
 - The admin Menu section manages the public home page's original lower-right footer navigation, not the admin sidebar. Menu items can target editable pages, memories, searches, or external URLs.
 - Editable menu pages and Memory content use Markdown. Published pages are mirrored into long-form Memory entries so footer clicks can use the same search-like discovery and Read more card behavior as normal memories.
 - After UI direction is accepted, admin prototypes should be wired to real backend data and tested end to end before being treated as deliverable.
+- The public intro/loading screen should support click/tap fast-forward so repeat visits can quickly see both intro message groups and enter the app.
 - Do not commit generated QA artifacts, imported data snapshots, runtime database directories, SQLite files, or `db/`; keep migration source under `src/server/migrations/sqlite`.
 - After modifying this repository, create a clean ccc-style Conventional Commit before handing work back.

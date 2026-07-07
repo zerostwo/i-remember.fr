@@ -22,7 +22,10 @@
   window.I_REMEMBER_REVIVAL = {
     deterministic: deterministic,
     seed: parseInt(params.qaSeed || "20140430", 10),
-    devicePixelRatio: 1
+    devicePixelRatio: 1,
+    introFastForward: false,
+    introFastForwardComplete: false,
+    introAppInitialized: false
   };
 
   function localOrigin() {
@@ -277,6 +280,60 @@
     return parsed.href;
   }
 
+  function isLegacyMainScript(url) {
+    try {
+      var parsed = new URL(String(url || ""), window.location.href);
+      return parsed.origin === window.location.origin && /\/js\/main\.js$/.test(parsed.pathname);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function patchLegacyMainSource(source) {
+    var marker = 'define.amd={jQuery:!0}})(),define("../../build/almond"';
+    var replacement =
+      'define.amd={jQuery:!0}})(),window.__REVIVAL_REQUIREJS__=requirejs,' +
+      'window.__REVIVAL_REQUIRE__=require,window.__REVIVAL_DEFINE__=define,' +
+      'define("../../build/almond"';
+    if (source.indexOf(marker) === -1) return source;
+    return source.replace(marker, replacement);
+  }
+
+  function installPatchedLegacyMain(node, parent, referenceNode, originalInsertBefore, originalAppendChild) {
+    if (window.__REVIVAL_PATCHED_MAIN_LOADING__) return false;
+    window.__REVIVAL_PATCHED_MAIN_LOADING__ = true;
+
+    window.fetch(node.src, { credentials: "same-origin" })
+      .then(function (response) {
+        if (!response.ok) throw new Error("main_load_failed");
+        return response.text();
+      })
+      .then(function (source) {
+        var script = document.createElement("script");
+        script.text = patchLegacyMainSource(source) + "\n//# sourceURL=" + node.src.split("#")[0];
+        if (parent && referenceNode) {
+          originalInsertBefore.call(parent, script, referenceNode);
+        } else if (parent) {
+          originalAppendChild.call(parent, script);
+        } else {
+          document.head.appendChild(script);
+        }
+        completeScriptNode(node);
+      })
+      .catch(function () {
+        node.setAttribute("data-revival-main-fallback", "true");
+        if (parent && referenceNode) {
+          originalInsertBefore.call(parent, node, referenceNode);
+        } else if (parent) {
+          originalAppendChild.call(parent, node);
+        } else {
+          document.head.appendChild(node);
+        }
+      });
+
+    return true;
+  }
+
   function parseAjaxPayload(text) {
     var match;
     try {
@@ -513,9 +570,22 @@
     var originalAppendChild = Node.prototype.appendChild;
     var originalInsertBefore = Node.prototype.insertBefore;
 
-    function intercept(node) {
+    function intercept(node, parent, referenceNode) {
       if (!node || !node.tagName || node.tagName.toLowerCase() !== "script") {
         return false;
+      }
+
+      if (
+        isLegacyMainScript(node.src) &&
+        !node.getAttribute("data-revival-main-fallback")
+      ) {
+        return installPatchedLegacyMain(
+          node,
+          parent,
+          referenceNode,
+          originalInsertBefore,
+          originalAppendChild
+        );
       }
 
       var blockedType = blockedExternalScriptType(node.src);
@@ -554,12 +624,12 @@
     }
 
     Node.prototype.appendChild = function (node) {
-      if (intercept(node)) return node;
+      if (intercept(node, this, null)) return node;
       return originalAppendChild.apply(this, arguments);
     };
 
     Node.prototype.insertBefore = function (node) {
-      if (intercept(node)) return node;
+      if (intercept(node, this, arguments[1] || null)) return node;
       return originalInsertBefore.apply(this, arguments);
     };
 
@@ -769,9 +839,145 @@
   }
 
   function legacyModule(name) {
-    return window.requirejs && window.requirejs._defined
-      ? window.requirejs._defined[name]
+    var runtimeRequire = window.__REVIVAL_REQUIREJS__ || window.requirejs;
+    return runtimeRequire && runtimeRequire._defined
+      ? runtimeRequire._defined[name]
       : null;
+  }
+
+  function ensureIntroFastForwardStyles() {
+    if (document.getElementById("revival-intro-fast-forward-styles")) return;
+    var style = document.createElement("style");
+    style.id = "revival-intro-fast-forward-styles";
+    style.textContent = [
+      "html.is-intro-fast-forward .preloader{cursor:pointer}",
+      "html.is-intro-fast-forward .preloader .preloader-text-line{display:none!important;opacity:0!important}",
+      "html.is-intro-fast-forward .preloader[data-fast-forward-phase='first'] .preloader-text-line-1,html.is-intro-fast-forward .preloader[data-fast-forward-phase='first'] .preloader-text-line-2{display:block!important;opacity:.5!important}",
+      "html.is-intro-fast-forward .preloader[data-fast-forward-phase='second'] .preloader-text-line-3,html.is-intro-fast-forward .preloader[data-fast-forward-phase='second'] .preloader-text-line-4{display:block!important;opacity:.5!important}",
+      "html.is-intro-fast-forward-complete .preloader{display:none!important}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+
+  function elementIsVisible(element) {
+    var rect;
+    var style;
+    if (!element) return false;
+    style = window.getComputedStyle ? window.getComputedStyle(element) : element.style;
+    if (style.display === "none" || style.visibility === "hidden") return false;
+    rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  }
+
+  function preloaderIsActive() {
+    var preloader = document.querySelector(".preloader");
+    return elementIsVisible(preloader) && !window.I_REMEMBER_REVIVAL.introFastForwardComplete;
+  }
+
+  function setIntroFastForwardPhase(phase) {
+    var preloader = document.querySelector(".preloader");
+    if (!preloader) return;
+    preloader.setAttribute("data-fast-forward-phase", phase);
+  }
+
+  function wrapLegacyAppInit(ui) {
+    if (!ui || typeof ui._appInitFunc !== "function" || ui._revivalIntroInitWrapped) return;
+    var originalInit = ui._appInitFunc;
+    ui._appInitFunc = function () {
+      if (window.I_REMEMBER_REVIVAL.introAppInitialized) return null;
+      window.I_REMEMBER_REVIVAL.introAppInitialized = true;
+      return originalInit.apply(this, arguments);
+    };
+    ui._revivalIntroInitWrapped = true;
+  }
+
+  function legacyAssetsReadyForIntroExit() {
+    var config = legacyModule("config");
+    var preloader = legacyModule("preloaderController");
+    if (!config || !preloader || !preloader.getLoadedItemByURL) return false;
+    return !!preloader.getLoadedItemByURL(config.uiAssetPath);
+  }
+
+  function runLegacyIntroAppInit() {
+    var ui = legacyModule("uiController");
+    if (!ui || typeof ui._appInitFunc !== "function") return false;
+    if (!legacyAssetsReadyForIntroExit()) return false;
+    wrapLegacyAppInit(ui);
+    ui._appInitFunc();
+    return true;
+  }
+
+  function introReadyForExit() {
+    if (!document.querySelector(".app.show")) return false;
+    if (window.I_REMEMBER_REVIVAL.introAppInitialized) return true;
+    return (
+      elementIsVisible(document.querySelector(".add-steps-add-options")) ||
+      elementIsVisible(document.querySelector(".post-2d"))
+    );
+  }
+
+  function completeIntroFastForward() {
+    var preloader = document.querySelector(".preloader");
+    if (window.I_REMEMBER_REVIVAL.introFastForwardComplete) return;
+    window.I_REMEMBER_REVIVAL.introFastForwardComplete = true;
+    document.documentElement.classList.remove("is-intro-fast-forward");
+    document.documentElement.classList.add("is-intro-fast-forward-complete");
+    document.documentElement.setAttribute("data-intro-fast-forward", "complete");
+    if (preloader) {
+      preloader.removeAttribute("data-fast-forward-phase");
+      preloader.style.display = "none";
+    }
+  }
+
+  function pollIntroFastForward(startTime) {
+    if (!window.I_REMEMBER_REVIVAL.introFastForward) return;
+
+    if (runLegacyIntroAppInit() && introReadyForExit()) {
+      completeIntroFastForward();
+      return;
+    }
+
+    if (+(new Date()) - startTime > 12000) return;
+    window.setTimeout(function () {
+      pollIntroFastForward(startTime);
+    }, 80);
+  }
+
+  function startIntroFastForward() {
+    if (window.I_REMEMBER_REVIVAL.introFastForward || !preloaderIsActive()) return false;
+    window.I_REMEMBER_REVIVAL.introFastForward = true;
+    ensureIntroFastForwardStyles();
+    document.documentElement.classList.add("is-intro-fast-forward");
+    document.documentElement.setAttribute("data-intro-fast-forward", "requested");
+    setIntroFastForwardPhase("first");
+    window.setTimeout(function () {
+      setIntroFastForwardPhase("second");
+    }, 220);
+    window.setTimeout(function () {
+      pollIntroFastForward(+(new Date()));
+    }, 560);
+    return true;
+  }
+
+  function installIntroFastForward() {
+    function handlePointer(event) {
+      if (event.type !== "keydown" && !closest(event.target, ".preloader")) return;
+      if (!startIntroFastForward()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+    }
+
+    document.addEventListener("click", handlePointer, true);
+    document.addEventListener("touchstart", handlePointer, true);
+    document.addEventListener(
+      "keydown",
+      function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        handlePointer(event);
+      },
+      true
+    );
   }
 
   function showLegacySearchResults(payload) {
@@ -1057,6 +1263,7 @@
   }
 
   loadManagedFooter();
+  installIntroFastForward();
   installSearchFallback();
   installUploadWatchdog();
 
