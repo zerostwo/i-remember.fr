@@ -79,9 +79,31 @@ const menuTypes = ["PAGE", "MEMORY", "SEARCH", "EXTERNAL", "TERMS", "CREDITS", "
 const pageStatuses = ["PUBLISHED", "DRAFT", "ARCHIVED"];
 const memoryStatuses = ["published", "pending", "archived"];
 
-function routeFromHash() {
-  const value = window.location.hash.replace(/^#\/?/, "") || "dashboard";
-  return routeMap.has(value) ? value : "dashboard";
+function normalizeRouteId(value = "") {
+  const routeId = decodeURIComponent(String(value || ""))
+    .replace(/^\/+|\/+$/g, "")
+    .split("/")[0];
+  return routeMap.has(routeId) ? routeId : "dashboard";
+}
+
+function routeFromPathname(pathname = window.location.pathname) {
+  const normalized = pathname.replace(/\/+$/g, "") || "/admin";
+  if (normalized === "/admin" || normalized === "/admin/index.html") return "dashboard";
+  if (!normalized.startsWith("/admin/")) return "dashboard";
+  return normalizeRouteId(normalized.slice("/admin/".length));
+}
+
+function routeFromLegacyHash(hash = window.location.hash) {
+  const routeId = String(hash || "").replace(/^#\/?/, "");
+  return routeId ? normalizeRouteId(routeId) : "";
+}
+
+function routeFromLocation() {
+  return routeFromLegacyHash() || routeFromPathname();
+}
+
+function pathForRoute(routeId) {
+  return `/admin/${normalizeRouteId(routeId)}`;
 }
 
 async function api(path, options = {}) {
@@ -247,7 +269,7 @@ export function AdminApp() {
   const [authenticated, setAuthenticated] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [language, setLanguage] = useState(() => localStorage.getItem("iRememberAdminLanguage") || "en");
-  const [route, setRoute] = useState(routeFromHash);
+  const [route, setRoute] = useState(routeFromLocation);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState("");
@@ -298,9 +320,19 @@ export function AdminApp() {
   }, [language]);
 
   useEffect(() => {
-    const handleHash = () => setRoute(routeFromHash());
-    window.addEventListener("hashchange", handleHash);
-    return () => window.removeEventListener("hashchange", handleHash);
+    const legacyRoute = routeFromLegacyHash();
+    if (legacyRoute) {
+      window.history.replaceState({ route: legacyRoute }, "", pathForRoute(legacyRoute));
+      setRoute(legacyRoute);
+    }
+
+    const handleLocation = () => setRoute(routeFromLocation());
+    window.addEventListener("popstate", handleLocation);
+    window.addEventListener("hashchange", handleLocation);
+    return () => {
+      window.removeEventListener("popstate", handleLocation);
+      window.removeEventListener("hashchange", handleLocation);
+    };
   }, []);
 
   useEffect(() => {
@@ -309,7 +341,10 @@ export function AdminApp() {
 
   function navigate(nextRoute) {
     const target = routeMap.has(nextRoute) ? nextRoute : "dashboard";
-    window.location.hash = target;
+    const targetPath = pathForRoute(target);
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({ route: target }, "", targetPath);
+    }
     setRoute(target);
   }
 
@@ -336,7 +371,8 @@ export function AdminApp() {
     await api("/api/admin/logout", { method: "POST" }).catch(() => null);
     setAuthenticated(false);
     setData(null);
-    window.location.hash = "";
+    window.history.replaceState({ route: "dashboard" }, "", "/admin");
+    setRoute("dashboard");
   }
 
   function handleLanguage(nextLanguage) {
@@ -591,6 +627,7 @@ export function AdminApp() {
                 setupTwoFactor={setupTwoFactor}
                 enableTwoFactor={enableTwoFactor}
                 disableTwoFactor={disableTwoFactor}
+                navigate={navigate}
               />
             ) : null}
           </div>
@@ -771,7 +808,7 @@ function AdminRoute(props) {
     case "backups":
       return <BackupsView />;
     default:
-      return <DashboardView data={props.data} navigate={() => window.location.assign("#memory")} />;
+      return <DashboardView data={props.data} navigate={() => props.navigate("memory")} />;
   }
 }
 

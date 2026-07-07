@@ -1986,7 +1986,12 @@ function instagramTokenCallbackRequested(pathname) {
 }
 
 function adminPageRequested(pathname) {
-  return pathname === "/admin" || pathname === "/admin/" || pathname === "/admin/index.html";
+  const normalized = pathname.replace(/\/+$/g, "") || "/admin";
+  return (
+    normalized === "/admin" ||
+    normalized === "/admin/index.html" ||
+    /^\/admin\/(?:dashboard|memory|pages|comments|attachments|theme|menus|settings|backups)$/.test(normalized)
+  );
 }
 
 function adminHtmlUrlForMode({ production = false } = {}) {
