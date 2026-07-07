@@ -1,0 +1,25 @@
+<html>
+    <head>
+        <title>Redirect</title>
+        <script>
+            (function () {
+                var token = window.location.href.split('access_token=')[1];
+                try {
+                    window.opener.captureInstagramToken(token);
+                }
+                catch (err) {
+                }
+                try {
+                    window.close();
+                    return false;
+                }
+                catch (err) {
+                    window.location.href = '/';
+                }
+            }());
+        </script>
+    </head>
+    <body>
+
+    </body>
+</html>

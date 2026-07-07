@@ -1,0 +1,126 @@
+@font-face {
+  font-family: "ITC Century W01 Book";
+  src: url("/fonts/542ac53f-a0a5-44ac-ac30-822ce4bcbb3a.woff") format("woff");
+}
+
+@font-face {
+  font-family: "ITC Century W01 Bold";
+  src: url("/fonts/48bc6d9a-821f-4d40-ae05-4023923a5a2e.woff") format("woff");
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+}
+
+.i-remember-admin {
+  --background: oklch(0.115 0.004 80);
+  --foreground: oklch(0.97 0.006 80);
+  --card: oklch(0.165 0.006 80);
+  --card-foreground: oklch(0.97 0.006 80);
+  --popover: oklch(0.18 0.006 80);
+  --popover-foreground: oklch(0.97 0.006 80);
+  --primary: oklch(0.92 0.02 84);
+  --primary-foreground: oklch(0.12 0.004 80);
+  --secondary: oklch(0.245 0.008 80);
+  --secondary-foreground: oklch(0.94 0.006 80);
+  --muted: oklch(0.235 0.006 80);
+  --muted-foreground: oklch(0.68 0.012 80);
+  --accent: oklch(0.25 0.016 72);
+  --accent-foreground: oklch(0.96 0.006 80);
+  --destructive: oklch(0.68 0.15 25);
+  --border: oklch(1 0 0 / 13%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.78 0.02 84);
+  --radius: 0.5rem;
+}
+
+.archive-serif {
+  font-family: "ITC Century W01 Bold", Georgia, serif;
+}
+
+.login-frame {
+  background:
+    linear-gradient(90deg, oklch(0.17 0.008 80), oklch(0.125 0.004 80)),
+    var(--card);
+}
+
+.fade-ring {
+  align-items: center;
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in oklch, var(--foreground), transparent 38%);
+  border-radius: 50%;
+  display: grid;
+  justify-items: center;
+  padding: 1rem;
+  width: 6rem;
+}
+
+.fade-ring strong {
+  font-family: "ITC Century W01 Bold", Georgia, serif;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.fade-ring span {
+  max-width: 4rem;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  line-height: 1.15;
+}
+
+.markdown-preview h1,
+.markdown-preview h2,
+.markdown-preview h3 {
+  color: var(--foreground);
+  font-family: "ITC Century W01 Bold", Georgia, serif;
+  margin: 0 0 0.65rem;
+}
+
+.markdown-preview h1 {
+  font-size: 1.35rem;
+}
+
+.markdown-preview h2 {
+  font-size: 1.15rem;
+}
+
+.markdown-preview h3 {
+  font-size: 1rem;
+}
+
+.markdown-preview p,
+.markdown-preview li {
+  color: var(--muted-foreground);
+  line-height: 1.65;
+  margin: 0 0 0.75rem;
+}
+
+.markdown-preview ul {
+  list-style: disc;
+  margin: 0 0 0.75rem 1.2rem;
+  padding: 0;
+}
+
+.markdown-preview code {
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.3rem;
+}
+
+.markdown-preview a {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.theme-preview {
+  aspect-ratio: 16 / 9;
+  background:
+    linear-gradient(90deg, transparent 0 8%, color-mix(in oklch, var(--foreground), transparent 92%) 8% 8.3%, transparent 8.3% 100%),
+    linear-gradient(180deg, oklch(0.115 0.004 80), oklch(0.18 0.016 72));
+}

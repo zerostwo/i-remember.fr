@@ -1,0 +1,16 @@
+Copyright and License Notice
+
+This repository is not licensed as open-source software as a whole.
+
+It contains a restored and modified version of the original I Remember website
+experience. The original website materials, including but not limited to
+frontend code, visual design, brand elements, text, images, audio, fonts,
+animations, and other media, remain subject to their original owners' rights.
+No license is granted here for those third-party materials.
+
+New backend, admin, deployment, and integration code in this repository may be
+separated and licensed under a standard open-source license later, but no such
+grant applies to the combined repository unless a separate written license file
+or notice explicitly says so.
+
+All rights are reserved unless otherwise stated in a file-specific notice.
