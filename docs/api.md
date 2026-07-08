@@ -12,7 +12,24 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 - `GET /api/v1/search`
 - `GET /api/v1/users`
 - `GET /api/v1/assets`
+- `POST /api/v1/assets`
+- `GET /api/v1/assets/:key`
+- `DELETE /api/v1/assets/:key`
 - `POST /api/v1/auth/login`
+
+`POST /api/v1/assets` accepts an admin-authenticated JSON body:
+
+```json
+{
+  "key": "memory/example.jpg",
+  "contentBase64": "...",
+  "contentType": "image/jpeg",
+  "metadata": {}
+}
+```
+
+The storage layer returns a URL from the configured local filesystem adapter or
+an S3-compatible adapter.
 
 ## Architecture
 
@@ -21,6 +38,7 @@ The API app is split into:
 - controllers: HTTP request/response translation.
 - services: business rules and permissions.
 - repositories: Prisma persistence.
+- storage: local filesystem or S3-compatible upload/delete/getUrl adapter.
 - validation: JSON input parsing and shape checks.
 - auth: bearer-token admin auth and role guards.
 

@@ -3,7 +3,7 @@ import type { MemoryRecord } from "./domain.js";
 import { ApiError } from "./errors.js";
 import { readJson, type RequestContext } from "./http.js";
 import { AssetService, MemoryService, UserService } from "./services.js";
-import { memoryInput } from "./validation.js";
+import { assetUploadInput, memoryInput } from "./validation.js";
 
 function memoryDto(memory: MemoryRecord) {
   return {
@@ -89,6 +89,25 @@ export class AssetController {
   async list(context: RequestContext) {
     const limit = Number(context.url.searchParams.get("limit") || 80);
     const data = await this.assets.list(authenticate(context.req), limit);
+    return { success: true, data };
+  }
+
+  async upload(context: RequestContext) {
+    const data = await this.assets.upload(
+      authenticate(context.req),
+      assetUploadInput(await readJson(context.req)),
+    );
+    context.res.statusCode = 201;
+    return { success: true, data };
+  }
+
+  async getUrl(context: RequestContext) {
+    const data = this.assets.getUrl(authenticate(context.req), context.params.key);
+    return { success: true, data };
+  }
+
+  async delete(context: RequestContext) {
+    const data = await this.assets.delete(authenticate(context.req), context.params.key);
     return { success: true, data };
   }
 }

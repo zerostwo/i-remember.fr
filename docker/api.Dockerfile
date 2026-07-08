@@ -28,6 +28,8 @@ COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=node:node /app/packages/database/package.json ./packages/database/package.json
 COPY --from=build --chown=node:node /app/packages/database/dist ./packages/database/dist
 COPY --from=build --chown=node:node /app/packages/database/prisma ./packages/database/prisma
+COPY --from=build --chown=node:node /app/packages/storage/package.json ./packages/storage/package.json
+COPY --from=build --chown=node:node /app/packages/storage/src ./packages/storage/src
 RUN mkdir -p /var/opt/i-remember-assets && chown node:node /var/opt/i-remember-assets
 USER node
 EXPOSE 7892

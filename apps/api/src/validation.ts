@@ -1,4 +1,4 @@
-import type { MemoryInput, Visibility } from "./domain.js";
+import type { AssetUploadInput, MemoryInput, Visibility } from "./domain.js";
 import { ApiError } from "./errors.js";
 
 const visibilityValues = new Set(["PUBLIC", "UNLISTED", "PRIVATE"]);
@@ -36,6 +36,28 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
     latitude: optionalNumber(value.latitude),
     longitude: optionalNumber(value.longitude),
     emotion: value.emotion ? text(value.emotion, "", 80) : undefined,
+    metadata:
+      value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)
+        ? (value.metadata as Record<string, unknown>)
+        : undefined,
+  };
+}
+
+export function assetUploadInput(value: Record<string, unknown>): AssetUploadInput {
+  const key = text(value.key ?? value.filename, "", 240);
+  const rawContent = text(value.contentBase64 ?? value.data, "", 15 * 1024 * 1024);
+  const contentBase64 = rawContent.includes(",") ? rawContent.split(",").pop() || "" : rawContent;
+  const contentType = value.contentType
+    ? text(value.contentType, "", 120)
+    : "application/octet-stream";
+
+  if (!key) throw new ApiError(400, "Asset key is required", "missing_asset_key");
+  if (!contentBase64) throw new ApiError(400, "Asset content is required", "missing_asset_content");
+
+  return {
+    key,
+    contentBase64,
+    contentType,
     metadata:
       value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)
         ? (value.metadata as Record<string, unknown>)

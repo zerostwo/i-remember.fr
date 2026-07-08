@@ -51,3 +51,17 @@ export type AssetRecord = {
   metadata?: Record<string, unknown> | null;
   createdAt: Date;
 };
+
+export type AssetUploadInput = {
+  key: string;
+  contentBase64: string;
+  contentType?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type AssetUploadResult = {
+  key: string;
+  url: string;
+  type: string;
+  metadata?: Record<string, unknown>;
+};

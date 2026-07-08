@@ -69,6 +69,8 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@i-remember.fr}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-before-production}
       STORAGE_PATH: ${STORAGE_PATH:-/var/opt/i-remember-assets}
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-/uploads}
+      API_MAX_JSON_BODY_BYTES: ${API_MAX_JSON_BODY_BYTES:-12582912}
     volumes:
       - api-assets:/var/opt/i-remember-assets
     depends_on:

@@ -9,6 +9,7 @@ import type {
   MemoryRepository,
   UserRepository,
 } from "./repositories.js";
+import type { StorageAdapter } from "@i-remember/storage";
 
 class MemoryRepo implements MemoryRepository {
   memories: MemoryRecord[] = [
@@ -90,6 +91,23 @@ class AssetRepo implements AssetRepository {
   }
 }
 
+class Storage implements StorageAdapter {
+  keys = new Set<string>();
+
+  async upload(key: string) {
+    this.keys.add(key);
+    return `/uploads/${key}`;
+  }
+
+  async delete(key: string) {
+    this.keys.delete(key);
+  }
+
+  getUrl(key: string) {
+    return `/uploads/${key}`;
+  }
+}
+
 process.env.AUTH_SECRET = "test-secret";
 process.env.ADMIN_EMAIL = "admin@example.com";
 process.env.ADMIN_PASSWORD = "password123456";
@@ -98,6 +116,7 @@ const middleware = createApiV1Middleware({
   memories: new MemoryRepo(),
   users: new UserRepo(),
   assets: new AssetRepo(),
+  storage: new Storage(),
 });
 const server = createServer((req, res) => {
   middleware(req, res, () => {
@@ -138,6 +157,29 @@ const authorized = await json("/api/v1/users", {
 });
 assert.equal(authorized.response.status, 200);
 assert.equal(authorized.body.data[0].role, "ADMIN");
+
+const uploaded = await json("/api/v1/assets", {
+  method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    key: "asset-test.txt",
+    contentBase64: Buffer.from("asset smoke").toString("base64"),
+    contentType: "text/plain",
+  }),
+});
+assert.equal(uploaded.response.status, 201);
+assert.equal(uploaded.body.data.url, "/uploads/asset-test.txt");
+
+const assetUrl = await json("/api/v1/assets/asset-test.txt", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(assetUrl.body.data.url, "/uploads/asset-test.txt");
+
+const deleted = await json("/api/v1/assets/asset-test.txt", {
+  method: "DELETE",
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(deleted.body.data.deleted, true);
 
 await new Promise<void>((resolve, reject) => {
   server.close((error) => (error ? reject(error) : resolve()));

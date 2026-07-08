@@ -1,4 +1,6 @@
-import type { MemoryInput, Principal } from "./domain.js";
+import { join } from "node:path";
+import { createLocalStorage, type StorageAdapter } from "@i-remember/storage";
+import type { AssetUploadInput, MemoryInput, Principal } from "./domain.js";
 import { requireRole } from "./auth.js";
 import type { AssetRepository, MemoryRepository, UserRepository } from "./repositories.js";
 
@@ -38,10 +40,43 @@ export class UserService {
 }
 
 export class AssetService {
-  constructor(private readonly assets: AssetRepository) {}
+  constructor(
+    private readonly assets: AssetRepository,
+    private readonly storage: StorageAdapter = createLocalStorage({
+      rootDir: process.env.STORAGE_PATH || join(process.cwd(), ".revival-storage"),
+      publicBaseUrl: process.env.STORAGE_PUBLIC_BASE_URL || "/uploads",
+    }),
+  ) {}
 
   list(principal: Principal, limit: number) {
     requireRole(principal, ["ADMIN"]);
     return this.assets.list(limit);
+  }
+
+  async upload(principal: Principal, input: AssetUploadInput) {
+    requireRole(principal, ["ADMIN"]);
+    const data = Buffer.from(input.contentBase64, "base64");
+    if (!data.length) throw new Error("Asset content decoded to an empty file");
+    const url = await this.storage.upload(input.key, data, { contentType: input.contentType });
+    return {
+      key: input.key,
+      url,
+      type: input.contentType || "application/octet-stream",
+      metadata: input.metadata,
+    };
+  }
+
+  getUrl(principal: Principal, key: string) {
+    requireRole(principal, ["ADMIN"]);
+    return {
+      key,
+      url: this.storage.getUrl(key),
+    };
+  }
+
+  async delete(principal: Principal, key: string) {
+    requireRole(principal, ["ADMIN"]);
+    await this.storage.delete(key);
+    return { key, deleted: true };
   }
 }

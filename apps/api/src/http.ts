@@ -1,7 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ApiError, errorBody } from "./errors.js";
 
-const maxJsonBodyBytes = 128 * 1024;
+const maxJsonBodyBytes = Number.parseInt(
+  process.env.API_MAX_JSON_BODY_BYTES ||
+    process.env.I_REMEMBER_MAX_UPLOAD_BYTES ||
+    `${12 * 1024 * 1024}`,
+  10,
+);
 
 export type RequestContext = {
   req: IncomingMessage;
