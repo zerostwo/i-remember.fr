@@ -34,14 +34,8 @@ URL is `http://127.0.0.1:7890/`.
 
 Admin is available at `/admin/`.
 
-Default local admin credentials are:
-
-```text
-admin@i-remember.fr
-prototype
-```
-
-Set `I_REMEMBER_ADMIN_EMAIL` and `I_REMEMBER_ADMIN_PASSWORD` before deployment.
+On a fresh database, the first visit redirects to `/admin/setup` so you can
+create the first administrator.
 
 The running app exposes its build version at `/version`.
 
@@ -63,7 +57,10 @@ Copy `.env.example` into your deployment environment and set:
 - `I_REMEMBER_DEFAULT_LANGUAGE`: `en`, `fr`, or `zh`.
 - `I_REMEMBER_ANONYMOUS_SUBMISSIONS`: `true` or `false`.
 - `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`: keep `false` unless the site is private.
-- `I_REMEMBER_ADMIN_EMAIL` and `I_REMEMBER_ADMIN_PASSWORD`.
+- `I_REMEMBER_SEED_ARCHIVE_DATA`: set `true` only when you want to import the
+  restored public archive into a fresh database.
+- `I_REMEMBER_SEED_STARTER_CONTENT`: set `true` only when you want starter
+  pages and footer menu items in a fresh database.
 - `UMAMI_SRC` and `UMAMI_WEBSITE_ID` for self-hosted Umami tracking.
 
 ## Repository Hygiene

@@ -267,6 +267,7 @@ function MarkdownPreview({ value }) {
 
 export function AdminApp() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [language, setLanguage] = useState(() => localStorage.getItem("iRememberAdminLanguage") || "en");
   const [route, setRoute] = useState(routeFromLocation);
@@ -284,7 +285,10 @@ export function AdminApp() {
     let active = true;
     api("/api/admin/session")
       .then((session) => {
-        if (active) setAuthenticated(Boolean(session.authenticated));
+        if (active) {
+          setNeedsSetup(Boolean(session.needsSetup));
+          setAuthenticated(Boolean(session.authenticated));
+        }
       })
       .catch(() => {
         if (active) setAuthenticated(false);
@@ -362,6 +366,27 @@ export function AdminApp() {
     } catch (loginError) {
       setError(loginError.message);
       throw loginError;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSetup(credentials) {
+    setLoading(true);
+    setError("");
+    try {
+      const session = await api("/api/admin/setup", {
+        method: "POST",
+        body: JSON.stringify(credentials),
+      });
+      setNeedsSetup(false);
+      setAuthenticated(true);
+      window.history.replaceState({ route: "dashboard" }, "", "/admin");
+      setRoute("dashboard");
+      return session;
+    } catch (setupError) {
+      setError(setupError.message);
+      throw setupError;
     } finally {
       setLoading(false);
     }
@@ -554,6 +579,7 @@ export function AdminApp() {
   }
 
   if (!authenticated) {
+    if (needsSetup) return <SetupScreen loading={loading} onSetup={handleSetup} />;
     return <LoginScreen loading={loading} onLogin={handleLogin} />;
   }
 
@@ -638,8 +664,8 @@ export function AdminApp() {
 }
 
 function LoginScreen({ loading, onLogin }) {
-  const [email, setEmail] = useState("admin@i-remember.fr");
-  const [password, setPassword] = useState("prototype");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [totp, setTotp] = useState("");
   const [requiresTwoFactor, setRequiresTwoFactor] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -680,12 +706,12 @@ function LoginScreen({ loading, onLogin }) {
           <Card className="w-full rounded-lg border-0 bg-transparent shadow-none ring-0">
             <CardHeader className="px-0">
               <CardTitle className="archive-serif text-4xl">Admin login</CardTitle>
-            <CardDescription>Use the configured admin account for this deployment.</CardDescription>
+            <CardDescription>Use the admin account for this deployment.</CardDescription>
             </CardHeader>
             <CardContent className="px-0">
               <form className="grid gap-5" onSubmit={submitLogin}>
                 <FieldGroup>
-                  <TextField label="Email" value={email} onChange={setEmail} type="email" autoComplete="username" />
+                  <TextField label="Username or email" value={email} onChange={setEmail} autoComplete="username" />
                   <TextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="current-password" />
                   {requiresTwoFactor ? (
                     <TextField label="Two-factor code" value={totp} onChange={setTotp} inputMode="numeric" autoComplete="one-time-code" />
@@ -694,6 +720,64 @@ function LoginScreen({ loading, onLogin }) {
                 {loginError ? <StatusMessage variant="error" message={loginError} /> : null}
                 <Button className="w-full" disabled={loading} type="submit" size="lg">
                   Enter admin
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function SetupScreen({ loading, onSetup }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [setupError, setSetupError] = useState("");
+
+  async function submitSetup(event) {
+    event.preventDefault();
+    setSetupError("");
+    try {
+      await onSetup({ email, password });
+    } catch (error) {
+      setSetupError(error.message);
+    }
+  }
+
+  return (
+    <main className="i-remember-admin dark grid min-h-screen place-items-center bg-background p-4 text-foreground">
+      <div className="login-frame grid w-full max-w-5xl overflow-hidden rounded-lg border bg-card shadow-2xl md:grid-cols-[1.1fr_0.9fr]">
+        <section className="hidden min-h-[540px] border-r p-10 md:flex md:flex-col md:justify-between">
+          <div>
+            <p className="text-xs font-medium uppercase text-muted-foreground">first run</p>
+            <h1 className="archive-serif mt-4 max-w-lg text-6xl font-semibold leading-none">I Remember</h1>
+          </div>
+          <div className="grid gap-4">
+            <div className="fade-ring">
+              <strong>0</strong>
+              <span>memories yet</span>
+            </div>
+            <p className="max-w-md text-sm leading-6 text-muted-foreground">
+              Create the first administrator before the public archive opens.
+            </p>
+          </div>
+        </section>
+        <section className="flex min-h-[540px] items-center p-5 sm:p-8">
+          <Card className="w-full rounded-lg border-0 bg-transparent shadow-none ring-0">
+            <CardHeader className="px-0">
+              <CardTitle className="archive-serif text-4xl">Create admin</CardTitle>
+              <CardDescription>Set the first administrator for this deployment.</CardDescription>
+            </CardHeader>
+            <CardContent className="px-0">
+              <form className="grid gap-5" onSubmit={submitSetup}>
+                <FieldGroup>
+                  <TextField label="Username or email" value={email} onChange={setEmail} autoComplete="username" />
+                  <TextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
+                </FieldGroup>
+                {setupError ? <StatusMessage variant="error" message={setupError} /> : null}
+                <Button className="w-full" disabled={loading} type="submit" size="lg">
+                  Create admin
                 </Button>
               </form>
             </CardContent>

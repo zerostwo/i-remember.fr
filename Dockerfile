@@ -1,4 +1,6 @@
 FROM node:22-slim AS deps
+ENV NPM_CONFIG_AUDIT=false
+ENV NPM_CONFIG_FUND=false
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
@@ -7,6 +9,8 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 FROM node:22-slim AS prod-deps
+ENV NPM_CONFIG_AUDIT=false
+ENV NPM_CONFIG_FUND=false
 WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
@@ -27,17 +31,17 @@ ENV PORT=7890
 ENV I_REMEMBER_DATA_DIR=/var/opt/i-remember.fr
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/server.mjs ./server.mjs
-COPY --from=build /app/src ./src
-COPY --from=build /app/index.html ./index.html
-COPY --from=build /app/fr.html ./fr.html
-COPY --from=build /app/legal.html ./legal.html
-COPY --from=build /app/public ./public
+COPY --chown=node:node package.json package-lock.json ./
+COPY --chown=node:node --from=prod-deps /app/node_modules ./node_modules
+COPY --chown=node:node --from=build /app/dist ./dist
+COPY --chown=node:node --from=build /app/server.mjs ./server.mjs
+COPY --chown=node:node --from=build /app/src/server ./src/server
+COPY --chown=node:node --from=build /app/index.html ./index.html
+COPY --chown=node:node --from=build /app/fr.html ./fr.html
+COPY --chown=node:node --from=build /app/legal.html ./legal.html
+COPY --chown=node:node --from=build /app/public ./public
 RUN mkdir -p /var/opt/i-remember.fr \
-  && chown -R node:node /var/opt/i-remember.fr /app
+  && chown node:node /var/opt/i-remember.fr
 USER node
 
 EXPOSE 7890

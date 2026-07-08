@@ -33,6 +33,8 @@ const maxImagePixels = Number.parseInt(
 );
 const autoApproveSubmissions =
   process.env.I_REMEMBER_AUTO_APPROVE_SUBMISSIONS === "true";
+const seedArchiveData = process.env.I_REMEMBER_SEED_ARCHIVE_DATA === "true";
+const seedStarterContent = process.env.I_REMEMBER_SEED_STARTER_CONTENT === "true";
 const sessionCookieName = "i_remember_admin_session";
 const sessionMaxAgeSeconds = 60 * 60 * 12;
 const adminSessions = new Map();
@@ -1339,8 +1341,8 @@ class RevivalBackend {
     this.store = new RevivalSQLiteStore();
     this.ensureAdminAccount();
     this.ensureSiteSettings();
-    this.seedArchiveData();
-    this.seedAdminContent();
+    if (seedArchiveData) this.seedArchiveData();
+    if (seedStarterContent) this.seedAdminContent();
   }
 
   get mode() {
@@ -1348,19 +1350,9 @@ class RevivalBackend {
   }
 
   ensureAdminAccount() {
-    const email = this.store.getSetting(
-      "admin.email",
-      process.env.I_REMEMBER_ADMIN_EMAIL || "admin@i-remember.fr",
-    );
-    const passwordHash = this.store.getSetting("admin.password_hash", "");
-    const updates = { "admin.email": email };
-    if (!passwordHash) {
-      updates["admin.password_hash"] = hashPassword(process.env.I_REMEMBER_ADMIN_PASSWORD || "prototype");
-    }
     if (this.store.getSetting("admin.two_factor_enabled", null) === null) {
-      updates["admin.two_factor_enabled"] = "false";
+      this.store.setSetting("admin.two_factor_enabled", "false");
     }
-    this.store.setSettings(updates);
   }
 
   ensureSiteSettings() {
@@ -1392,9 +1384,13 @@ class RevivalBackend {
 
   adminAccount() {
     return {
-      email: this.store.getSetting("admin.email", "admin@i-remember.fr"),
+      email: this.store.getSetting("admin.email", ""),
       twoFactorEnabled: boolSetting(this.store.getSetting("admin.two_factor_enabled", "false"), false),
     };
+  }
+
+  needsAdminSetup() {
+    return !this.store.getSetting("admin.password_hash", "");
   }
 
   publicAdminProfile() {
@@ -1405,8 +1401,11 @@ class RevivalBackend {
   }
 
   loginAdmin(input = {}) {
+    if (this.needsAdminSetup()) {
+      throw new HttpError(409, "Admin setup is required", "admin_setup_required");
+    }
     const account = this.adminAccount();
-    const email = String(input.email || "").trim().toLowerCase();
+    const email = String(input.email || input.username || "").trim().toLowerCase();
     const expectedEmail = String(account.email || "").trim().toLowerCase();
     const passwordHash = this.store.getSetting("admin.password_hash", "");
     if (!email || email !== expectedEmail || !verifyPassword(input.password, passwordHash)) {
@@ -1425,6 +1424,24 @@ class RevivalBackend {
       requiresTwoFactor: false,
       account: this.publicAdminProfile(),
     };
+  }
+
+  setupAdmin(input = {}) {
+    if (!this.needsAdminSetup()) {
+      throw new HttpError(409, "Admin account already exists", "admin_exists");
+    }
+    const email = cleanText(input.email || input.username, "", 180);
+    const password = String(input.password || "");
+    if (!email) throw new HttpError(400, "Username or email is required", "missing_email");
+    if (password.length < 10) {
+      throw new HttpError(400, "Password must be at least 10 characters", "weak_password");
+    }
+    this.store.setSettings({
+      "admin.email": email,
+      "admin.password_hash": hashPassword(password),
+      "admin.two_factor_enabled": "false",
+    });
+    return this.publicAdminProfile();
   }
 
   updateSiteSettings(input = {}) {
@@ -1990,6 +2007,7 @@ function adminPageRequested(pathname) {
   return (
     normalized === "/admin" ||
     normalized === "/admin/index.html" ||
+    normalized === "/admin/setup" ||
     /^\/admin\/(?:dashboard|memory|pages|comments|attachments|theme|menus|settings|backups)$/.test(normalized)
   );
 }
@@ -2293,8 +2311,27 @@ async function handleRequest(backend, req, res, next, options = {}) {
     sendJson(req, res, {
       success: true,
       data: {
+        needsSetup: backend.needsAdminSetup(),
         authenticated: Boolean(session),
         account: session ? backend.publicAdminProfile() : null,
+      },
+    });
+    return;
+  }
+
+  if (pathname === "/api/admin/setup" && req.method === "POST") {
+    assertSameOrigin(req);
+    assertRateLimit(req, "admin-setup", 12, 10 * 60 * 1000);
+    const body = await collectRequest(req, maxJsonBodyBytes);
+    const input = parseJsonObject(body);
+    const account = backend.setupAdmin(input);
+    const token = createAdminSession(account.email);
+    setAdminCookie(res, token);
+    sendJson(req, res, {
+      success: true,
+      data: {
+        authenticated: true,
+        account,
       },
     });
     return;
@@ -2491,6 +2528,13 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
     if (legalPageRequested(pathname)) {
       sendHtml(res, readFileSync(legalHtmlUrl, "utf8"));
+      return;
+    }
+
+    if (backend.needsAdminSetup() && appShellRequested(pathname)) {
+      res.statusCode = 302;
+      res.setHeader("Location", "/admin/setup");
+      res.end();
       return;
     }
 
