@@ -21,6 +21,9 @@ The published image names use:
 - `TAG`
 
 Compose appends `-web`, `-admin`, and `-api` to the configured image base.
+`web` and `admin` share the same archive compatibility data volume while the
+public archive still reads legacy SQLite data; production API state lives in
+PostgreSQL.
 
 ## Runtime Environment
 
