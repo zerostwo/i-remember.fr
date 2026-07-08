@@ -10,6 +10,7 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 - `PATCH /api/v1/memories/:id`
 - `DELETE /api/v1/memories/:id`
 - `GET /api/v1/search`
+- `POST /api/v1/agent`
 - `GET /api/v1/dashboard`
 - `GET /api/v1/users`
 - `GET /api/v1/assets`
@@ -33,6 +34,11 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 The storage layer returns a URL from the configured local filesystem adapter or
 an S3-compatible adapter. When `memoryId` is present, the upload is also stored
 as a Prisma `Attachment` for that memory.
+
+`POST /api/v1/agent` is the first-pass HTTP agent surface. It accepts an
+anonymous or authenticated JSON body like `{"query":"Paris","limit":5}` and
+returns a deterministic answer plus `/memory/:id` citations from public,
+published memories. It does not expose MCP or call an external model yet.
 
 `PATCH /api/v1/memories/:id` is admin-only and accepts partial edits, including
 moderation status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`.

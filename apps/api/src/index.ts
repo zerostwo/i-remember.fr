@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  AgentController,
   AuthController,
   AssetController,
   DashboardController,
@@ -14,7 +15,13 @@ import {
   PrismaUserRepository,
 } from "./prisma-repositories.js";
 import type { AssetRepository, MemoryRepository, UserRepository } from "./repositories.js";
-import { AssetService, DashboardService, MemoryService, UserService } from "./services.js";
+import {
+  AgentService,
+  AssetService,
+  DashboardService,
+  MemoryService,
+  UserService,
+} from "./services.js";
 import type { StorageAdapter } from "@i-remember/storage";
 
 export type ApiDependencies = {
@@ -32,9 +39,11 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   const userService = new UserService(userRepository);
   const assetService = new AssetService(assetRepository, dependencies.storage);
   const dashboardService = new DashboardService(memoryRepository, userRepository);
+  const agentService = new AgentService(memoryService);
   const memories = new MemoryController(memoryService);
   const dashboard = new DashboardController(dashboardService);
   const search = new SearchController(memoryService);
+  const agent = new AgentController(agentService);
   const users = new UserController(userService);
   const assets = new AssetController(assetService);
   const auth = new AuthController();
@@ -46,6 +55,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   router.add("PATCH", "/api/v1/memories/:id", (context) => memories.update(context));
   router.add("DELETE", "/api/v1/memories/:id", (context) => memories.archive(context));
   router.add("GET", "/api/v1/search", (context) => search.search(context));
+  router.add("POST", "/api/v1/agent", (context) => agent.answer(context));
   router.add("GET", "/api/v1/dashboard", (context) => dashboard.summary(context));
   router.add("GET", "/api/v1/users", (context) => users.list(context));
   router.add("GET", "/api/v1/assets", (context) => assets.list(context));

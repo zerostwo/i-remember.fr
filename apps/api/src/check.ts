@@ -214,6 +214,20 @@ assert.equal((await json("/api/v1/memories")).body.data[0].id, "pub_1");
 assert.equal((await json("/api/v1/search?q=first")).body.data.length, 1);
 assert.equal((await json("/api/v1/memories/pub_1")).body.data.title, "First memory");
 
+const agent = await json("/api/v1/agent", {
+  method: "POST",
+  body: JSON.stringify({ query: "first", limit: 3 }),
+});
+assert.equal(agent.response.status, 200);
+assert.equal(agent.body.data.citations[0].id, "pub_1");
+assert.equal(agent.body.data.citations[0].url, "/memory/pub_1");
+
+const emptyAgent = await json("/api/v1/agent", {
+  method: "POST",
+  body: JSON.stringify({ query: "" }),
+});
+assert.equal(emptyAgent.response.status, 400);
+
 const created = await json("/api/v1/memories", {
   method: "POST",
   body: JSON.stringify({

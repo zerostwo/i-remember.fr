@@ -1,6 +1,14 @@
 import { join } from "node:path";
 import { createLocalStorage, type StorageAdapter } from "@i-remember/storage";
-import type { AssetUploadInput, MemoryInput, MemoryUpdateInput, Principal } from "./domain.js";
+import type {
+  AgentAnswer,
+  AgentQueryInput,
+  AssetUploadInput,
+  MemoryInput,
+  MemoryRecord,
+  MemoryUpdateInput,
+  Principal,
+} from "./domain.js";
 import { requireRole } from "./auth.js";
 import type {
   AssetRepository,
@@ -52,6 +60,35 @@ export class UserService {
   list(principal: Principal) {
     requireRole(principal, ["ADMIN"]);
     return this.users.list();
+  }
+}
+
+function citation(memory: MemoryRecord) {
+  return {
+    id: memory.publicId,
+    title: memory.title,
+    excerpt: memory.excerpt || memory.content.slice(0, 220),
+    url: `/memory/${memory.publicId}`,
+  };
+}
+
+export class AgentService {
+  constructor(private readonly memories: MemoryService) {}
+
+  async answer(principal: Principal, input: AgentQueryInput): Promise<AgentAnswer> {
+    const matches = await this.memories.list(principal, {
+      q: input.query,
+      limit: input.limit,
+      status: "NORMAL",
+      visibility: "PUBLIC",
+    });
+    return {
+      query: input.query,
+      answer: matches.length
+        ? `Found ${matches.length} public memories matching "${input.query}".`
+        : `No public memories matched "${input.query}".`,
+      citations: matches.map(citation),
+    };
   }
 }
 

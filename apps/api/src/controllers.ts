@@ -2,8 +2,20 @@ import { authenticate, login } from "./auth.js";
 import type { MemoryRecord } from "./domain.js";
 import { ApiError } from "./errors.js";
 import { readJson, type RequestContext } from "./http.js";
-import { AssetService, DashboardService, MemoryService, UserService } from "./services.js";
-import { assetUploadInput, memoryInput, memoryListQuery, memoryPatchInput } from "./validation.js";
+import {
+  AgentService,
+  AssetService,
+  DashboardService,
+  MemoryService,
+  UserService,
+} from "./services.js";
+import {
+  agentQueryInput,
+  assetUploadInput,
+  memoryInput,
+  memoryListQuery,
+  memoryPatchInput,
+} from "./validation.js";
 
 function memoryDto(memory: MemoryRecord) {
   return {
@@ -84,6 +96,18 @@ export class SearchController {
       memoryListQuery(context.url.searchParams),
     );
     return { success: true, data: data.map(memoryDto) };
+  }
+}
+
+export class AgentController {
+  constructor(private readonly agent: AgentService) {}
+
+  async answer(context: RequestContext) {
+    const data = await this.agent.answer(
+      authenticate(context.req),
+      agentQueryInput(await readJson(context.req)),
+    );
+    return { success: true, data };
   }
 }
 

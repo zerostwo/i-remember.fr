@@ -68,6 +68,17 @@ export interface AuthSession {
   email: string;
 }
 
+export interface AgentQuery {
+  query: string;
+  limit?: number;
+}
+
+export interface AgentAnswer {
+  query: string;
+  answer: string;
+  citations: Array<Pick<Memory, "id" | "title" | "excerpt"> & { url: string }>;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data: T;

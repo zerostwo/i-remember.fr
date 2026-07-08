@@ -1,4 +1,5 @@
 import type {
+  AgentQueryInput,
   AssetUploadInput,
   MemoryInput,
   MemoryStatus,
@@ -194,4 +195,14 @@ export function assetUploadInput(value: Record<string, unknown>): AssetUploadInp
         ? (value.metadata as Record<string, unknown>)
         : undefined,
   };
+}
+
+export function agentQueryInput(value: Record<string, unknown>): AgentQueryInput {
+  const query = text(value.query ?? value.q, "", 240);
+  const requestedLimit = Number(value.limit ?? 5);
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 10) : 5;
+
+  if (!query) throw new ApiError(400, "Agent query is required", "missing_agent_query");
+
+  return { query, limit };
 }

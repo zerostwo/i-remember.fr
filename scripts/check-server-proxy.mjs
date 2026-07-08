@@ -14,9 +14,20 @@ async function freePort() {
   return port;
 }
 
-const upstream = createServer((req, res) => {
+const upstream = createServer(async (req, res) => {
+  let body = "";
+  for await (const chunk of req) {
+    body += chunk;
+  }
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.end(JSON.stringify({ url: req.url, auth: req.headers.authorization || "" }));
+  res.end(
+    JSON.stringify({
+      url: req.url,
+      method: req.method,
+      auth: req.headers.authorization || "",
+      body,
+    }),
+  );
 });
 
 await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
@@ -70,6 +81,21 @@ try {
   const assetsBody = await assetsResponse.json();
   assert.equal(assetsBody.url, "/api/v1/assets?limit=1");
   assert.equal(assetsBody.auth, "Bearer proxy-test");
+
+  const agentResponse = await fetch(`${baseUrl}/api/v1/agent`, {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer proxy-test",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ query: "test" }),
+  });
+  assert.equal(agentResponse.status, 200);
+  const agentBody = await agentResponse.json();
+  assert.equal(agentBody.url, "/api/v1/agent");
+  assert.equal(agentBody.method, "POST");
+  assert.equal(agentBody.auth, "Bearer proxy-test");
+  assert.equal(JSON.parse(agentBody.body).query, "test");
   console.log("server api proxy ok");
 } finally {
   app.kill("SIGTERM");

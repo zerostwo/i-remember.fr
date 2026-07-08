@@ -99,3 +99,21 @@ export type AssetUploadResult = {
   type: string;
   metadata?: Record<string, unknown>;
 };
+
+export type AgentQueryInput = {
+  query: string;
+  limit: number;
+};
+
+export type AgentCitation = {
+  id: string;
+  title: string;
+  excerpt: string;
+  url: string;
+};
+
+export type AgentAnswer = {
+  query: string;
+  answer: string;
+  citations: AgentCitation[];
+};
