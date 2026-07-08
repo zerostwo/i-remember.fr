@@ -168,6 +168,14 @@
     } catch (error) {}
   }
 
+  window.__REVIVAL_PUBLIC_MEMORY_PATH__ = function (post) {
+    var id = post && (post.public_id || post.publicId);
+    if (!id && post && post.id) {
+      id = parseInt(post.id, 10) + 1248;
+    }
+    return "/memory/" + encodeURIComponent(String(id || ""));
+  };
+
   function restorePanelWidth() {
     var saved;
     try {
@@ -216,6 +224,23 @@
     handle.addEventListener("touchstart", down, { capture: true, passive: false });
   }
 
+  function ensurePanelWheelScroll(wrapper) {
+    if (!wrapper || wrapper.__revivalWheelScrollReady) return;
+    wrapper.__revivalWheelScrollReady = true;
+    wrapper.addEventListener("wheel", function (event) {
+      var mover = wrapper.querySelector(".scroll-move-container");
+      var max;
+      var next;
+      if (!mover) return;
+      max = Math.max(0, mover.scrollHeight - wrapper.clientHeight);
+      if (!max) return;
+      next = Math.max(0, Math.min(max, (wrapper.__revivalScrollTop || 0) + event.deltaY));
+      wrapper.__revivalScrollTop = next;
+      mover.style.top = -next + "px";
+      event.preventDefault();
+    }, { passive: false });
+  }
+
   function installPanelResizers() {
     var creditWrapper = document.querySelector(".credit-wrapper");
     var creditClose = document.querySelector(".credit-close-btn");
@@ -224,7 +249,9 @@
     }
     restorePanelWidth();
     ensurePanelResize(document.querySelector(".terms-wrapper"));
+    ensurePanelWheelScroll(document.querySelector(".terms-wrapper"));
     ensurePanelResize(creditWrapper);
+    ensurePanelWheelScroll(creditWrapper);
   }
 
   function setCreditVisible(visible) {
@@ -441,8 +468,25 @@
       'define.amd={jQuery:!0}})(),window.__REVIVAL_REQUIREJS__=requirejs,' +
       'window.__REVIVAL_REQUIRE__=require,window.__REVIVAL_DEFINE__=define,' +
       'define("../../build/almond"';
-    if (source.indexOf(marker) === -1) return source;
-    return source.replace(marker, replacement);
+    var patched = source;
+    if (patched.indexOf(marker) !== -1) patched = patched.replace(marker, replacement);
+    return patched
+      .replace(
+        'e.SITE_URL=e.BASE_URL+(LANG=="fr"?"":"/"+LANG),',
+        'e.SITE_URL=e.BASE_URL,'
+      )
+      .replace(
+        /t\.SITE_URL\+"\/memory\/"\+\(parseInt\(e\.id,10\)\+t\.POST_ID_OFFSET\)/g,
+        '(window.__REVIVAL_PUBLIC_MEMORY_PATH__?window.__REVIVAL_PUBLIC_MEMORY_PATH__(e):t.SITE_URL+"/memory/"+(parseInt(e.id,10)+t.POST_ID_OFFSET))'
+      )
+      .replace(
+        /"\/memory\/"\+\(parseInt\(O\.id,10\)\+t\.POST_ID_OFFSET\)/g,
+        '(window.__REVIVAL_PUBLIC_MEMORY_PATH__?window.__REVIVAL_PUBLIC_MEMORY_PATH__(O):"/memory/"+(parseInt(O.id,10)+t.POST_ID_OFFSET))'
+      )
+      .replace(
+        /"\/memory\/"\+\(parseInt\(u\.data\.id,10\)\+t\.POST_ID_OFFSET\)/g,
+        '(window.__REVIVAL_PUBLIC_MEMORY_PATH__?window.__REVIVAL_PUBLIC_MEMORY_PATH__(u.data):"/memory/"+(parseInt(u.data.id,10)+t.POST_ID_OFFSET))'
+      );
   }
 
   function installPatchedLegacyMain(node, parent, referenceNode, originalInsertBefore, originalAppendChild) {
@@ -1004,6 +1048,7 @@
       ".revival-menu-close{position:absolute;right:22px;top:18px;border:0;background:transparent;color:white;cursor:pointer;font-size:30px;line-height:1;opacity:.72}",
       "html{--revival-panel-width:332px}",
       ".terms-wrapper,.credit-wrapper{width:var(--revival-panel-width,332px)!important;max-width:calc(100vw - 24px)!important;background:#000!important}",
+      ".credit-wrapper{overflow-y:auto!important}",
       ".terms-close-btn,.credit-close-btn{position:absolute!important;top:18px!important;margin:0!important;z-index:3}",
       ".terms-close-btn{left:-16px!important}",
       ".credit-close-btn{left:18px!important}",
@@ -1013,12 +1058,14 @@
       ".credit-wrapper .bss-inner{padding:86px 34px 34px!important;text-align:left!important}",
       ".credit-title,.credit-item,.credit-item-text{max-width:100%!important}",
       ".revival-panel-resize{position:absolute;left:0;top:0;width:12px;height:100%;cursor:ew-resize;z-index:2}",
-      ".nav{width:118px!important}",
-      ".nav-map-wrapper{margin-bottom:18px!important}",
-      ".nav-search-wrapper,.nav-add-wrapper{clear:both!important;margin-top:14px!important;margin-bottom:14px!important}",
       "html.is-touch-device .base-3d-container,html.is-touch-device .app{touch-action:none}",
       "html.revival-empty-memory .add-steps-add-options-look,html.revival-empty-memory .nav-map-wrapper{display:none!important;pointer-events:none!important}",
       "@media(max-width:760px){.header-description{display:none!important}.header-logo{left:22px!important;top:28px!important;transform:scale(.72)!important;transform-origin:left top!important}.header-fade-container{right:16px!important;top:12px!important;transform:scale(.76)!important;transform-origin:right top!important}.nav{left:8px!important;width:72px!important;margin-top:-78px!important}.nav-map-wrapper{left:0!important;width:62px!important;height:62px!important;margin:8px 0 8px auto!important}.nav-map-btn{width:62px!important;height:62px!important}.nav-search-wrapper,.nav-add-wrapper{margin:8px 0 8px auto!important}.nav-text,.nav-search-item{left:52px!important}.search-center-wrapper{left:20px!important;right:20px!important;width:auto!important;margin-left:0!important;margin-top:-58px!important}.search-input-wrapper,.search-line{width:100%!important}.search-input,.search-input-placeholder{font-size:50px!important;line-height:58px!important;max-width:100%!important;white-space:nowrap!important}.search-not-found{left:0!important;width:100%!important;font-size:15px!important;line-height:22px!important}.search-btn{right:0!important}.footer{height:132px!important}.footer-content{height:132px!important;display:flex!important;align-items:flex-end!important;justify-content:flex-end!important;gap:8px 12px!important;flex-wrap:wrap!important;padding:0 16px 18px 16px!important}.footer-content>*{float:none!important;margin:0!important}.footer-logo-wrapper{order:20;width:46px!important;height:54px!important}.footer-share,.footer-sound-btn{width:24px!important;height:24px!important}.footer-link-item{font-size:9px!important;line-height:14px!important;white-space:nowrap!important}.footer-link-lang-list{bottom:18px!important}.terms-wrapper,.credit-wrapper{width:100vw!important;max-width:100vw!important}.revival-panel-resize{display:none!important}}",
+      ".nav{left:0!important;width:100px!important;margin-top:-100px!important}",
+      ".nav-map-wrapper{left:19px!important;width:92px!important;height:92px!important;margin:12px 0 12px auto!important}",
+      ".nav-map-btn{width:92px!important;height:92px!important}",
+      ".nav-search-wrapper,.nav-add-wrapper{clear:none!important;width:49px!important;height:46px!important;margin:12px 0 12px auto!important}",
+      ".nav-text,.nav-search-item{left:55px!important}",
       "@media(max-width:720px){.revival-menu-card{grid-template-columns:1fr;max-height:calc(100vh - 80px)}.revival-menu-image{min-height:190px;border-right:0;border-bottom:1px solid rgba(255,255,255,.18)}.revival-menu-body{padding:22px}.revival-menu-body h2{font-size:25px}}"
     ].join("");
     document.head.appendChild(style);
@@ -1405,9 +1452,7 @@
     url =
       "/api/search-posts/" +
       encodeURIComponent(tag) +
-      "?ln=" +
-      encodeURIComponent(siteLanguage()) +
-      "&tagName=" +
+      "?tagName=" +
       encodeURIComponent(raw);
 
     window.fetch(url, { credentials: "same-origin" })
@@ -1610,7 +1655,7 @@
   }
 
   function loadManagedFooter() {
-    fetchJson("/api/public/menu?ln=" + encodeURIComponent(siteLanguage()))
+    fetchJson("/api/public/menu")
       .then(function (data) {
         renderManagedFooter(data.items || []);
         applyLanguagePreference();
@@ -1645,7 +1690,6 @@
         if (event.stopImmediatePropagation) event.stopImmediatePropagation();
         setPreferredLanguage(languageItem.getAttribute("data-id"));
         applyLanguagePreference();
-        loadManagedFooter();
         return;
       }
 
@@ -1669,9 +1713,7 @@
         showFooterSearchToken(managedItem.getAttribute("data-menu-label") || managedItem.textContent);
         fetchJson(
           "/api/public/menu-target/" +
-            encodeURIComponent(managedItem.getAttribute("data-menu-id")) +
-            "?ln=" +
-            encodeURIComponent(siteLanguage())
+            encodeURIComponent(managedItem.getAttribute("data-menu-id"))
         )
           .then(renderMenuMemoryAfterSearch)
           .catch(function () {

@@ -269,7 +269,6 @@ export function AdminApp() {
   const [authenticated, setAuthenticated] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [language, setLanguage] = useState(() => localStorage.getItem("iRememberAdminLanguage") || "en");
   const [route, setRoute] = useState(routeFromLocation);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -301,11 +300,11 @@ export function AdminApp() {
     };
   }, []);
 
-  const refreshData = useCallback(async (targetLanguage = language) => {
+  const refreshData = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const payload = await api(`/api/admin/bootstrap?ln=${encodeURIComponent(targetLanguage)}`);
+      const payload = await api("/api/admin/bootstrap");
       setData(payload);
       setSelectedMemoryId((current) => (
         payload.memories.some((memory) => memory.id === current) ? current : payload.memories[0]?.id || null
@@ -321,7 +320,7 @@ export function AdminApp() {
     } finally {
       setLoading(false);
     }
-  }, [language]);
+  }, []);
 
   useEffect(() => {
     const legacyRoute = routeFromLegacyHash();
@@ -340,8 +339,8 @@ export function AdminApp() {
   }, []);
 
   useEffect(() => {
-    if (authenticated) refreshData(language);
-  }, [authenticated, language, refreshData]);
+    if (authenticated) refreshData();
+  }, [authenticated, refreshData]);
 
   function navigate(nextRoute) {
     const target = routeMap.has(nextRoute) ? nextRoute : "dashboard";
@@ -400,11 +399,6 @@ export function AdminApp() {
     setRoute("dashboard");
   }
 
-  function handleLanguage(nextLanguage) {
-    localStorage.setItem("iRememberAdminLanguage", nextLanguage);
-    setLanguage(nextLanguage);
-  }
-
   async function runAction(label, action) {
     setNotice("");
     setError("");
@@ -422,10 +416,10 @@ export function AdminApp() {
     await runAction("Memory saved", async () => {
       const saved = await api(`/api/admin/memories/${id}`, {
         method: "PUT",
-        body: JSON.stringify({ ...payload, language }),
+        body: JSON.stringify(payload),
       });
       setSelectedMemoryId(saved.id);
-      await refreshData(language);
+      await refreshData();
     });
   }
 
@@ -434,7 +428,6 @@ export function AdminApp() {
       const saved = await api("/api/admin/memories", {
         method: "POST",
         body: JSON.stringify({
-          language,
           title: "Untitled memory",
           author: "I Remember",
           excerpt: "A new editable memory.",
@@ -444,7 +437,7 @@ export function AdminApp() {
         }),
       });
       setSelectedMemoryId(saved.id);
-      await refreshData(language);
+      await refreshData();
     });
   }
 
@@ -452,10 +445,10 @@ export function AdminApp() {
     await runAction("Page saved", async () => {
       const saved = await api(`/api/admin/pages/${encodeURIComponent(slug)}`, {
         method: "PUT",
-        body: JSON.stringify({ ...payload, language }),
+        body: JSON.stringify(payload),
       });
       setSelectedPageSlug(saved.slug);
-      await refreshData(language);
+      await refreshData();
     });
   }
 
@@ -465,7 +458,6 @@ export function AdminApp() {
       const saved = await api("/api/admin/pages", {
         method: "POST",
         body: JSON.stringify({
-          language,
           slug,
           title: "Untitled page",
           excerpt: "A new footer page.",
@@ -474,7 +466,7 @@ export function AdminApp() {
         }),
       });
       setSelectedPageSlug(saved.slug);
-      await refreshData(language);
+      await refreshData();
     });
   }
 
@@ -482,10 +474,10 @@ export function AdminApp() {
     await runAction("Menu item saved", async () => {
       const saved = await api(`/api/admin/menu-items/${id}`, {
         method: "PUT",
-        body: JSON.stringify({ ...payload, language }),
+        body: JSON.stringify(payload),
       });
       setSelectedMenuId(saved.id);
-      await refreshData(language);
+      await refreshData();
     });
   }
 
@@ -494,7 +486,6 @@ export function AdminApp() {
       const saved = await api("/api/admin/menu-items", {
         method: "POST",
         body: JSON.stringify({
-          language,
           label: "New item",
           type: "PAGE",
           targetValue: data?.pages?.[0]?.slug || "about",
@@ -503,7 +494,7 @@ export function AdminApp() {
         }),
       });
       setSelectedMenuId(saved.id);
-      await refreshData(language);
+      await refreshData();
     });
   }
 
@@ -511,7 +502,7 @@ export function AdminApp() {
     await runAction("Menu item deleted", async () => {
       await api(`/api/admin/menu-items/${id}`, { method: "DELETE" });
       setSelectedMenuId(null);
-      await refreshData(language);
+      await refreshData();
     });
   }
 
@@ -605,16 +596,6 @@ export function AdminApp() {
                     type="search"
                   />
                 </div>
-                <AdminSelect
-                  value={language}
-                  onValueChange={handleLanguage}
-                  className="sm:w-36"
-                  options={[
-                    { value: "en", label: "English" },
-                    { value: "fr", label: "French" },
-                    { value: "zh", label: "中文" },
-                  ]}
-                />
                 <Button variant="outline" onClick={handleLogout}>
                   <LogOut data-icon="inline-start" />
                   Log out

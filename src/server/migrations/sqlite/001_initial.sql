@@ -41,7 +41,7 @@ create table if not exists memories (
   id integer primary key autoincrement,
   uid text not null unique,
   legacy_id integer not null,
-  public_id integer not null,
+  public_id text not null,
   language_code text not null references languages(code),
   name text not null default 'I Remember',
   text text not null default '',
@@ -59,7 +59,8 @@ create table if not exists memories (
   created_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   updated_at text not null default (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   unique (language_code, legacy_id),
-  unique (language_code, public_id)
+  unique (language_code, public_id),
+  unique (public_id)
 );
 
 create index if not exists memories_language_status_legacy_idx

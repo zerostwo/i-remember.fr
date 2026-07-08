@@ -23,5 +23,9 @@ Current backend/product decisions:
 - After UI direction is accepted, admin prototypes should be wired to real backend data and tested end to end before being treated as deliverable.
 - The public intro/loading screen should support click/tap fast-forward so repeat visits can quickly see both intro message groups and enter the app.
 - Public language switching should stay on the current route path: switching updates `ln` language text only for display, and route path (including `/memory/:id`) is preserved.
+- Public and admin language controls are UI language only; they must not choose content collections, menu records, or admin list data. Backend/admin content uses the site default language from System Settings.
+- Public memory URLs must be language-free `/memory/:id` routes using non-sequential random alphanumeric public IDs; legacy numeric memory URLs may remain as compatibility fallbacks only.
+- Each memory may occupy only one map coordinate; deduplicate memory identity before passing posts into the legacy map/search rendering flow.
+- Public search, add-memory, navigation ball, and opened memory-card layout must preserve the archive original positions and dimensions unless the user explicitly approves a visual change.
 - Do not commit generated QA artifacts, imported data snapshots, runtime database directories, SQLite files, or `db/`; keep migration source under `src/server/migrations/sqlite`.
 - After modifying this repository, create a clean ccc-style Conventional Commit before handing work back.

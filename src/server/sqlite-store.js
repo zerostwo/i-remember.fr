@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import Database from "better-sqlite3";
 import {
   existsSync,
@@ -182,7 +183,7 @@ export class RevivalSQLiteStore {
       `),
       getMemoryByPublicId: this.db.prepare(`
         select * from memories
-        where language_code = ? and public_id = ? and status = 'NORMAL'
+        where public_id = ? and status = 'NORMAL'
         limit 1
       `),
       maxLegacyId: this.db.prepare(`
@@ -239,7 +240,6 @@ export class RevivalSQLiteStore {
           strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
         )
         on conflict(language_code, legacy_id) do update set
-          public_id = excluded.public_id,
           name = excluded.name,
           text = excluded.text,
           image_key = excluded.image_key,
@@ -481,7 +481,7 @@ export class RevivalSQLiteStore {
     return {
       uid: row.uid || `mem_${row.language_code}_${row.legacy_id}`,
       legacy_id: Number(row.legacy_id),
-      public_id: Number(row.public_id),
+      public_id: String(row.public_id || randomPublicId()),
       language_code: row.language_code,
       name: String(row.name || "I Remember").slice(0, 120),
       text: String(row.text || "").slice(0, 2000),
@@ -532,8 +532,8 @@ export class RevivalSQLiteStore {
     return rowToMemory(this.statements.getMemoryByUid.get(uid));
   }
 
-  getMemoryByPublicId(language, publicId) {
-    return rowToMemory(this.statements.getMemoryByPublicId.get(language, publicId));
+  getMemoryByPublicId(publicId) {
+    return rowToMemory(this.statements.getMemoryByPublicId.get(String(publicId || "")));
   }
 
   nextLegacyId(language) {
@@ -668,4 +668,8 @@ export class RevivalSQLiteStore {
 
 function randomishId() {
   return Math.random().toString(36).slice(2, 10);
+}
+
+function randomPublicId() {
+  return randomBytes(10).toString("hex");
 }

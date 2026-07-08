@@ -553,6 +553,10 @@ function languageFromRequest(url, pathname, defaultLanguage = "en") {
   return normalizeLanguage(url.searchParams.get("ln") || languageFromPath(pathname, defaultLanguage));
 }
 
+function contentLanguage(defaultLanguage = "en") {
+  return normalizeLanguage(defaultLanguage);
+}
+
 function postsForLanguage(language) {
   return defaultPostsByLanguage[normalizeLanguage(language)] || [];
 }
@@ -626,6 +630,16 @@ function paginatePosts(posts, url) {
       : posts;
 
   return page.slice(0, postSearchResultMax);
+}
+
+function uniquePosts(posts) {
+  const seen = new Set();
+  return posts.filter((post) => {
+    const key = String(post.public_id || post.uid || post.id || "");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function textTagTokens(value = "", language = "en") {
@@ -1023,6 +1037,8 @@ function memoryToPost(row) {
   const excerpt = row.excerpt || excerptFromMarkdown(bodyMarkdown || row.text || "");
   return {
     id: String(row.legacy_id ?? row.id),
+    uid: row.uid,
+    public_id: String(row.public_id || ""),
     name: htmlText(row.name || "I Remember"),
     title: htmlText(title),
     img: row.image_key || "revival-upload",
@@ -1049,7 +1065,7 @@ function legacyPostToMemoryRow(post, source = "archive") {
   return {
     uid: post.uid || `mem_${language}_${Number.isFinite(legacyId) ? legacyId : randomUUID()}`,
     legacy_id: Number.isFinite(legacyId) ? legacyId : null,
-    public_id: Number.isFinite(legacyId) ? legacyId + postIdOffset : null,
+    public_id: post.public_id || post.publicId || null,
     language_code: language,
     name: post.name || "I Remember",
     text: post.text || "",
@@ -1173,9 +1189,11 @@ function legacyImagePath(imageKey, variant = "resized") {
   return `/uploads/posts/${imageKey || "revival-upload"}/${safeVariant}.jpg`;
 }
 
-function publicMemoryUrl(post, language) {
-  const prefix = normalizeLanguage(language) === "en" ? "/en" : `/${normalizeLanguage(language)}`;
-  return `${prefix}/memory/${numericPostId(post) + postIdOffset}`;
+function publicMemoryUrl(post) {
+  const publicId = String(post?.public_id || post?.publicId || "").trim();
+  const legacyId = numericPostId(post);
+  const fallback = legacyId >= 0 ? String(legacyId + postIdOffset) : "";
+  return `/memory/${encodeURIComponent(publicId || fallback)}`;
 }
 
 function legacyImageUrl(imageKey, variant = "thumb") {
@@ -1223,7 +1241,7 @@ function adminMemory(row, language = row?.language_code || "en") {
     isLongForm: Boolean(row.is_long_form),
     imageKey: row.image_key || "revival-upload",
     imageUrl: legacyImageUrl(row.image_key, "thumb"),
-    publicUrl: publicMemoryUrl(post, language),
+    publicUrl: publicMemoryUrl(post),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1307,8 +1325,8 @@ function cleanText(value, fallback, maxLength) {
   return (text || fallback).slice(0, maxLength);
 }
 
-function validatedPostFields(fields = {}) {
-  const language = normalizeLanguage(fields.ln || fields.language);
+function validatedPostFields(fields = {}, defaultLanguage = "en") {
+  const language = normalizeLanguage(defaultLanguage);
   const name = fields.name || fields.author || fields.username;
   const message = fields.message || fields.text || fields.memory;
   const fileId = fields.fileId || fields.file_id || fields.img || fields.imageKey;
@@ -1622,14 +1640,20 @@ class RevivalBackend {
   }
 
   async allPosts(language) {
-    return this.store.listMemories(normalizeLanguage(language)).map(memoryToPost);
+    return uniquePosts(this.store.listMemories(normalizeLanguage(language)).map(memoryToPost));
   }
 
-  async directPost(language, publicId) {
+  memoryByPublicId(publicId, fallbackLanguage = "en") {
+    const row = this.store.getMemoryByPublicId(publicId);
+    if (row) return row;
+
     const legacyId = Number.parseInt(publicId, 10) - postIdOffset;
     if (!Number.isFinite(legacyId)) return null;
+    return this.store.getMemory(normalizeLanguage(fallbackLanguage), legacyId);
+  }
 
-    const row = this.store.getMemory(normalizeLanguage(language), legacyId);
+  async directPost(publicId, fallbackLanguage = "en") {
+    const row = this.memoryByPublicId(publicId, fallbackLanguage);
     return row ? memoryToPost(row) : null;
   }
 
@@ -1692,7 +1716,9 @@ class RevivalBackend {
   }
 
   saveMemory(input = {}) {
-    const language = normalizeLanguage(input.language || input.language_code);
+    const language = normalizeLanguage(
+      input.language || input.language_code || this.siteSettings().defaultLanguage,
+    );
     const existing = input.id ? this.store.getMemoryByRowId(input.id) : null;
     const legacyId = existing?.legacy_id || this.store.nextLegacyId(language);
     const bodyMarkdown = String(input.bodyMarkdown ?? input.body_markdown ?? existing?.body_markdown ?? input.text ?? "");
@@ -1706,7 +1732,7 @@ class RevivalBackend {
       ...(existing || {}),
       uid: existing?.uid || `mem_${randomUUID().replaceAll("-", "")}`,
       legacy_id: legacyId,
-      public_id: legacyId + postIdOffset,
+      public_id: existing?.public_id,
       language_code: language,
       name: cleanText(input.author ?? input.name ?? existing?.name, "I Remember", 120),
       title,
@@ -1732,7 +1758,9 @@ class RevivalBackend {
   }
 
   savePage(input = {}) {
-    const language = normalizeLanguage(input.language || input.language_code);
+    const language = normalizeLanguage(
+      input.language || input.language_code || this.siteSettings().defaultLanguage,
+    );
     const slug = routeTag(input.slug || "page") || "page";
     const existingPage = this.store.getPage(language, slug);
     const linkedMemoryUid =
@@ -1772,7 +1800,7 @@ class RevivalBackend {
       ...(existingMemory || {}),
       uid: linkedMemoryUid,
       legacy_id: legacyId,
-      public_id: legacyId + postIdOffset,
+      public_id: existingMemory?.public_id,
       language_code: language,
       name: "I Remember",
       title,
@@ -1798,7 +1826,9 @@ class RevivalBackend {
   }
 
   saveMenuItem(input = {}) {
-    const language = normalizeLanguage(input.language || input.language_code);
+    const language = normalizeLanguage(
+      input.language || input.language_code || this.siteSettings().defaultLanguage,
+    );
     const row = {
       uid: input.uid || `footer_${routeTag(input.label || "item")}_${randomUUID().slice(0, 6)}`,
       language_code: language,
@@ -1849,10 +1879,9 @@ class RevivalBackend {
     }
 
     if (item.item_type === "MEMORY") {
-      const publicId = Number.parseInt(item.target_value || "", 10);
-      const memory = Number.isFinite(publicId)
-        ? this.store.getMemoryByPublicId(normalized, publicId)
-        : this.store.getMemoryByUid(item.target_value);
+      const memory =
+        this.memoryByPublicId(item.target_value, normalized) ||
+        this.store.getMemoryByUid(item.target_value);
       return {
         item: publicMenuItem(item),
         memory: adminMemory(memory, normalized),
@@ -1994,7 +2023,7 @@ class RevivalBackend {
   }
 
   async createPost(fields = {}) {
-    const clean = validatedPostFields(fields);
+    const clean = validatedPostFields(fields, this.siteSettings().defaultLanguage);
     const language = clean.language;
     const legacyId = await this.nextSubmittedPostId(language);
     const post = {
@@ -2141,15 +2170,26 @@ function shouldLogRequest(pathname) {
   );
 }
 
-async function renderAppHtml(backend, language, directPayload = null, pathname = "/") {
+async function renderAppHtml(
+  backend,
+  language,
+  directPayload = null,
+  pathname = "/",
+  memoryLanguage = language,
+) {
   const normalized = normalizeLanguage(language);
+  const normalizedMemoryLanguage = normalizeLanguage(memoryLanguage);
   let html = readFileSync(appHtmlUrlForLanguage(normalized), "utf8");
   if (normalized === "zh") html = localizeChineseHtml(html);
 
   html = patchLanguageShell(html, normalized, pathname);
   html = injectTracking(html, backend.siteSettings());
 
-  const defaultPosts = await backend.searchPosts(normalized, "", new URL("/", "http://i-remember.local"));
+  const defaultPosts = await backend.searchPosts(
+    normalizedMemoryLanguage,
+    "",
+    new URL("/", "http://i-remember.local"),
+  );
   html = replaceDefaultPosts(html, {
     success: 1,
     data: {
@@ -2330,6 +2370,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
   const startedAt = Date.now();
   const siteSettings = backend.siteSettings();
   const defaultLanguage = siteSettings.defaultLanguage;
+  const memoryLanguage = contentLanguage(defaultLanguage);
 
   if (shouldLogRequest(pathname)) {
     res.once("finish", () => {
@@ -2371,24 +2412,22 @@ async function handleRequest(backend, req, res, next, options = {}) {
   }
 
   if (pathname === "/api/public/menu" && req.method === "GET") {
-    const language = languageFromRequest(url, pathname, defaultLanguage);
     sendJson(req, res, {
       success: true,
       data: {
-        language,
-        items: backend.publicMenu(language),
+        language: memoryLanguage,
+        items: backend.publicMenu(memoryLanguage),
       },
     });
     return;
   }
 
   if (pathname.startsWith("/api/public/menu-target/") && req.method === "GET") {
-    const language = languageFromRequest(url, pathname, defaultLanguage);
     const id = Number.parseInt(pathname.split("/").pop() || "", 10);
     if (!Number.isFinite(id)) throw new HttpError(400, "Invalid menu item", "invalid_menu_item");
     sendJson(req, res, {
       success: true,
-      data: await backend.publicMenuTarget(id, language),
+      data: await backend.publicMenuTarget(id, memoryLanguage),
     });
     return;
   }
@@ -2457,7 +2496,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
     requireAdmin(req);
     sendJson(req, res, {
       success: true,
-      data: backend.adminBootstrap(languageFromRequest(url, pathname, defaultLanguage)),
+      data: backend.adminBootstrap(memoryLanguage),
     });
     return;
   }
@@ -2633,21 +2672,21 @@ async function handleRequest(backend, req, res, next, options = {}) {
     const directId = directPostPublicId(pathname);
     if (directId) {
       const language = languageFromRequest(url, pathname, defaultLanguage);
-      const post = await backend.directPost(language, directId);
+      const post = await backend.directPost(directId, memoryLanguage);
       if (post) {
         const payload = {
           success: 1,
           data: post,
           input: { ln: language, id: String(numericPostId(post)) },
         };
-        sendHtml(res, await renderAppHtml(backend, language, payload, pathname));
+        sendHtml(res, await renderAppHtml(backend, language, payload, pathname, memoryLanguage));
         return;
       }
     }
 
     if (appShellRequested(pathname) || memoryShellRequested(pathname)) {
       const language = languageFromRequest(url, pathname, defaultLanguage);
-      sendHtml(res, await renderAppHtml(backend, language, null, pathname));
+      sendHtml(res, await renderAppHtml(backend, language, null, pathname, memoryLanguage));
       return;
     }
   }
@@ -2696,9 +2735,9 @@ async function handleRequest(backend, req, res, next, options = {}) {
     const fields = parseFields(req, body);
     const post = await backend.createPost(fields);
     logInfo("memory_submitted", {
-      language: languageFromRequest(url, pathname, defaultLanguage),
+      language: memoryLanguage,
       memoryId: post.id,
-      publicId: post.publicId || "",
+      publicId: post.public_id || "",
       status: post.status || "",
       imageKey: post.img || "",
     });
@@ -2711,15 +2750,14 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
   if (req.method === "GET" && pathname.startsWith("/api/related-post-count/")) {
     assertRateLimit(req, "related-post-count", 240, 60 * 1000);
-    const language = languageFromRequest(url, pathname, defaultLanguage);
     const id = pathname.split("/").pop();
-    const tags = await backend.relatedTagCounts(language, id);
+    const tags = await backend.relatedTagCounts(memoryLanguage, id);
     sendJson(req, res, {
       success: 1,
       data: tags,
       input: {
         id,
-        ln: language,
+        ln: memoryLanguage,
         found: Object.keys(tags).length > 0,
       },
     });
@@ -2728,13 +2766,12 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
   if (req.method === "GET" && pathname.startsWith("/api/auto-complete-tags/")) {
     assertRateLimit(req, "auto-complete-tags", 240, 60 * 1000);
-    const language = languageFromRequest(url, pathname, defaultLanguage);
     const fragment = pathname.replace(/^\/api\/auto-complete-tags\/?/, "").slice(0, 120);
     sendJson(req, res, {
       success: true,
       data: {
         tagFragment: routeTag(fragment),
-        list: await backend.autocomplete(language, fragment),
+        list: await backend.autocomplete(memoryLanguage, fragment),
       },
     });
     return;
@@ -2742,15 +2779,14 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
   if (req.method === "GET" && pathname.startsWith("/api/search-posts")) {
     assertRateLimit(req, "search-posts", 240, 60 * 1000);
-    const language = languageFromRequest(url, pathname, defaultLanguage);
     const pathTag = pathname.startsWith("/api/search-posts")
       ? pathname.replace(/^\/api\/search-posts\/?/, "").slice(0, 120)
       : "";
     const inputTag = (url.searchParams.get("tagName") || pathTag).slice(0, 120);
     const parsedTag = routeTag(inputTag);
-    const found = await backend.searchPosts(language, inputTag, url);
+    const found = await backend.searchPosts(memoryLanguage, inputTag, url);
     logInfo("search_posts", {
-      language,
+      language: memoryLanguage,
       tagName: parsedTag,
       count: found.length,
     });
@@ -2762,7 +2798,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
         posts: found,
       },
       input: {
-        ln: language,
+        ln: memoryLanguage,
         tagName: inputTag,
         lastId: url.searchParams.get("lastId") || "",
       },
@@ -2772,12 +2808,11 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
   if (req.method === "GET" && /^\/api(?:\/[^/]+)?$/.test(pathname)) {
     assertRateLimit(req, "search-posts", 240, 60 * 1000);
-    const language = languageFromRequest(url, pathname, defaultLanguage);
     const inputTag = pathname.replace(/^\/api\/?/, "").slice(0, 120);
     const parsedTag = routeTag(inputTag);
-    const found = await backend.searchPosts(language, inputTag, url);
+    const found = await backend.searchPosts(memoryLanguage, inputTag, url);
     logInfo("search_posts", {
-      language,
+      language: memoryLanguage,
       tagName: parsedTag,
       count: found.length,
     });
@@ -2789,7 +2824,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
         posts: found,
       },
       input: {
-        ln: language,
+        ln: memoryLanguage,
         tagName: inputTag,
         lastId: url.searchParams.get("lastId") || "",
       },
