@@ -1,14 +1,15 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { dirname, join, normalize } from "node:path";
+import { dirname, join } from "node:path";
 
 function safeKey(key) {
-  const normalized = normalize(String(key || ""))
-    .replace(/^[/\\]+/, "")
-    .replace(/^(\.\.[/\\])+/, "");
-  if (!normalized || normalized.startsWith("..")) {
+  const parts = String(key || "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean);
+  if (!parts.length || parts.some((part) => part === "." || part === "..")) {
     throw new Error("Invalid storage key");
   }
-  return normalized;
+  return parts.join("/");
 }
 
 export function createLocalStorage({ rootDir, publicBaseUrl = "/uploads" }) {

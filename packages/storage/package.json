@@ -2,6 +2,9 @@
   "name": "@i-remember/storage",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node src/check.js"
+  },
   "types": "./src/index.d.ts",
   "exports": {
     ".": {

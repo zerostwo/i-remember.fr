@@ -21,7 +21,7 @@
     "format": "prettier --check .",
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server.mjs",
-    "test": "turbo run test --filter=@i-remember/database --filter=@i-remember/api --filter=@i-remember/admin --filter=@i-remember/web --filter=@i-remember/memory-engine --filter=@i-remember/types && node scripts/check-api-v1.mjs && node scripts/migrate-sqlite-to-postgres.mjs --self-check && node src/admin/v1-dashboard.check.mjs && node src/admin/v1-memory.check.mjs && node scripts/check-server-proxy.mjs",
+    "test": "turbo run test --filter=@i-remember/database --filter=@i-remember/api --filter=@i-remember/admin --filter=@i-remember/web --filter=@i-remember/memory-engine --filter=@i-remember/types --filter=@i-remember/storage && node scripts/check-api-v1.mjs && node scripts/migrate-sqlite-to-postgres.mjs --self-check && node src/admin/v1-dashboard.check.mjs && node src/admin/v1-memory.check.mjs && node scripts/check-server-proxy.mjs",
     "legacy:dev": "vite --host 127.0.0.1",
     "legacy:build": "vite build",
     "db:import": "node scripts/import-sqlite.mjs",
