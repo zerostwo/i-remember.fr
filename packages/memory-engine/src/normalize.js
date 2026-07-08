@@ -11,13 +11,27 @@ function optionalNumber(value) {
   return Number.isFinite(next) ? next : null;
 }
 
+function attachmentImageUrl(attachments) {
+  if (!Array.isArray(attachments)) return "";
+  const image = attachments.find((attachment) =>
+    String(attachment?.type || "").startsWith("image/"),
+  );
+  return firstText(image?.url, attachments.find((attachment) => attachment?.url)?.url);
+}
+
 export function normalizeGalaxyMemory(memory = {}) {
   const id = firstText(memory.publicId, memory.public_id, memory.uid, memory.id);
   const legacyId = memory.legacyId ?? memory.legacy_id ?? null;
   const title = firstText(memory.title, memory.name, "Untitled memory");
   const content = firstText(memory.content, memory.bodyMarkdown, memory.body_markdown, memory.text);
   const excerpt = firstText(memory.excerpt, content.slice(0, 220));
-  const imageUrl = firstText(memory.imageUrl, memory.image_url, memory.img, memory.thumbnailUrl);
+  const imageUrl = firstText(
+    memory.imageUrl,
+    memory.image_url,
+    memory.img,
+    memory.thumbnailUrl,
+    attachmentImageUrl(memory.attachments),
+  );
 
   return {
     id,
