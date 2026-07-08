@@ -79,6 +79,7 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
   return {
     title,
     content,
+    legacyId: optionalNumber(value.legacyId ?? value.legacy_id),
     authorName: text(value.authorName ?? value.author, "Anonymous", 120),
     visibility: visibility as Visibility,
     latitude: optionalNumber(value.latitude),
@@ -97,6 +98,7 @@ export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery 
   const status = text(searchParams.get("status"), "NORMAL", 20).toUpperCase();
   const visibility = text(searchParams.get("visibility"), "PUBLIC", 20).toUpperCase();
   const limit = Math.min(Math.max(Number(searchParams.get("limit") || 100), 1), 200);
+  const legacyId = optionalNumber(searchParams.get("legacyId") ?? searchParams.get("legacy_id"));
 
   if (status !== "ALL" && !statusValues.has(status)) {
     throw new ApiError(400, "Invalid status", "invalid_status");
@@ -107,6 +109,7 @@ export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery 
 
   return {
     q: searchParams.get("q") || searchParams.get("tag") || undefined,
+    legacyId,
     limit,
     status: status === "ALL" ? "all" : (status as MemoryStatus),
     visibility: visibility === "ALL" ? "all" : (visibility as Visibility),
@@ -119,6 +122,9 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
   if (has(value, "title")) {
     input.title = text(value.title, "", 180);
     if (!input.title) throw new ApiError(400, "Title is required", "missing_title");
+  }
+  if (has(value, "legacyId") || has(value, "legacy_id")) {
+    input.legacyId = optionalNumber(value.legacyId ?? value.legacy_id);
   }
 
   if (has(value, "content") || has(value, "bodyMarkdown") || has(value, "text")) {

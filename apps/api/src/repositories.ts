@@ -8,6 +8,7 @@ import type {
 
 export type MemoryListQuery = {
   q?: string;
+  legacyId?: number;
   limit?: number;
   status?: "all" | MemoryRecord["status"];
   visibility?: "all" | MemoryRecord["visibility"];

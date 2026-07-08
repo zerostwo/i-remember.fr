@@ -10,6 +10,7 @@ export type Principal = {
 export type MemoryRecord = {
   id: string;
   publicId: string;
+  legacyId?: number | null;
   title: string;
   content: string;
   excerpt?: string | null;
@@ -36,6 +37,7 @@ export type AttachmentInput = {
 export type MemoryInput = {
   title: string;
   content: string;
+  legacyId?: number;
   authorName?: string;
   visibility?: Visibility;
   latitude?: number;

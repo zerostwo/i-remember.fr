@@ -19,6 +19,7 @@ export interface Attachment {
 
 export interface Memory {
   id: string;
+  legacyId?: number | null;
   title: string;
   content: string;
   excerpt?: string | null;

@@ -54,6 +54,7 @@ function memory(row: any): MemoryRecord {
   return {
     id: row.id,
     publicId: row.publicId,
+    legacyId: row.legacyId,
     title: row.title,
     content: row.content,
     excerpt: row.excerpt,
@@ -89,6 +90,7 @@ function memoryWhere(query: MemoryListQuery) {
   return {
     ...(query.status === "all" ? {} : { status: query.status || "NORMAL" }),
     ...(query.visibility === "all" ? {} : { visibility: query.visibility || "PUBLIC" }),
+    ...(query.legacyId === undefined ? {} : { legacyId: query.legacyId }),
     ...(q
       ? {
           OR: [
@@ -146,6 +148,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
       await this.db.memory.create({
         data: {
           title: input.title,
+          legacyId: input.legacyId,
           content: input.content,
           excerpt: input.content.slice(0, 220),
           authorName: input.authorName || "Anonymous",
@@ -170,6 +173,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
     if (!existing) throw new ApiError(404, "Memory not found", "not_found");
     const data: any = {
       title: input.title,
+      legacyId: input.legacyId,
       content: input.content,
       excerpt: input.content ? input.content.slice(0, 220) : undefined,
       authorName: input.authorName,

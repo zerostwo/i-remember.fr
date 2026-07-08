@@ -8,6 +8,7 @@ import { assetUploadInput, memoryInput, memoryListQuery, memoryPatchInput } from
 function memoryDto(memory: MemoryRecord) {
   return {
     id: memory.publicId,
+    legacyId: memory.legacyId,
     title: memory.title,
     content: memory.content,
     excerpt: memory.excerpt,

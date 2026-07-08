@@ -83,6 +83,7 @@ class MemoryRepo implements MemoryRepository {
     const memory = {
       id: `internal-${this.memories.length + 1}`,
       publicId: `pub_${this.memories.length + 1}`,
+      legacyId: input.legacyId,
       title: input.title,
       content: input.content,
       excerpt: input.content.slice(0, 220),
@@ -195,12 +196,14 @@ const created = await json("/api/v1/memories", {
   body: JSON.stringify({
     title: "New",
     content: "Created through v1 API",
+    legacyId: 9001,
     tags: ["Paris", "Archive"],
     attachments: [{ url: "/uploads/new.jpg", type: "image/jpeg" }],
   }),
 });
 assert.equal(created.response.status, 201);
 assert.equal(created.body.data.status, "PENDING");
+assert.equal(created.body.data.legacyId, 9001);
 assert.deepEqual(
   created.body.data.tags.map((item: { name: string }) => item.name),
   ["Paris", "Archive"],
@@ -238,6 +241,7 @@ const moderated = await json(`/api/v1/memories/${created.body.data.id}`, {
 assert.equal(moderated.response.status, 200);
 assert.equal(moderated.body.data.status, "NORMAL");
 assert.equal((await json("/api/v1/search?q=Archive")).body.data[0].id, created.body.data.id);
+assert.equal((await json("/api/v1/memories?legacyId=9001")).body.data[0].id, created.body.data.id);
 
 const unauthorized = await json("/api/v1/users");
 assert.equal(unauthorized.response.status, 401);

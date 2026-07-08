@@ -43,6 +43,9 @@ views.
 Memory create and patch bodies may include `tags` and `attachments`; memory
 responses include both relation lists.
 
+Migration clients may set `legacyId` and filter `GET /api/v1/memories` with
+`legacyId=...`.
+
 `GET /api/v1/dashboard` is admin-only and returns total memories, moderation
 counts, total users, and recent memory activity.
 
