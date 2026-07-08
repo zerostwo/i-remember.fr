@@ -1,9 +1,15 @@
 import type {
   AgentQueryInput,
   AssetUploadInput,
+  MenuItemInput,
+  MenuItemType,
+  MenuItemUpdateInput,
   MemoryInput,
   MemoryStatus,
   MemoryUpdateInput,
+  PageInput,
+  PageStatus,
+  PageUpdateInput,
   Visibility,
 } from "./domain.js";
 import { ApiError } from "./errors.js";
@@ -11,6 +17,17 @@ import type { MemoryListQuery } from "./repositories.js";
 
 const visibilityValues = new Set(["PUBLIC", "UNLISTED", "PRIVATE"]);
 const statusValues = new Set(["NORMAL", "PENDING", "ARCHIVED", "REJECTED"]);
+const pageStatusValues = new Set(["PUBLISHED", "DRAFT", "ARCHIVED"]);
+const menuItemTypeValues = new Set([
+  "PAGE",
+  "MEMORY",
+  "SEARCH",
+  "EXTERNAL",
+  "TERMS",
+  "CREDITS",
+  "LANGUAGE",
+]);
+const languageValues = new Set(["en", "fr", "zh"]);
 
 function text(value: unknown, fallback = "", max = 1000) {
   return String(value ?? fallback)
@@ -28,6 +45,27 @@ function optionalNumber(value: unknown) {
 
 function has(value: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function bool(value: unknown, fallback?: boolean) {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "boolean") return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  throw new ApiError(400, "Invalid boolean value", "invalid_boolean");
+}
+
+function language(value: unknown, fallback = "en") {
+  const next = text(value, fallback, 12).toLowerCase();
+  if (!languageValues.has(next)) throw new ApiError(400, "Invalid language", "invalid_language");
+  return next;
+}
+
+function metadata(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }
 
 function tags(value: unknown) {
@@ -195,6 +233,142 @@ export function assetUploadInput(value: Record<string, unknown>): AssetUploadInp
         ? (value.metadata as Record<string, unknown>)
         : undefined,
   };
+}
+
+export function languageQuery(searchParams: URLSearchParams) {
+  return language(searchParams.get("language") ?? searchParams.get("ln") ?? "en");
+}
+
+export function pageInput(value: Record<string, unknown>): PageInput {
+  const slug = text(value.slug, "", 120);
+  const title = text(value.title, "", 180);
+  const status = text(value.status, "DRAFT", 20).toUpperCase();
+
+  if (!slug) throw new ApiError(400, "Page slug is required", "missing_page_slug");
+  if (!title) throw new ApiError(400, "Page title is required", "missing_page_title");
+  if (!pageStatusValues.has(status)) {
+    throw new ApiError(400, "Invalid page status", "invalid_page_status");
+  }
+
+  return {
+    slug,
+    language: language(value.language ?? value.ln ?? "en"),
+    title,
+    excerpt: value.excerpt ? text(value.excerpt, "", 600) : undefined,
+    bodyMarkdown: text(value.bodyMarkdown ?? value.body_markdown ?? value.content, "", 50000),
+    status: status as PageStatus,
+    linkedMemoryId:
+      value.linkedMemoryId || value.linked_memory_id
+        ? text(value.linkedMemoryId ?? value.linked_memory_id, "", 240)
+        : undefined,
+    metadata: metadata(value.metadata),
+  };
+}
+
+export function pagePatchInput(value: Record<string, unknown>): PageUpdateInput {
+  const input: PageUpdateInput = {};
+  if (has(value, "slug")) {
+    input.slug = text(value.slug, "", 120);
+    if (!input.slug) throw new ApiError(400, "Page slug is required", "missing_page_slug");
+  }
+  if (has(value, "language") || has(value, "ln"))
+    input.language = language(value.language ?? value.ln);
+  if (has(value, "title")) {
+    input.title = text(value.title, "", 180);
+    if (!input.title) throw new ApiError(400, "Page title is required", "missing_page_title");
+  }
+  if (has(value, "excerpt"))
+    input.excerpt = value.excerpt ? text(value.excerpt, "", 600) : undefined;
+  if (has(value, "bodyMarkdown") || has(value, "body_markdown") || has(value, "content")) {
+    input.bodyMarkdown = text(
+      value.bodyMarkdown ?? value.body_markdown ?? value.content,
+      "",
+      50000,
+    );
+  }
+  if (has(value, "status")) {
+    const status = text(value.status, "", 20).toUpperCase();
+    if (!pageStatusValues.has(status)) {
+      throw new ApiError(400, "Invalid page status", "invalid_page_status");
+    }
+    input.status = status as PageStatus;
+  }
+  if (has(value, "linkedMemoryId") || has(value, "linked_memory_id")) {
+    input.linkedMemoryId =
+      value.linkedMemoryId || value.linked_memory_id
+        ? text(value.linkedMemoryId ?? value.linked_memory_id, "", 240)
+        : undefined;
+  }
+  if (has(value, "metadata")) input.metadata = metadata(value.metadata);
+  if (!Object.keys(input).length)
+    throw new ApiError(400, "No page fields to update", "empty_patch");
+  return input;
+}
+
+export function menuItemInput(value: Record<string, unknown>): MenuItemInput {
+  const label = text(value.label, "", 120);
+  const type = text(value.type ?? value.itemType, "", 20).toUpperCase();
+  if (!label) throw new ApiError(400, "Menu label is required", "missing_menu_label");
+  if (!menuItemTypeValues.has(type)) {
+    throw new ApiError(400, "Invalid menu item type", "invalid_menu_item_type");
+  }
+  return {
+    uid: value.uid ? text(value.uid, "", 120) : undefined,
+    language: language(value.language ?? value.ln ?? "en"),
+    label,
+    type: type as MenuItemType,
+    targetValue:
+      value.targetValue || value.target_value
+        ? text(value.targetValue ?? value.target_value, "", 240)
+        : undefined,
+    url: value.url ? text(value.url, "", 2000) : undefined,
+    position: optionalNumber(value.position),
+    isVisible: bool(value.isVisible ?? value.is_visible, true),
+    opensNewTab: bool(value.opensNewTab ?? value.opens_new_tab, false),
+    metadata: metadata(value.metadata),
+  };
+}
+
+export function menuItemPatchInput(value: Record<string, unknown>): MenuItemUpdateInput {
+  const input: MenuItemUpdateInput = {};
+  if (has(value, "uid")) input.uid = value.uid ? text(value.uid, "", 120) : undefined;
+  if (has(value, "language") || has(value, "ln"))
+    input.language = language(value.language ?? value.ln);
+  if (has(value, "label")) {
+    input.label = text(value.label, "", 120);
+    if (!input.label) throw new ApiError(400, "Menu label is required", "missing_menu_label");
+  }
+  if (has(value, "type") || has(value, "itemType")) {
+    const type = text(value.type ?? value.itemType, "", 20).toUpperCase();
+    if (!menuItemTypeValues.has(type)) {
+      throw new ApiError(400, "Invalid menu item type", "invalid_menu_item_type");
+    }
+    input.type = type as MenuItemType;
+  }
+  if (has(value, "targetValue") || has(value, "target_value")) {
+    input.targetValue =
+      value.targetValue || value.target_value
+        ? text(value.targetValue ?? value.target_value, "", 240)
+        : undefined;
+  }
+  if (has(value, "url")) input.url = value.url ? text(value.url, "", 2000) : undefined;
+  if (has(value, "position")) input.position = optionalNumber(value.position);
+  if (has(value, "isVisible") || has(value, "is_visible")) {
+    input.isVisible = bool(value.isVisible ?? value.is_visible);
+  }
+  if (has(value, "opensNewTab") || has(value, "opens_new_tab")) {
+    input.opensNewTab = bool(value.opensNewTab ?? value.opens_new_tab);
+  }
+  if (has(value, "metadata")) input.metadata = metadata(value.metadata);
+  if (!Object.keys(input).length)
+    throw new ApiError(400, "No menu fields to update", "empty_patch");
+  return input;
+}
+
+export function settingsInput(value: Record<string, unknown>) {
+  const entries = Object.entries(value).filter(([key]) => key.trim());
+  if (!entries.length) throw new ApiError(400, "No settings to update", "empty_settings");
+  return Object.fromEntries(entries.map(([key, next]) => [text(key, "", 120), next]));
 }
 
 export function agentQueryInput(value: Record<string, unknown>): AgentQueryInput {

@@ -1,9 +1,16 @@
 import type {
   AssetCreateInput,
   AssetRecord,
+  MenuItemInput,
+  MenuItemRecord,
+  MenuItemUpdateInput,
   MemoryInput,
   MemoryRecord,
   MemoryUpdateInput,
+  PageInput,
+  PageRecord,
+  PageUpdateInput,
+  SettingRecord,
   UserRecord,
 } from "./domain.js";
 
@@ -27,6 +34,26 @@ export interface MemoryRepository {
 export interface UserRepository {
   list(): Promise<UserRecord[]>;
   count(): Promise<number>;
+}
+
+export interface PageRepository {
+  list(language?: string): Promise<PageRecord[]>;
+  get(slug: string, language?: string): Promise<PageRecord | null>;
+  create(input: PageInput): Promise<PageRecord>;
+  update(slug: string, input: PageUpdateInput, language?: string): Promise<PageRecord>;
+  archive(slug: string, language?: string): Promise<PageRecord>;
+}
+
+export interface MenuItemRepository {
+  list(language?: string): Promise<MenuItemRecord[]>;
+  create(input: MenuItemInput): Promise<MenuItemRecord>;
+  update(id: string, input: MenuItemUpdateInput): Promise<MenuItemRecord>;
+  delete(id: string): Promise<void>;
+}
+
+export interface SettingRepository {
+  list(): Promise<SettingRecord[]>;
+  upsertMany(values: Record<string, unknown>): Promise<SettingRecord[]>;
 }
 
 export interface AssetRepository {

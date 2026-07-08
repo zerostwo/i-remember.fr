@@ -13,6 +13,17 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 - `POST /api/v1/agent`
 - `GET /api/v1/dashboard`
 - `GET /api/v1/users`
+- `GET /api/v1/pages`
+- `POST /api/v1/pages`
+- `GET /api/v1/pages/:slug`
+- `PATCH /api/v1/pages/:slug`
+- `DELETE /api/v1/pages/:slug`
+- `GET /api/v1/menu-items`
+- `POST /api/v1/menu-items`
+- `PATCH /api/v1/menu-items/:id`
+- `DELETE /api/v1/menu-items/:id`
+- `GET /api/v1/settings`
+- `PUT /api/v1/settings`
 - `GET /api/v1/assets`
 - `POST /api/v1/assets`
 - `GET /api/v1/assets/:key`
@@ -56,6 +67,13 @@ Migration clients may set `legacyId` and filter `GET /api/v1/memories` with
 
 `GET /api/v1/dashboard` is admin-only and returns total memories, moderation
 counts, total users, and recent memory activity.
+
+`/api/v1/pages`, `/api/v1/menu-items`, and `/api/v1/settings` are
+admin-authenticated production content-management APIs backed by PostgreSQL.
+Pages accept Markdown in `bodyMarkdown`; menu items cover footer navigation
+targets (`PAGE`, `MEMORY`, `SEARCH`, `EXTERNAL`, `TERMS`, `CREDITS`,
+`LANGUAGE`); settings stores deployment-level JSON values such as default
+language and Umami tracking config.
 
 ## Architecture
 

@@ -25,6 +25,22 @@ enum MemoryStatus {
   REJECTED
 }
 
+enum PageStatus {
+  PUBLISHED
+  DRAFT
+  ARCHIVED
+}
+
+enum MenuItemType {
+  PAGE
+  MEMORY
+  SEARCH
+  EXTERNAL
+  TERMS
+  CREDITS
+  LANGUAGE
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -98,4 +114,50 @@ model MemoryTag {
 
   @@id([memoryId, tagId])
   @@map("memory_tags")
+}
+
+model Page {
+  id             String     @id @default(cuid())
+  slug           String
+  language       String     @default("en") @map("language_code")
+  title          String
+  excerpt        String?
+  bodyMarkdown   String     @default("") @map("body_markdown")
+  status         PageStatus @default(DRAFT)
+  linkedMemoryId String?    @map("linked_memory_id")
+  metadata       Json?
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  @@unique([language, slug])
+  @@index([status, updatedAt])
+  @@map("pages")
+}
+
+model MenuItem {
+  id          String       @id @default(cuid())
+  uid         String       @default(cuid())
+  language    String       @default("en") @map("language_code")
+  label       String
+  type        MenuItemType @map("item_type")
+  targetValue String?      @map("target_value")
+  url         String?
+  position    Int          @default(0)
+  isVisible   Boolean      @default(true) @map("is_visible")
+  opensNewTab Boolean      @default(false) @map("opens_new_tab")
+  metadata    Json?
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@unique([language, uid])
+  @@index([language, position])
+  @@map("menu_items")
+}
+
+model AppSetting {
+  key       String   @id
+  value     Json?
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
 }

@@ -3,16 +3,26 @@ import type {
   AttachmentInput,
   AssetCreateInput,
   AssetRecord,
+  MenuItemInput,
+  MenuItemRecord,
+  MenuItemUpdateInput,
   MemoryInput,
   MemoryRecord,
   MemoryUpdateInput,
+  PageInput,
+  PageRecord,
+  PageUpdateInput,
+  SettingRecord,
   UserRecord,
 } from "./domain.js";
 import { ApiError } from "./errors.js";
 import type {
   AssetRepository,
+  MenuItemRepository,
   MemoryListQuery,
   MemoryRepository,
+  PageRepository,
+  SettingRepository,
   UserRepository,
 } from "./repositories.js";
 
@@ -82,6 +92,48 @@ function memory(row: any): MemoryRecord {
       slug: tag.slug,
     })),
     createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function page(row: any): PageRecord {
+  return {
+    id: row.id,
+    slug: row.slug,
+    language: row.language,
+    title: row.title,
+    excerpt: row.excerpt,
+    bodyMarkdown: row.bodyMarkdown,
+    status: row.status,
+    linkedMemoryId: row.linkedMemoryId,
+    metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function menuItem(row: any): MenuItemRecord {
+  return {
+    id: row.id,
+    uid: row.uid,
+    language: row.language,
+    label: row.label,
+    type: row.type,
+    targetValue: row.targetValue,
+    url: row.url,
+    position: row.position,
+    isVisible: row.isVisible,
+    opensNewTab: row.opensNewTab,
+    metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function setting(row: any): SettingRecord {
+  return {
+    key: row.key,
+    value: row.value,
     updatedAt: row.updatedAt,
   };
 }
@@ -222,6 +274,145 @@ export class PrismaUserRepository implements UserRepository {
 
   async count() {
     return this.db.user.count();
+  }
+}
+
+export class PrismaPageRepository implements PageRepository {
+  constructor(private readonly db = getPrismaClient()) {}
+
+  async list(language = "en") {
+    const rows = await this.db.page.findMany({
+      where: { language },
+      orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+    });
+    return rows.map(page);
+  }
+
+  async get(slug: string, language = "en") {
+    const row = await this.db.page.findFirst({ where: { language, slug } });
+    return row ? page(row) : null;
+  }
+
+  async create(input: PageInput) {
+    return page(
+      await this.db.page.create({
+        data: {
+          slug: input.slug,
+          language: input.language || "en",
+          title: input.title,
+          excerpt: input.excerpt,
+          bodyMarkdown: input.bodyMarkdown || "",
+          status: input.status || "DRAFT",
+          linkedMemoryId: input.linkedMemoryId,
+          metadata: input.metadata as any,
+        },
+      }),
+    );
+  }
+
+  async update(slug: string, input: PageUpdateInput, language = "en") {
+    const existing = await this.get(slug, language);
+    if (!existing) throw new ApiError(404, "Page not found", "not_found");
+    return page(
+      await this.db.page.update({
+        where: { id: existing.id },
+        data: {
+          slug: input.slug,
+          language: input.language,
+          title: input.title,
+          excerpt: input.excerpt,
+          bodyMarkdown: input.bodyMarkdown,
+          status: input.status,
+          linkedMemoryId: input.linkedMemoryId,
+          metadata: input.metadata as any,
+        },
+      }),
+    );
+  }
+
+  async archive(slug: string, language = "en") {
+    return this.update(slug, { status: "ARCHIVED" }, language);
+  }
+}
+
+export class PrismaMenuItemRepository implements MenuItemRepository {
+  constructor(private readonly db = getPrismaClient()) {}
+
+  async list(language = "en") {
+    const rows = await this.db.menuItem.findMany({
+      where: { language },
+      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    });
+    return rows.map(menuItem);
+  }
+
+  async create(input: MenuItemInput) {
+    return menuItem(
+      await this.db.menuItem.create({
+        data: {
+          uid: input.uid,
+          language: input.language || "en",
+          label: input.label,
+          type: input.type,
+          targetValue: input.targetValue,
+          url: input.url,
+          position: input.position || 0,
+          isVisible: input.isVisible ?? true,
+          opensNewTab: input.opensNewTab ?? false,
+          metadata: input.metadata as any,
+        },
+      }),
+    );
+  }
+
+  async update(id: string, input: MenuItemUpdateInput) {
+    const existing = await this.db.menuItem.findUnique({ where: { id } });
+    if (!existing) throw new ApiError(404, "Menu item not found", "not_found");
+    return menuItem(
+      await this.db.menuItem.update({
+        where: { id },
+        data: {
+          uid: input.uid,
+          language: input.language,
+          label: input.label,
+          type: input.type,
+          targetValue: input.targetValue,
+          url: input.url,
+          position: input.position,
+          isVisible: input.isVisible,
+          opensNewTab: input.opensNewTab,
+          metadata: input.metadata as any,
+        },
+      }),
+    );
+  }
+
+  async delete(id: string) {
+    await this.db.menuItem.delete({ where: { id } }).catch(() => {
+      throw new ApiError(404, "Menu item not found", "not_found");
+    });
+  }
+}
+
+export class PrismaSettingRepository implements SettingRepository {
+  constructor(private readonly db = getPrismaClient()) {}
+
+  async list() {
+    const rows = await this.db.appSetting.findMany({ orderBy: { key: "asc" } });
+    return rows.map(setting);
+  }
+
+  async upsertMany(values: Record<string, unknown>) {
+    const rows = await Promise.all(
+      Object.entries(values).map(([key, value]) =>
+        this.db.appSetting.upsert({
+          where: { key },
+          update: { value: value as any },
+          create: { key, value: value as any },
+        }),
+      ),
+    );
+    return rows.map(setting);
   }
 }
 

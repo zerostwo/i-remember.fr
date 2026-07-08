@@ -1,20 +1,29 @@
 import { authenticate, login } from "./auth.js";
-import type { MemoryRecord } from "./domain.js";
+import type { MenuItemRecord, MemoryRecord, PageRecord, SettingRecord } from "./domain.js";
 import { ApiError } from "./errors.js";
 import { readJson, type RequestContext } from "./http.js";
 import {
   AgentService,
   AssetService,
   DashboardService,
+  MenuItemService,
   MemoryService,
+  PageService,
+  SettingService,
   UserService,
 } from "./services.js";
 import {
   agentQueryInput,
   assetUploadInput,
+  languageQuery,
+  menuItemInput,
+  menuItemPatchInput,
   memoryInput,
   memoryListQuery,
   memoryPatchInput,
+  pageInput,
+  pagePatchInput,
+  settingsInput,
 } from "./validation.js";
 
 function memoryDto(memory: MemoryRecord) {
@@ -47,6 +56,44 @@ function memoryDto(memory: MemoryRecord) {
     createdAt: memory.createdAt.toISOString(),
     updatedAt: memory.updatedAt.toISOString(),
   };
+}
+
+function pageDto(page: PageRecord) {
+  return {
+    id: page.id,
+    slug: page.slug,
+    language: page.language,
+    title: page.title,
+    excerpt: page.excerpt,
+    bodyMarkdown: page.bodyMarkdown,
+    status: page.status,
+    linkedMemoryId: page.linkedMemoryId,
+    metadata: page.metadata || {},
+    createdAt: page.createdAt.toISOString(),
+    updatedAt: page.updatedAt.toISOString(),
+  };
+}
+
+function menuItemDto(item: MenuItemRecord) {
+  return {
+    id: item.id,
+    uid: item.uid,
+    language: item.language,
+    label: item.label,
+    type: item.type,
+    targetValue: item.targetValue,
+    url: item.url,
+    position: item.position,
+    isVisible: item.isVisible,
+    opensNewTab: item.opensNewTab,
+    metadata: item.metadata || {},
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+  };
+}
+
+function settingsDto(settings: SettingRecord[]) {
+  return Object.fromEntries(settings.map((item) => [item.key, item.value]));
 }
 
 export class MemoryController {
@@ -117,6 +164,108 @@ export class UserController {
   async list(context: RequestContext) {
     const data = await this.users.list(authenticate(context.req));
     return { success: true, data };
+  }
+}
+
+export class PageController {
+  constructor(private readonly pages: PageService) {}
+
+  async list(context: RequestContext) {
+    const data = await this.pages.list(
+      authenticate(context.req),
+      languageQuery(context.url.searchParams),
+    );
+    return { success: true, data: data.map(pageDto) };
+  }
+
+  async get(context: RequestContext) {
+    const data = await this.pages.get(
+      authenticate(context.req),
+      context.params.slug,
+      languageQuery(context.url.searchParams),
+    );
+    if (!data) throw new ApiError(404, "Page not found", "not_found");
+    return { success: true, data: pageDto(data) };
+  }
+
+  async create(context: RequestContext) {
+    const data = await this.pages.create(
+      authenticate(context.req),
+      pageInput(await readJson(context.req)),
+    );
+    context.res.statusCode = 201;
+    return { success: true, data: pageDto(data) };
+  }
+
+  async update(context: RequestContext) {
+    const data = await this.pages.update(
+      authenticate(context.req),
+      context.params.slug,
+      pagePatchInput(await readJson(context.req)),
+      languageQuery(context.url.searchParams),
+    );
+    return { success: true, data: pageDto(data) };
+  }
+
+  async archive(context: RequestContext) {
+    const data = await this.pages.archive(
+      authenticate(context.req),
+      context.params.slug,
+      languageQuery(context.url.searchParams),
+    );
+    return { success: true, data: pageDto(data) };
+  }
+}
+
+export class MenuItemController {
+  constructor(private readonly menuItems: MenuItemService) {}
+
+  async list(context: RequestContext) {
+    const data = await this.menuItems.list(
+      authenticate(context.req),
+      languageQuery(context.url.searchParams),
+    );
+    return { success: true, data: data.map(menuItemDto) };
+  }
+
+  async create(context: RequestContext) {
+    const data = await this.menuItems.create(
+      authenticate(context.req),
+      menuItemInput(await readJson(context.req)),
+    );
+    context.res.statusCode = 201;
+    return { success: true, data: menuItemDto(data) };
+  }
+
+  async update(context: RequestContext) {
+    const data = await this.menuItems.update(
+      authenticate(context.req),
+      context.params.id,
+      menuItemPatchInput(await readJson(context.req)),
+    );
+    return { success: true, data: menuItemDto(data) };
+  }
+
+  async delete(context: RequestContext) {
+    const data = await this.menuItems.delete(authenticate(context.req), context.params.id);
+    return { success: true, data };
+  }
+}
+
+export class SettingController {
+  constructor(private readonly settings: SettingService) {}
+
+  async list(context: RequestContext) {
+    const data = await this.settings.list(authenticate(context.req));
+    return { success: true, data: settingsDto(data) };
+  }
+
+  async update(context: RequestContext) {
+    const data = await this.settings.upsertMany(
+      authenticate(context.req),
+      settingsInput(await readJson(context.req)),
+    );
+    return { success: true, data: settingsDto(data) };
   }
 }
 

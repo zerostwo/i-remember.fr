@@ -1,6 +1,9 @@
 export type Role = "ADMIN" | "USER" | "ANONYMOUS";
 export type Visibility = "PUBLIC" | "UNLISTED" | "PRIVATE";
 export type MemoryStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
+export type PageStatus = "PUBLISHED" | "DRAFT" | "ARCHIVED";
+export type MenuItemType =
+  "PAGE" | "MEMORY" | "SEARCH" | "EXTERNAL" | "TERMS" | "CREDITS" | "LANGUAGE";
 
 export type Principal = {
   role: Role;
@@ -81,6 +84,70 @@ export type TagRecord = {
   id: string;
   name: string;
   slug: string;
+};
+
+export type PageRecord = {
+  id: string;
+  slug: string;
+  language: string;
+  title: string;
+  excerpt?: string | null;
+  bodyMarkdown: string;
+  status: PageStatus;
+  linkedMemoryId?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type PageInput = {
+  slug: string;
+  language?: string;
+  title: string;
+  excerpt?: string;
+  bodyMarkdown?: string;
+  status?: PageStatus;
+  linkedMemoryId?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type PageUpdateInput = Partial<PageInput>;
+
+export type MenuItemRecord = {
+  id: string;
+  uid: string;
+  language: string;
+  label: string;
+  type: MenuItemType;
+  targetValue?: string | null;
+  url?: string | null;
+  position: number;
+  isVisible: boolean;
+  opensNewTab: boolean;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type MenuItemInput = {
+  uid?: string;
+  language?: string;
+  label: string;
+  type: MenuItemType;
+  targetValue?: string;
+  url?: string;
+  position?: number;
+  isVisible?: boolean;
+  opensNewTab?: boolean;
+  metadata?: Record<string, unknown>;
+};
+
+export type MenuItemUpdateInput = Partial<MenuItemInput>;
+
+export type SettingRecord = {
+  key: string;
+  value: unknown;
+  updatedAt: Date;
 };
 
 export type AssetUploadInput = {

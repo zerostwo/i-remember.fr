@@ -4,16 +4,26 @@ import { createServer } from "node:http";
 import type {
   AssetCreateInput,
   AssetRecord,
+  MenuItemInput,
+  MenuItemRecord,
+  MenuItemUpdateInput,
   MemoryInput,
   MemoryRecord,
   MemoryUpdateInput,
+  PageInput,
+  PageRecord,
+  PageUpdateInput,
+  SettingRecord,
   UserRecord,
 } from "./domain.js";
 import { createApiV1Middleware } from "./index.js";
 import type {
   AssetRepository,
+  MenuItemRepository,
   MemoryListQuery,
   MemoryRepository,
+  PageRepository,
+  SettingRepository,
   UserRepository,
 } from "./repositories.js";
 import { ApiError } from "./errors.js";
@@ -127,6 +137,105 @@ class UserRepo implements UserRepository {
   }
 }
 
+class PageRepo implements PageRepository {
+  pages: PageRecord[] = [];
+
+  async list(language = "en") {
+    return this.pages.filter((page) => page.language === language);
+  }
+
+  async get(slug: string, language = "en") {
+    return this.pages.find((page) => page.slug === slug && page.language === language) || null;
+  }
+
+  async create(input: PageInput) {
+    const page = {
+      id: `page-${this.pages.length + 1}`,
+      slug: input.slug,
+      language: input.language || "en",
+      title: input.title,
+      excerpt: input.excerpt,
+      bodyMarkdown: input.bodyMarkdown || "",
+      status: input.status || "DRAFT",
+      linkedMemoryId: input.linkedMemoryId,
+      metadata: input.metadata || {},
+      createdAt: new Date("2026-01-04T00:00:00Z"),
+      updatedAt: new Date("2026-01-04T00:00:00Z"),
+    } satisfies PageRecord;
+    this.pages.unshift(page);
+    return page;
+  }
+
+  async update(slug: string, input: PageUpdateInput, language = "en") {
+    const page = await this.get(slug, language);
+    assert.ok(page);
+    Object.assign(page, input, { updatedAt: new Date("2026-01-05T00:00:00Z") });
+    return page;
+  }
+
+  async archive(slug: string, language = "en") {
+    return this.update(slug, { status: "ARCHIVED" }, language);
+  }
+}
+
+class MenuItemRepo implements MenuItemRepository {
+  items: MenuItemRecord[] = [];
+
+  async list(language = "en") {
+    return this.items.filter((item) => item.language === language);
+  }
+
+  async create(input: MenuItemInput) {
+    const item = {
+      id: `menu-${this.items.length + 1}`,
+      uid: input.uid || `menu-${this.items.length + 1}`,
+      language: input.language || "en",
+      label: input.label,
+      type: input.type,
+      targetValue: input.targetValue,
+      url: input.url,
+      position: input.position || 0,
+      isVisible: input.isVisible ?? true,
+      opensNewTab: input.opensNewTab ?? false,
+      metadata: input.metadata || {},
+      createdAt: new Date("2026-01-04T00:00:00Z"),
+      updatedAt: new Date("2026-01-04T00:00:00Z"),
+    } satisfies MenuItemRecord;
+    this.items.push(item);
+    return item;
+  }
+
+  async update(id: string, input: MenuItemUpdateInput) {
+    const item = this.items.find((candidate) => candidate.id === id);
+    assert.ok(item);
+    Object.assign(item, input, { updatedAt: new Date("2026-01-05T00:00:00Z") });
+    return item;
+  }
+
+  async delete(id: string) {
+    this.items = this.items.filter((item) => item.id !== id);
+  }
+}
+
+class SettingRepo implements SettingRepository {
+  settings = new Map<string, SettingRecord>();
+
+  async list() {
+    return [...this.settings.values()];
+  }
+
+  async upsertMany(values: Record<string, unknown>) {
+    for (const [key, value] of Object.entries(values)) {
+      this.settings.set(key, {
+        key,
+        value,
+        updatedAt: new Date("2026-01-04T00:00:00Z"),
+      });
+    }
+    return this.list();
+  }
+}
+
 class AssetRepo implements AssetRepository {
   assets: AssetRecord[] = [
     {
@@ -188,6 +297,9 @@ const middleware = createApiV1Middleware({
   memories: new MemoryRepo(),
   users: new UserRepo(),
   assets: new AssetRepo(),
+  pages: new PageRepo(),
+  menuItems: new MenuItemRepo(),
+  settings: new SettingRepo(),
   storage,
 });
 const server = createServer((req, res) => {
@@ -288,6 +400,78 @@ const authorized = await json("/api/v1/users", {
 });
 assert.equal(authorized.response.status, 200);
 assert.equal(authorized.body.data[0].role, "ADMIN");
+
+const unauthorizedPages = await json("/api/v1/pages");
+assert.equal(unauthorizedPages.response.status, 401);
+
+const createdPage = await json("/api/v1/pages", {
+  method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    slug: "about",
+    title: "About",
+    bodyMarkdown: "# About\n\nManaged in v1.",
+    status: "DRAFT",
+  }),
+});
+assert.equal(createdPage.response.status, 201);
+assert.equal(createdPage.body.data.slug, "about");
+
+const updatedPage = await json("/api/v1/pages/about", {
+  method: "PATCH",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({ status: "PUBLISHED", metadata: { footer: true } }),
+});
+assert.equal(updatedPage.body.data.status, "PUBLISHED");
+assert.equal(updatedPage.body.data.metadata.footer, true);
+
+const listedPages = await json("/api/v1/pages", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(listedPages.body.data[0].slug, "about");
+
+const createdMenuItem = await json("/api/v1/menu-items", {
+  method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    label: "About",
+    type: "PAGE",
+    targetValue: "about",
+    position: 10,
+  }),
+});
+assert.equal(createdMenuItem.response.status, 201);
+assert.equal(createdMenuItem.body.data.type, "PAGE");
+
+const updatedMenuItem = await json(`/api/v1/menu-items/${createdMenuItem.body.data.id}`, {
+  method: "PATCH",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({ label: "About us", opensNewTab: true }),
+});
+assert.equal(updatedMenuItem.body.data.label, "About us");
+assert.equal(updatedMenuItem.body.data.opensNewTab, true);
+
+const savedSettings = await json("/api/v1/settings", {
+  method: "PUT",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    defaultLanguage: "en",
+    tracking: { enabled: true, provider: "umami" },
+  }),
+});
+assert.equal(savedSettings.body.data.defaultLanguage, "en");
+assert.equal(savedSettings.body.data.tracking.provider, "umami");
+
+const listedSettings = await json("/api/v1/settings", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(listedSettings.body.data.tracking.enabled, true);
+
+const deletedMenuItem = await json(`/api/v1/menu-items/${createdMenuItem.body.data.id}`, {
+  method: "DELETE",
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(deletedMenuItem.body.data.deleted, true);
 
 const unauthorizedDashboard = await json("/api/v1/dashboard");
 assert.equal(unauthorizedDashboard.response.status, 401);

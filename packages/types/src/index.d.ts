@@ -1,6 +1,9 @@
 export type Role = "ADMIN" | "USER" | "ANONYMOUS";
 export type Visibility = "PUBLIC" | "PRIVATE" | "UNLISTED";
 export type MemoryStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
+export type PageStatus = "PUBLISHED" | "DRAFT" | "ARCHIVED";
+export type MenuItemType =
+  "PAGE" | "MEMORY" | "SEARCH" | "EXTERNAL" | "TERMS" | "CREDITS" | "LANGUAGE";
 
 export interface Tag {
   id: string;
@@ -60,6 +63,36 @@ export interface User {
   email: string;
   role: Role;
   createdAt: string;
+}
+
+export interface Page {
+  id: string;
+  slug: string;
+  language: string;
+  title: string;
+  excerpt?: string | null;
+  bodyMarkdown: string;
+  status: PageStatus;
+  linkedMemoryId?: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MenuItem {
+  id: string;
+  uid: string;
+  language: string;
+  label: string;
+  type: MenuItemType;
+  targetValue?: string | null;
+  url?: string | null;
+  position: number;
+  isVisible: boolean;
+  opensNewTab: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuthSession {

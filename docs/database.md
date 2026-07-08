@@ -15,6 +15,11 @@ restored public archive compatibility layer while the migration is in progress.
 - `Attachment`: memory-linked asset URL, type, metadata.
 - `Tag`: normalized tag name and slug.
 - `MemoryTag`: many-to-many memory/tag join.
+- `Page`: editable Markdown pages for footer/content management.
+- `MenuItem`: public footer navigation targets for pages, memories, searches,
+  external URLs, language, terms, and credits.
+- `AppSetting`: deployment-level JSON settings such as default language and
+  Umami tracking configuration.
 
 ## Future AI Fields
 

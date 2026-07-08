@@ -4,16 +4,23 @@ import type {
   AgentAnswer,
   AgentQueryInput,
   AssetUploadInput,
+  MenuItemInput,
+  MenuItemUpdateInput,
   MemoryInput,
   MemoryRecord,
   MemoryUpdateInput,
+  PageInput,
+  PageUpdateInput,
   Principal,
 } from "./domain.js";
 import { requireRole } from "./auth.js";
 import type {
   AssetRepository,
+  MenuItemRepository,
   MemoryListQuery,
   MemoryRepository,
+  PageRepository,
+  SettingRepository,
   UserRepository,
 } from "./repositories.js";
 
@@ -60,6 +67,74 @@ export class UserService {
   list(principal: Principal) {
     requireRole(principal, ["ADMIN"]);
     return this.users.list();
+  }
+}
+
+export class PageService {
+  constructor(private readonly pages: PageRepository) {}
+
+  list(principal: Principal, language?: string) {
+    requireRole(principal, ["ADMIN"]);
+    return this.pages.list(language);
+  }
+
+  async get(principal: Principal, slug: string, language?: string) {
+    requireRole(principal, ["ADMIN"]);
+    return this.pages.get(slug, language);
+  }
+
+  create(principal: Principal, input: PageInput) {
+    requireRole(principal, ["ADMIN"]);
+    return this.pages.create(input);
+  }
+
+  update(principal: Principal, slug: string, input: PageUpdateInput, language?: string) {
+    requireRole(principal, ["ADMIN"]);
+    return this.pages.update(slug, input, language);
+  }
+
+  archive(principal: Principal, slug: string, language?: string) {
+    requireRole(principal, ["ADMIN"]);
+    return this.pages.archive(slug, language);
+  }
+}
+
+export class MenuItemService {
+  constructor(private readonly menuItems: MenuItemRepository) {}
+
+  list(principal: Principal, language?: string) {
+    requireRole(principal, ["ADMIN"]);
+    return this.menuItems.list(language);
+  }
+
+  create(principal: Principal, input: MenuItemInput) {
+    requireRole(principal, ["ADMIN"]);
+    return this.menuItems.create(input);
+  }
+
+  update(principal: Principal, id: string, input: MenuItemUpdateInput) {
+    requireRole(principal, ["ADMIN"]);
+    return this.menuItems.update(id, input);
+  }
+
+  async delete(principal: Principal, id: string) {
+    requireRole(principal, ["ADMIN"]);
+    await this.menuItems.delete(id);
+    return { id, deleted: true };
+  }
+}
+
+export class SettingService {
+  constructor(private readonly settings: SettingRepository) {}
+
+  list(principal: Principal) {
+    requireRole(principal, ["ADMIN"]);
+    return this.settings.list();
+  }
+
+  upsertMany(principal: Principal, values: Record<string, unknown>) {
+    requireRole(principal, ["ADMIN"]);
+    return this.settings.upsertMany(values);
   }
 }
 
