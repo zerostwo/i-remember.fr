@@ -11,7 +11,8 @@ tracking.
 ## Current Scope
 
 - Public archive frontend with English, French, and Chinese routes.
-- Anonymous public memory submission with moderation status.
+- Anonymous public memory submission with moderation status; new submissions are
+  public immediately unless moderation is explicitly enabled.
 - Admin login with real password validation, session cookies, and optional TOTP
   2FA.
 - Admin modules for Dashboard, Memory, Pages, Comments, Attachments, Theme,
@@ -56,7 +57,8 @@ Copy `.env.example` into your deployment environment and set:
 - `I_REMEMBER_DATA_DIR`: SQLite and uploads directory.
 - `I_REMEMBER_DEFAULT_LANGUAGE`: `en`, `fr`, or `zh`.
 - `I_REMEMBER_ANONYMOUS_SUBMISSIONS`: `true` or `false`.
-- `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`: keep `false` unless the site is private.
+- `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`: `true` by default so public submissions
+  appear in search immediately; set `false` when you want manual moderation.
 - `I_REMEMBER_SEED_ARCHIVE_DATA`: set `true` only when you want to import the
   restored public archive into a fresh database.
 - `I_REMEMBER_SEED_STARTER_CONTENT`: set `true` only when you want starter

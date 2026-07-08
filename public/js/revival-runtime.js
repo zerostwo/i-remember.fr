@@ -28,6 +28,61 @@
     introAppInitialized: false
   };
 
+  var languagePreferenceKey = "iRememberLanguage";
+  var uiCopy = {
+    en: {
+      htmlLang: "en-US",
+      footerLanguage: "language",
+      header: 'How lucky we are to be able to say <span class="font-italic">&laquo;I remember&raquo;</span>.<br/>Let\'s share our memories to fight Alzheimer\'s disease.',
+      navSearch: "Search for a memory",
+      navAdd: "Add a memory",
+      searchPlaceholder: "Search...",
+      searchNotFound: 'No memory match your search &lt;&lt;<span class="font-bold-italic">{{interpolation}}</span>&gt;&gt;.<br/>Please make an other search.',
+      shareMemory: 'tell a<br/><span class="font-light-italic">memory</span>',
+      lookMemory: 'see all <span class="font-italic">memories</span>',
+      acceptTerms: "I have read and agree with the",
+      termsLink: "Terms of Service",
+      tutorialMoveMouse: '<span class="font-italic">Use your mouse</span><br/><span>to move</span>',
+      tutorialMoveTouch: '<span class="font-italic">Touch and drag</span><br/><span>to move</span>',
+      tutorialZoomTouch: '<span class="font-italic">Pinch or double tap</span><br/><span>to zoom in</span>',
+      tutorialWatchTouch: '<span class="font-italic">Tap to watch</span><br/><span>a memory</span>'
+    },
+    fr: {
+      htmlLang: "fr-FR",
+      footerLanguage: "langue",
+      header: 'Quelle chance nous avons de pouvoir dire <span class="font-italic">&laquo;je me souviens&raquo;</span>.<br/>Partageons nos souvenirs pour lutter contre Alzheimer.',
+      navSearch: "Rechercher un souvenir",
+      navAdd: "Ajouter un souvenir",
+      searchPlaceholder: "Rechercher...",
+      searchNotFound: 'Aucun souvenir ne correspond a &lt;&lt;<span class="font-bold-italic">{{interpolation}}</span>&gt;&gt;.<br/>Veuillez essayer une autre recherche.',
+      shareMemory: 'raconter un<br/><span class="font-light-italic">souvenir</span>',
+      lookMemory: 'voir tous les <span class="font-italic">souvenirs</span>',
+      acceptTerms: "J'ai lu et j'accepte les",
+      termsLink: "conditions d'utilisation",
+      tutorialMoveMouse: '<span class="font-italic">Utilisez votre souris</span><br/>pour vous <span class="font-italic">deplacer</span>',
+      tutorialMoveTouch: '<span class="font-italic">Touchez et glissez</span><br/>pour vous <span class="font-italic">deplacer</span>',
+      tutorialZoomTouch: '<span class="font-italic">Pincez ou touchez deux fois</span><br/><span class="font-italic">pour zoomer</span>',
+      tutorialWatchTouch: '<span class="font-italic">Touchez</span> un souvenir<br/>pour <span class="font-italic">le voir</span>'
+    },
+    zh: {
+      htmlLang: "zh-CN",
+      footerLanguage: "语言",
+      header: '能说出 <span class="font-italic">“我记得”</span> 是多么幸运。<br/>分享你的回忆，一起守护记忆。',
+      navSearch: "搜索回忆",
+      navAdd: "添加回忆",
+      searchPlaceholder: "搜索...",
+      searchNotFound: '没有回忆匹配 &lt;&lt;<span class="font-bold-italic">{{interpolation}}</span>&gt;&gt;。<br/>请换一个词搜索。',
+      shareMemory: '说出<br/><span class="font-light-italic">一段回忆</span>',
+      lookMemory: '查看所有<span class="font-italic">回忆</span>',
+      acceptTerms: "我已阅读并同意",
+      termsLink: "服务条款",
+      tutorialMoveMouse: '<span class="font-italic">移动鼠标</span><br/><span>探索回忆</span>',
+      tutorialMoveTouch: '<span class="font-italic">触摸并拖动</span><br/><span>探索回忆</span>',
+      tutorialZoomTouch: '<span class="font-italic">双指缩放或双击</span><br/><span>放大</span>',
+      tutorialWatchTouch: '<span class="font-italic">轻点查看</span><br/><span>一段回忆</span>'
+    }
+  };
+
   function localOrigin() {
     if (window.location.origin) return window.location.origin;
     return window.location.protocol + "//" + window.location.host;
@@ -87,6 +142,86 @@
     return "transform";
   }
 
+  function panelWidth(wrapper) {
+    var width;
+    if (wrapper && wrapper.getBoundingClientRect) {
+      width = wrapper.getBoundingClientRect().width;
+    }
+    if (!width && window.getComputedStyle) {
+      width = parseFloat(
+        window.getComputedStyle(document.documentElement).getPropertyValue("--revival-panel-width")
+      );
+    }
+    return Math.ceil(width || 332);
+  }
+
+  function hiddenPanelTransform(wrapper) {
+    return "translate3d(" + panelWidth(wrapper) + "px,0,0)";
+  }
+
+  function setPanelWidth(value) {
+    var max = Math.min(Math.max(window.innerWidth - 24, 300), 720);
+    var width = Math.max(300, Math.min(max, Math.round(value)));
+    document.documentElement.style.setProperty("--revival-panel-width", width + "px");
+    try {
+      window.sessionStorage.setItem("iRememberPanelWidth", String(width));
+    } catch (error) {}
+  }
+
+  function restorePanelWidth() {
+    var saved;
+    try {
+      saved = parseInt(window.sessionStorage.getItem("iRememberPanelWidth") || "", 10);
+    } catch (error) {}
+    if (saved) setPanelWidth(saved);
+  }
+
+  function ensurePanelResize(wrapper) {
+    if (!wrapper || wrapper.__revivalResizeReady) return;
+    wrapper.__revivalResizeReady = true;
+    var handle = document.createElement("div");
+    var tracking = false;
+    handle.className = "revival-panel-resize";
+    handle.setAttribute("aria-hidden", "true");
+    wrapper.appendChild(handle);
+
+    function clientX(event) {
+      return event.touches && event.touches[0] ? event.touches[0].clientX : event.clientX;
+    }
+
+    function move(event) {
+      if (!tracking) return;
+      setPanelWidth(window.innerWidth - clientX(event));
+      event.preventDefault();
+    }
+
+    function up() {
+      tracking = false;
+      document.removeEventListener("mousemove", move, true);
+      document.removeEventListener("mouseup", up, true);
+      document.removeEventListener("touchmove", move, true);
+      document.removeEventListener("touchend", up, true);
+    }
+
+    function down(event) {
+      tracking = true;
+      document.addEventListener("mousemove", move, true);
+      document.addEventListener("mouseup", up, true);
+      document.addEventListener("touchmove", move, { capture: true, passive: false });
+      document.addEventListener("touchend", up, true);
+      event.preventDefault();
+    }
+
+    handle.addEventListener("mousedown", down, true);
+    handle.addEventListener("touchstart", down, { capture: true, passive: false });
+  }
+
+  function installPanelResizers() {
+    restorePanelWidth();
+    ensurePanelResize(document.querySelector(".terms-wrapper"));
+    ensurePanelResize(document.querySelector(".credit-wrapper"));
+  }
+
   function setCreditVisible(visible) {
     var credit = document.querySelector(".credit");
     var wrapper = document.querySelector(".credit-wrapper");
@@ -94,6 +229,7 @@
     if (!credit || !wrapper) return;
 
     var transform = transformProperty();
+    installPanelResizers();
     if (visible) {
       credit.style.display = "block";
       wrapper.style[transform] = "translate3d(0,0,0)";
@@ -109,7 +245,7 @@
       return;
     }
 
-    wrapper.style[transform] = "translate3d(332px,0,0)";
+    wrapper.style[transform] = hiddenPanelTransform(wrapper);
     window.setTimeout(function () {
       credit.style.display = "none";
     }, 350);
@@ -699,10 +835,104 @@
   }, 100);
 
   function siteLanguage() {
+    var preferred = preferredLanguage();
+    if (preferred) return preferred;
     if (window.LANG === "fr" || window.LANG === "zh" || window.LANG === "en") return window.LANG;
     if (window.location.pathname.indexOf("/fr") === 0) return "fr";
     if (window.location.pathname.indexOf("/zh") === 0) return "zh";
     return "en";
+  }
+
+  function normalizedLanguage(language) {
+    return language === "fr" || language === "zh" || language === "en" ? language : "en";
+  }
+
+  function preferredLanguage() {
+    var stored;
+    try {
+      stored = window.sessionStorage.getItem(languagePreferenceKey);
+    } catch (error) {}
+    return stored === "fr" || stored === "zh" || stored === "en" ? stored : "";
+  }
+
+  function setPreferredLanguage(language) {
+    var normalized = normalizedLanguage(language);
+    try {
+      window.sessionStorage.setItem(languagePreferenceKey, normalized);
+    } catch (error) {}
+    window.LANG = normalized;
+    return normalized;
+  }
+
+  function isTouchDevice() {
+    return (
+      "ontouchstart" in window ||
+      (window.matchMedia && window.matchMedia("(pointer: coarse)").matches)
+    );
+  }
+
+  function setText(selector, text) {
+    var element = document.querySelector(selector);
+    if (element) element.textContent = text;
+  }
+
+  function setHtml(selector, html) {
+    var element = document.querySelector(selector);
+    if (element) element.innerHTML = html;
+  }
+
+  function applyInputModeText() {
+    var copy = uiCopy[siteLanguage()] || uiCopy.en;
+    var pages = document.querySelectorAll(".tutorial-page-text");
+    if (!pages.length) return;
+
+    if (isTouchDevice()) {
+      document.documentElement.classList.add("is-touch-device");
+      if (pages[0]) pages[0].innerHTML = copy.tutorialMoveTouch;
+      if (pages[1]) pages[1].innerHTML = copy.tutorialZoomTouch;
+      if (pages[2]) pages[2].innerHTML = copy.tutorialWatchTouch;
+      return;
+    }
+
+    if (pages[0]) pages[0].innerHTML = copy.tutorialMoveMouse;
+  }
+
+  function applyLanguagePreference() {
+    var language = siteLanguage();
+    var copy = uiCopy[language] || uiCopy.en;
+    var config = legacyModule("config");
+
+    window.LANG = language;
+    if (config) config.LANG = language;
+    document.documentElement.lang = copy.htmlLang;
+    document.documentElement.setAttribute("data-revival-language", language);
+
+    setHtml(".header-description", copy.header);
+    setText(".nav-search-text", copy.navSearch);
+    setText(".nav-add-text", copy.navAdd);
+    setText(".search-input-placeholder", copy.searchPlaceholder);
+    setHtml(".add-steps-add-options-share-text", copy.shareMemory);
+    setHtml(".add-steps-add-options-look-text", copy.lookMemory);
+    setText(".add-steps-message-terms-i-accept-text", copy.acceptTerms);
+    setText(".add-steps-message-terms-link", copy.termsLink);
+
+    var notFound = document.querySelector(".search-not-found");
+    if (notFound) {
+      var searchOverlay = document.querySelector(".search");
+      notFound.setAttribute("data-template", copy.searchNotFound);
+      if (!searchOverlay || !searchOverlay.classList.contains("not-found")) {
+        notFound.innerHTML = copy.searchNotFound.replace(/\{\{interpolation\}\}/g, "");
+      }
+    }
+
+    var label = document.querySelector(".footer-link-lang-text");
+    if (label && !closest(label, ".footer-content[data-managed-menu='true']")) {
+      label.textContent = copy.footerLanguage;
+    }
+    Array.prototype.forEach.call(document.querySelectorAll(".footer-link-lang-item[data-id]"), function (item) {
+      item.classList.toggle("selected", item.getAttribute("data-id") === language);
+    });
+    applyInputModeText();
   }
 
   function escapeHtml(value) {
@@ -732,13 +962,14 @@
     if (!terms || !wrapper) return;
 
     var transform = transformProperty();
+    installPanelResizers();
     if (visible) {
       terms.style.display = "block";
       wrapper.style[transform] = "translate3d(0,0,0)";
       return;
     }
 
-    wrapper.style[transform] = "translate3d(332px,0,0)";
+    wrapper.style[transform] = hiddenPanelTransform(wrapper);
     window.setTimeout(function () {
       terms.style.display = "none";
     }, 350);
@@ -766,7 +997,23 @@
       ".revival-menu-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}",
       ".revival-menu-actions button,.revival-menu-actions a{border:1px solid rgba(255,255,255,.24);border-radius:999px;background:transparent;color:white;cursor:pointer;font:12px Helvetica,Arial,sans-serif;min-height:36px;padding:0 16px;text-decoration:none;text-transform:uppercase}",
       ".revival-menu-close{position:absolute;right:22px;top:18px;border:0;background:transparent;color:white;cursor:pointer;font-size:30px;line-height:1;opacity:.72}",
+      "html{--revival-panel-width:332px}",
+      ".terms-wrapper,.credit-wrapper{width:var(--revival-panel-width,332px)!important;max-width:calc(100vw - 24px)!important;background:#000!important}",
+      ".terms-close-btn,.credit-close-btn{position:absolute!important;top:18px!important;margin:0!important;z-index:3}",
+      ".terms-close-btn{left:-16px!important}",
+      ".credit-close-btn{left:18px!important}",
+      ".terms-wrapper .scroll-move-container{left:34px!important;width:calc(100% - 68px)!important;padding-top:58px!important}",
+      ".terms-wrapper .scroll-indicator-wrapper{width:6px!important;background:#1e1e1e!important}",
+      ".terms-wrapper .scroll-indicator{border-radius:4px;background:#5f5f5f!important}",
+      ".credit-wrapper .bss-inner{padding:86px 34px 34px!important;text-align:left!important}",
+      ".credit-title,.credit-item,.credit-item-text{max-width:100%!important}",
+      ".revival-panel-resize{position:absolute;left:0;top:0;width:12px;height:100%;cursor:ew-resize;z-index:2}",
+      ".nav{width:118px!important}",
+      ".nav-map-wrapper{margin-bottom:18px!important}",
+      ".nav-search-wrapper,.nav-add-wrapper{clear:both!important;margin-top:14px!important;margin-bottom:14px!important}",
+      "html.is-touch-device .base-3d-container,html.is-touch-device .app{touch-action:none}",
       "html.revival-empty-memory .add-steps-add-options-look,html.revival-empty-memory .nav-map-wrapper{display:none!important;pointer-events:none!important}",
+      "@media(max-width:760px){.header-description{display:none!important}.header-logo{left:22px!important;top:28px!important;transform:scale(.72)!important;transform-origin:left top!important}.header-fade-container{right:16px!important;top:12px!important;transform:scale(.76)!important;transform-origin:right top!important}.nav{left:8px!important;width:72px!important;margin-top:-78px!important}.nav-map-wrapper{left:0!important;width:62px!important;height:62px!important;margin:8px 0 8px auto!important}.nav-map-btn{width:62px!important;height:62px!important}.nav-search-wrapper,.nav-add-wrapper{margin:8px 0 8px auto!important}.nav-text,.nav-search-item{left:52px!important}.search-center-wrapper{left:20px!important;right:20px!important;width:auto!important;margin-left:0!important;margin-top:-58px!important}.search-input-wrapper,.search-line{width:100%!important}.search-input,.search-input-placeholder{font-size:50px!important;line-height:58px!important;max-width:100%!important;white-space:nowrap!important}.search-not-found{left:0!important;width:100%!important;font-size:15px!important;line-height:22px!important}.search-btn{right:0!important}.footer{height:132px!important}.footer-content{height:132px!important;display:flex!important;align-items:flex-end!important;justify-content:flex-end!important;gap:8px 12px!important;flex-wrap:wrap!important;padding:0 16px 18px 16px!important}.footer-content>*{float:none!important;margin:0!important}.footer-logo-wrapper{order:20;width:46px!important;height:54px!important}.footer-share,.footer-sound-btn{width:24px!important;height:24px!important}.footer-link-item{font-size:9px!important;line-height:14px!important;white-space:nowrap!important}.footer-link-lang-list{bottom:18px!important}.terms-wrapper,.credit-wrapper{width:100vw!important;max-width:100vw!important}.revival-panel-resize{display:none!important}}",
       "@media(max-width:720px){.revival-menu-card{grid-template-columns:1fr;max-height:calc(100vh - 80px)}.revival-menu-image{min-height:190px;border-right:0;border-bottom:1px solid rgba(255,255,255,.18)}.revival-menu-body{padding:22px}.revival-menu-body h2{font-size:25px}}"
     ].join("");
     document.head.appendChild(style);
@@ -1288,6 +1535,68 @@
     }, true);
   }
 
+  function touchBridgeIgnored(target) {
+    return closest(
+      target,
+      "a,button,input,textarea,select,[contenteditable],.footer,.search,.terms,.credit,.add-steps,.revival-menu-memory"
+    );
+  }
+
+  function dispatchMouseFromTouch(type, touch, target, detail) {
+    var event;
+    if (!touch || !target || typeof window.MouseEvent !== "function") return;
+    event = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      detail: detail || 1,
+      screenX: touch.screenX,
+      screenY: touch.screenY,
+      clientX: touch.clientX,
+      clientY: touch.clientY
+    });
+    target.dispatchEvent(event);
+  }
+
+  function installTouchInteraction() {
+    var activeTarget = null;
+    var lastTap = 0;
+    if (!isTouchDevice() || window.I_REMEMBER_REVIVAL.touchInteractionReady) return;
+    window.I_REMEMBER_REVIVAL.touchInteractionReady = true;
+    document.documentElement.classList.add("is-touch-device");
+
+    document.addEventListener("touchstart", function (event) {
+      var touch = event.touches && event.touches[0];
+      var now = +(new Date());
+      var detail = now - lastTap < 320 ? 2 : 1;
+      if (!touch || touchBridgeIgnored(event.target)) return;
+      activeTarget = event.target;
+      lastTap = now;
+      dispatchMouseFromTouch("mousedown", touch, activeTarget, detail);
+      if (detail === 2) dispatchMouseFromTouch("dblclick", touch, activeTarget, detail);
+      event.preventDefault();
+    }, { capture: true, passive: false });
+
+    document.addEventListener("touchmove", function (event) {
+      var touch = event.touches && event.touches[0];
+      if (!activeTarget || !touch) return;
+      dispatchMouseFromTouch("mousemove", touch, activeTarget, 1);
+      event.preventDefault();
+    }, { capture: true, passive: false });
+
+    document.addEventListener("touchend", function (event) {
+      var touch = event.changedTouches && event.changedTouches[0];
+      if (!activeTarget || !touch) return;
+      dispatchMouseFromTouch("mouseup", touch, activeTarget, 1);
+      dispatchMouseFromTouch("click", touch, activeTarget, 1);
+      activeTarget = null;
+    }, true);
+
+    document.addEventListener("touchcancel", function () {
+      activeTarget = null;
+    }, true);
+  }
+
   function applyEmptyMemoryState() {
     var posts = window.DEFAULT_POSTS && window.DEFAULT_POSTS.data && window.DEFAULT_POSTS.data.posts;
     if (!posts || posts.length > 0) return;
@@ -1299,13 +1608,24 @@
     fetchJson("/api/public/menu?ln=" + encodeURIComponent(siteLanguage()))
       .then(function (data) {
         renderManagedFooter(data.items || []);
+        applyLanguagePreference();
       })
       .catch(function () {});
   }
 
+  applyLanguagePreference();
   loadManagedFooter();
+  installPanelResizers();
+  installTouchInteraction();
   applyEmptyMemoryState();
-  document.addEventListener("DOMContentLoaded", applyEmptyMemoryState);
+  document.addEventListener("DOMContentLoaded", function () {
+    applyLanguagePreference();
+    installPanelResizers();
+    installTouchInteraction();
+    applyEmptyMemoryState();
+  });
+  window.setTimeout(applyLanguagePreference, 800);
+  window.setTimeout(applyLanguagePreference, 1800);
   installIntroFastForward();
   installSearchFallback();
   installUploadWatchdog();
@@ -1313,6 +1633,17 @@
   document.addEventListener(
     "click",
     function (event) {
+      var languageItem = closest(event.target, ".footer-link-lang-item[data-id]");
+      if (languageItem) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+        setPreferredLanguage(languageItem.getAttribute("data-id"));
+        applyLanguagePreference();
+        loadManagedFooter();
+        return;
+      }
+
       var managedItem = closest(event.target, ".footer-managed-item[data-menu-id]");
       if (managedItem) {
         var type = managedItem.getAttribute("data-menu-type");

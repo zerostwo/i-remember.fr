@@ -32,7 +32,7 @@ const maxImagePixels = Number.parseInt(
   10,
 );
 const autoApproveSubmissions =
-  process.env.I_REMEMBER_AUTO_APPROVE_SUBMISSIONS === "true";
+  process.env.I_REMEMBER_AUTO_APPROVE_SUBMISSIONS !== "false";
 const seedArchiveData = process.env.I_REMEMBER_SEED_ARCHIVE_DATA === "true";
 const seedStarterContent = process.env.I_REMEMBER_SEED_STARTER_CONTENT === "true";
 const sessionCookieName = "i_remember_admin_session";
@@ -98,6 +98,15 @@ const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 function boolSetting(value, fallback = false) {
   if (value === null || value === undefined || value === "") return fallback;
   return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
+}
+
+function logInfo(event, fields = {}) {
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(),
+    level: "info",
+    event,
+    ...fields,
+  }));
 }
 
 function hashPassword(password) {
@@ -451,6 +460,27 @@ const defaultMenuItems = {
     { uid: "footer_donate", label: "捐赠", item_type: "EXTERNAL", url: "https://don.frm.org/Iremember/", position: 20, opens_new_tab: true },
     { uid: "footer_terms", label: "条款", item_type: "PAGE", target_value: "terms", position: 30 },
     { uid: "footer_credits", label: "鸣谢", item_type: "PAGE", target_value: "credits", position: 40 },
+    { uid: "footer_language", label: "语言", item_type: "LANGUAGE", position: 50 },
+  ],
+};
+
+const defaultFooterMenuItems = {
+  en: [
+    { uid: "footer_donate", label: "Donate", item_type: "EXTERNAL", url: "https://don.frm.org/Iremember/", position: 20, opens_new_tab: true },
+    { uid: "footer_terms", label: "Terms and Conditions", item_type: "TERMS", position: 30 },
+    { uid: "footer_credits", label: "Credits", item_type: "CREDITS", position: 40 },
+    { uid: "footer_language", label: "language", item_type: "LANGUAGE", position: 50 },
+  ],
+  fr: [
+    { uid: "footer_donate", label: "Faire un don", item_type: "EXTERNAL", url: "https://don.frm.org/jemesouviens/", position: 20, opens_new_tab: true },
+    { uid: "footer_terms", label: "Mentions legales", item_type: "TERMS", position: 30 },
+    { uid: "footer_credits", label: "Credits", item_type: "CREDITS", position: 40 },
+    { uid: "footer_language", label: "langue", item_type: "LANGUAGE", position: 50 },
+  ],
+  zh: [
+    { uid: "footer_donate", label: "捐赠", item_type: "EXTERNAL", url: "https://don.frm.org/Iremember/", position: 20, opens_new_tab: true },
+    { uid: "footer_terms", label: "条款", item_type: "TERMS", position: 30 },
+    { uid: "footer_credits", label: "鸣谢", item_type: "CREDITS", position: 40 },
     { uid: "footer_language", label: "语言", item_type: "LANGUAGE", position: 50 },
   ],
 };
@@ -1341,6 +1371,7 @@ class RevivalBackend {
     this.store = new RevivalSQLiteStore();
     this.ensureAdminAccount();
     this.ensureSiteSettings();
+    this.ensureDefaultFooterMenu();
     if (seedArchiveData) this.seedArchiveData();
     if (seedStarterContent) this.seedAdminContent();
   }
@@ -1368,6 +1399,30 @@ class RevivalBackend {
       if (this.store.getSetting(key, null) === null) updates[key] = value;
     }
     if (Object.keys(updates).length) this.store.setSettings(updates);
+  }
+
+  ensureDefaultFooterMenu() {
+    for (const language of ["en", "fr", "zh"]) {
+      const settingKey = `site.footer_menu_initialized.${language}`;
+      if (this.store.getSetting(settingKey, "") === "true") continue;
+
+      const existing = this.store.listMenuItems(language);
+      if (existing.length === 0) {
+        for (const item of defaultFooterMenuItems[language] || []) {
+          this.store.upsertMenuItem({
+            ...item,
+            language_code: language,
+            is_visible: true,
+            opens_new_tab: Boolean(item.opens_new_tab),
+          });
+        }
+        logInfo("footer_menu_seeded", {
+          language,
+          count: (defaultFooterMenuItems[language] || []).length,
+        });
+      }
+      this.store.setSetting(settingKey, "true");
+    }
   }
 
   siteSettings() {
@@ -2073,12 +2128,25 @@ function directPostPublicId(pathname) {
   return pathname.match(/\/memory\/([^/?#]+)/)?.[1] || "";
 }
 
-async function renderAppHtml(backend, language, directPayload = null) {
+function shouldLogRequest(pathname) {
+  return (
+    pathname === "/healthz" ||
+    pathname === "/version" ||
+    pathname === "/api" ||
+    pathname.startsWith("/api/") ||
+    appShellRequested(pathname) ||
+    memoryShellRequested(pathname) ||
+    legalPageRequested(pathname) ||
+    adminPageRequested(pathname)
+  );
+}
+
+async function renderAppHtml(backend, language, directPayload = null, pathname = "/") {
   const normalized = normalizeLanguage(language);
   let html = readFileSync(appHtmlUrlForLanguage(normalized), "utf8");
   if (normalized === "zh") html = localizeChineseHtml(html);
 
-  html = patchLanguageShell(html, normalized);
+  html = patchLanguageShell(html, normalized, pathname);
   html = injectTracking(html, backend.siteSettings());
 
   const defaultPosts = await backend.searchPosts(normalized, "", new URL("/", "http://i-remember.local"));
@@ -2121,8 +2189,14 @@ function replaceDefaultPosts(html, payload) {
   );
 }
 
-function patchLanguageShell(html, language) {
+function languagePathForLanguageSwitcher(pathname) {
+  if (!pathname || pathname === "/") return "";
+  return pathname.replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
+function patchLanguageShell(html, language, pathname = "/") {
   const normalized = normalizeLanguage(language);
+  const languagePath = languagePathForLanguageSwitcher(pathname);
   const labels = {
     en: "language",
     fr: "langue",
@@ -2134,9 +2208,9 @@ function patchLanguageShell(html, language) {
     zh: "zh-CN",
   };
   const menu = [
-    languageMenuItem("en", "/en", "English", normalized),
-    languageMenuItem("fr", "/fr", "French", normalized),
-    languageMenuItem("zh", "/zh", "中文", normalized),
+    languageMenuItem("en", languagePath, "English", normalized),
+    languageMenuItem("fr", languagePath, "French", normalized),
+    languageMenuItem("zh", languagePath, "中文", normalized),
   ].join("\n");
 
   return html
@@ -2253,8 +2327,21 @@ export function createRevivalMiddleware(options = {}) {
 async function handleRequest(backend, req, res, next, options = {}) {
   const url = new URL(req.url || "/", "http://i-remember.local");
   const pathname = decodeURIComponent(url.pathname);
+  const startedAt = Date.now();
   const siteSettings = backend.siteSettings();
   const defaultLanguage = siteSettings.defaultLanguage;
+
+  if (shouldLogRequest(pathname)) {
+    res.once("finish", () => {
+      logInfo("http_request", {
+        method: req.method || "GET",
+        path: pathname,
+        status: res.statusCode,
+        durationMs: Date.now() - startedAt,
+        contentLength: req.headers["content-length"] || "",
+      });
+    });
+  }
 
   if (req.method === "GET" && pathname === "/healthz") {
     sendJson(req, res, { ok: true });
@@ -2545,7 +2632,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
     const directId = directPostPublicId(pathname);
     if (directId) {
-      const language = languageFromPath(pathname, defaultLanguage);
+      const language = languageFromRequest(url, pathname, defaultLanguage);
       const post = await backend.directPost(language, directId);
       if (post) {
         const payload = {
@@ -2553,13 +2640,14 @@ async function handleRequest(backend, req, res, next, options = {}) {
           data: post,
           input: { ln: language, id: String(numericPostId(post)) },
         };
-        sendHtml(res, await renderAppHtml(backend, language, payload));
+        sendHtml(res, await renderAppHtml(backend, language, payload, pathname));
         return;
       }
     }
 
     if (appShellRequested(pathname) || memoryShellRequested(pathname)) {
-      sendHtml(res, await renderAppHtml(backend, languageFromPath(pathname, defaultLanguage)));
+      const language = languageFromRequest(url, pathname, defaultLanguage);
+      sendHtml(res, await renderAppHtml(backend, language, null, pathname));
       return;
     }
   }
@@ -2585,6 +2673,12 @@ async function handleRequest(backend, req, res, next, options = {}) {
         })
       : "revival-upload";
 
+    logInfo("upload_image", {
+      fileId,
+      source: directImage ? "file" : urlImage ? "url" : "fallback",
+      bytes: sourceImage?.data?.length || 0,
+    });
+
     sendJson(req, res, {
       success: true,
       data: { fileId },
@@ -2601,6 +2695,13 @@ async function handleRequest(backend, req, res, next, options = {}) {
     const body = await collectRequest(req, maxFormBodyBytes);
     const fields = parseFields(req, body);
     const post = await backend.createPost(fields);
+    logInfo("memory_submitted", {
+      language: languageFromRequest(url, pathname, defaultLanguage),
+      memoryId: post.id,
+      publicId: post.publicId || "",
+      status: post.status || "",
+      imageKey: post.img || "",
+    });
     sendJson(req, res, {
       success: true,
       data: post,
@@ -2608,32 +2709,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
     return;
   }
 
-  if (pathname.startsWith("/api/search-posts") || /^\/api(?:\/[^/]+)?$/.test(pathname)) {
-    assertRateLimit(req, "search-posts", 240, 60 * 1000);
-    const language = languageFromRequest(url, pathname, defaultLanguage);
-    const pathTag = pathname.startsWith("/api/search-posts")
-      ? pathname.replace(/^\/api\/search-posts\/?/, "").slice(0, 120)
-      : pathname.replace(/^\/api\/?/, "").slice(0, 120);
-    const inputTag = (url.searchParams.get("tagName") || pathTag).slice(0, 120);
-    const parsedTag = routeTag(inputTag);
-    const found = await backend.searchPosts(language, inputTag, url);
-
-    sendJson(req, res, {
-      success: 1,
-      data: {
-        tagName: parsedTag,
-        posts: found,
-      },
-      input: {
-        ln: language,
-        tagName: inputTag,
-        lastId: url.searchParams.get("lastId") || "",
-      },
-    });
-    return;
-  }
-
-  if (pathname.startsWith("/api/related-post-count/")) {
+  if (req.method === "GET" && pathname.startsWith("/api/related-post-count/")) {
     assertRateLimit(req, "related-post-count", 240, 60 * 1000);
     const language = languageFromRequest(url, pathname, defaultLanguage);
     const id = pathname.split("/").pop();
@@ -2650,7 +2726,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
     return;
   }
 
-  if (pathname.startsWith("/api/auto-complete-tags/")) {
+  if (req.method === "GET" && pathname.startsWith("/api/auto-complete-tags/")) {
     assertRateLimit(req, "auto-complete-tags", 240, 60 * 1000);
     const language = languageFromRequest(url, pathname, defaultLanguage);
     const fragment = pathname.replace(/^\/api\/auto-complete-tags\/?/, "").slice(0, 120);
@@ -2659,6 +2735,63 @@ async function handleRequest(backend, req, res, next, options = {}) {
       data: {
         tagFragment: routeTag(fragment),
         list: await backend.autocomplete(language, fragment),
+      },
+    });
+    return;
+  }
+
+  if (req.method === "GET" && pathname.startsWith("/api/search-posts")) {
+    assertRateLimit(req, "search-posts", 240, 60 * 1000);
+    const language = languageFromRequest(url, pathname, defaultLanguage);
+    const pathTag = pathname.startsWith("/api/search-posts")
+      ? pathname.replace(/^\/api\/search-posts\/?/, "").slice(0, 120)
+      : "";
+    const inputTag = (url.searchParams.get("tagName") || pathTag).slice(0, 120);
+    const parsedTag = routeTag(inputTag);
+    const found = await backend.searchPosts(language, inputTag, url);
+    logInfo("search_posts", {
+      language,
+      tagName: parsedTag,
+      count: found.length,
+    });
+
+    sendJson(req, res, {
+      success: 1,
+      data: {
+        tagName: parsedTag,
+        posts: found,
+      },
+      input: {
+        ln: language,
+        tagName: inputTag,
+        lastId: url.searchParams.get("lastId") || "",
+      },
+    });
+    return;
+  }
+
+  if (req.method === "GET" && /^\/api(?:\/[^/]+)?$/.test(pathname)) {
+    assertRateLimit(req, "search-posts", 240, 60 * 1000);
+    const language = languageFromRequest(url, pathname, defaultLanguage);
+    const inputTag = pathname.replace(/^\/api\/?/, "").slice(0, 120);
+    const parsedTag = routeTag(inputTag);
+    const found = await backend.searchPosts(language, inputTag, url);
+    logInfo("search_posts", {
+      language,
+      tagName: parsedTag,
+      count: found.length,
+    });
+
+    sendJson(req, res, {
+      success: 1,
+      data: {
+        tagName: parsedTag,
+        posts: found,
+      },
+      input: {
+        ln: language,
+        tagName: inputTag,
+        lastId: url.searchParams.get("lastId") || "",
       },
     });
     return;
