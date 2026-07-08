@@ -2,8 +2,15 @@
   "name": "@i-remember/memory-engine",
   "private": true,
   "type": "module",
+  "types": "./src/index.d.ts",
+  "scripts": {
+    "test": "node src/check.js"
+  },
   "exports": {
-    ".": "./src/index.js"
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
   },
   "peerDependencies": {
     "react": "^19.0.0"

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { normalizeGalaxyMemories } from "./normalize.js";
 
 export function MemoryGalaxy({
   memories = [],
@@ -8,6 +9,7 @@ export function MemoryGalaxy({
   className,
   style,
 }) {
+  const normalizedMemories = React.useMemo(() => normalizeGalaxyMemories(memories), [memories]);
   const url = React.useMemo(() => {
     const next = new URL(src, "http://i-remember.local");
     if (deterministic) next.searchParams.set("qaDeterministic", "1");
@@ -17,7 +19,7 @@ export function MemoryGalaxy({
   return React.createElement("iframe", {
     title,
     className,
-    "data-memory-count": memories.length,
+    "data-memory-count": normalizedMemories.length,
     src: url,
     style: {
       border: 0,
