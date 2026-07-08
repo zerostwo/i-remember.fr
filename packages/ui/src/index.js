@@ -9,8 +9,34 @@ export {
   CardHeader,
   CardTitle,
 } from "../../../src/components/ui/card.jsx";
+export {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+  FieldTitle,
+} from "../../../src/components/ui/field.jsx";
 export { Input } from "../../../src/components/ui/input.jsx";
 export { Label } from "../../../src/components/ui/label.jsx";
+export {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "../../../src/components/ui/select.jsx";
+export { Separator } from "../../../src/components/ui/separator.jsx";
+export { Switch } from "../../../src/components/ui/switch.jsx";
 export {
   Table,
   TableBody,
@@ -21,4 +47,11 @@ export {
   TableHeader,
   TableRow,
 } from "../../../src/components/ui/table.jsx";
+export {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  tabsListVariants,
+} from "../../../src/components/ui/tabs.jsx";
 export { Textarea } from "../../../src/components/ui/textarea.jsx";
