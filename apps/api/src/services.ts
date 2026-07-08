@@ -2,12 +2,23 @@ import { join } from "node:path";
 import { createLocalStorage, type StorageAdapter } from "@i-remember/storage";
 import type { AssetUploadInput, MemoryInput, MemoryUpdateInput, Principal } from "./domain.js";
 import { requireRole } from "./auth.js";
-import type { AssetRepository, MemoryRepository, UserRepository } from "./repositories.js";
+import type {
+  AssetRepository,
+  MemoryListQuery,
+  MemoryRepository,
+  UserRepository,
+} from "./repositories.js";
 
 export class MemoryService {
   constructor(private readonly memories: MemoryRepository) {}
 
-  list(query: { q?: string; limit?: number }) {
+  list(principal: Principal, query: MemoryListQuery) {
+    if (
+      (query.status && query.status !== "NORMAL") ||
+      (query.visibility && query.visibility !== "PUBLIC")
+    ) {
+      requireRole(principal, ["ADMIN"]);
+    }
     return this.memories.list(query);
   }
 

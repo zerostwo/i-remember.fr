@@ -34,6 +34,11 @@ an S3-compatible adapter.
 `PATCH /api/v1/memories/:id` is admin-only and accepts partial edits, including
 moderation status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`.
 
+`GET /api/v1/memories` defaults to public `NORMAL` memories. Admin clients can
+pass `status=PENDING`, `status=REJECTED`, `status=ARCHIVED`, `status=all`,
+`visibility=PRIVATE`, or `visibility=all` with a bearer token for management
+views.
+
 ## Architecture
 
 The API app is split into:

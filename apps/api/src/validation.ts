@@ -6,6 +6,7 @@ import type {
   Visibility,
 } from "./domain.js";
 import { ApiError } from "./errors.js";
+import type { MemoryListQuery } from "./repositories.js";
 
 const visibilityValues = new Set(["PUBLIC", "UNLISTED", "PRIVATE"]);
 const statusValues = new Set(["NORMAL", "PENDING", "ARCHIVED", "REJECTED"]);
@@ -51,6 +52,26 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
       value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)
         ? (value.metadata as Record<string, unknown>)
         : undefined,
+  };
+}
+
+export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery {
+  const status = text(searchParams.get("status"), "NORMAL", 20).toUpperCase();
+  const visibility = text(searchParams.get("visibility"), "PUBLIC", 20).toUpperCase();
+  const limit = Math.min(Math.max(Number(searchParams.get("limit") || 100), 1), 200);
+
+  if (status !== "ALL" && !statusValues.has(status)) {
+    throw new ApiError(400, "Invalid status", "invalid_status");
+  }
+  if (visibility !== "ALL" && !visibilityValues.has(visibility)) {
+    throw new ApiError(400, "Invalid visibility", "invalid_visibility");
+  }
+
+  return {
+    q: searchParams.get("q") || searchParams.get("tag") || undefined,
+    limit,
+    status: status === "ALL" ? "all" : (status as MemoryStatus),
+    visibility: visibility === "ALL" ? "all" : (visibility as Visibility),
   };
 }
 

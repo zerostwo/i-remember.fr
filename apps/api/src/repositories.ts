@@ -9,6 +9,8 @@ import type {
 export type MemoryListQuery = {
   q?: string;
   limit?: number;
+  status?: "all" | MemoryRecord["status"];
+  visibility?: "all" | MemoryRecord["visibility"];
 };
 
 export interface MemoryRepository {

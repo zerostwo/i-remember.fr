@@ -3,7 +3,7 @@ import type { MemoryRecord } from "./domain.js";
 import { ApiError } from "./errors.js";
 import { readJson, type RequestContext } from "./http.js";
 import { AssetService, MemoryService, UserService } from "./services.js";
-import { assetUploadInput, memoryInput, memoryPatchInput } from "./validation.js";
+import { assetUploadInput, memoryInput, memoryListQuery, memoryPatchInput } from "./validation.js";
 
 function memoryDto(memory: MemoryRecord) {
   return {
@@ -28,10 +28,10 @@ export class MemoryController {
   constructor(private readonly memories: MemoryService) {}
 
   async list(context: RequestContext) {
-    const data = await this.memories.list({
-      q: context.url.searchParams.get("q") || context.url.searchParams.get("tag") || undefined,
-      limit: Number(context.url.searchParams.get("limit") || 100),
-    });
+    const data = await this.memories.list(
+      authenticate(context.req),
+      memoryListQuery(context.url.searchParams),
+    );
     return { success: true, data: data.map(memoryDto) };
   }
 
@@ -66,10 +66,10 @@ export class SearchController {
   constructor(private readonly memories: MemoryService) {}
 
   async search(context: RequestContext) {
-    const data = await this.memories.list({
-      q: context.url.searchParams.get("q") || context.url.searchParams.get("tag") || undefined,
-      limit: Number(context.url.searchParams.get("limit") || 100),
-    });
+    const data = await this.memories.list(
+      authenticate(context.req),
+      memoryListQuery(context.url.searchParams),
+    );
     return { success: true, data: data.map(memoryDto) };
   }
 }

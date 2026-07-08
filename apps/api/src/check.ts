@@ -35,8 +35,12 @@ class MemoryRepo implements MemoryRepository {
   ];
 
   async list(query: MemoryListQuery) {
-    if (!query.q) return this.memories;
-    return this.memories.filter((memory) => memory.content.includes(query.q || ""));
+    return this.memories.filter((memory) => {
+      if (query.status !== "all" && memory.status !== (query.status || "NORMAL")) return false;
+      if (query.visibility !== "all" && memory.visibility !== (query.visibility || "PUBLIC"))
+        return false;
+      return !query.q || memory.content.includes(query.q);
+    });
   }
 
   async get(id: string) {
@@ -154,6 +158,21 @@ const created = await json("/api/v1/memories", {
 });
 assert.equal(created.response.status, 201);
 assert.equal(created.body.data.status, "PENDING");
+
+const publicAfterCreate = await json("/api/v1/memories");
+assert.equal(
+  publicAfterCreate.body.data.some((memory: { id: string }) => memory.id === created.body.data.id),
+  false,
+);
+
+const anonymousPending = await json("/api/v1/memories?status=PENDING");
+assert.equal(anonymousPending.response.status, 401);
+
+const adminPending = await json("/api/v1/memories?status=PENDING", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(adminPending.response.status, 200);
+assert.equal(adminPending.body.data[0].id, created.body.data.id);
 
 const moderated = await json(`/api/v1/memories/${created.body.data.id}`, {
   method: "PATCH",

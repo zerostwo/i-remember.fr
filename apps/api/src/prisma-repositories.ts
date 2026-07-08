@@ -41,8 +41,8 @@ export class PrismaMemoryRepository implements MemoryRepository {
     const q = query.q?.trim();
     const rows = await this.db.memory.findMany({
       where: {
-        status: "NORMAL",
-        visibility: "PUBLIC",
+        ...(query.status === "all" ? {} : { status: query.status || "NORMAL" }),
+        ...(query.visibility === "all" ? {} : { visibility: query.visibility || "PUBLIC" }),
         ...(q
           ? {
               OR: [
