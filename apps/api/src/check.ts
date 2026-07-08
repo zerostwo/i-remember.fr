@@ -58,7 +58,16 @@ class MemoryRepo implements MemoryRepository {
       if (query.status !== "all" && memory.status !== (query.status || "NORMAL")) return false;
       if (query.visibility !== "all" && memory.visibility !== (query.visibility || "PUBLIC"))
         return false;
-      return !query.q || memory.content.includes(query.q);
+      const q = query.q?.toLowerCase();
+      const haystack = [
+        memory.title,
+        memory.content,
+        memory.excerpt,
+        ...(memory.tags || []).flatMap((item) => [item.name, item.slug]),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return !q || haystack.includes(q);
     });
   }
 
@@ -228,6 +237,7 @@ const moderated = await json(`/api/v1/memories/${created.body.data.id}`, {
 });
 assert.equal(moderated.response.status, 200);
 assert.equal(moderated.body.data.status, "NORMAL");
+assert.equal((await json("/api/v1/search?q=Archive")).body.data[0].id, created.body.data.id);
 
 const unauthorized = await json("/api/v1/users");
 assert.equal(unauthorized.response.status, 401);

@@ -95,6 +95,18 @@ function memoryWhere(query: MemoryListQuery) {
             { title: { contains: q, mode: "insensitive" } },
             { content: { contains: q, mode: "insensitive" } },
             { excerpt: { contains: q, mode: "insensitive" } },
+            {
+              tags: {
+                some: {
+                  tag: {
+                    OR: [
+                      { name: { contains: q, mode: "insensitive" } },
+                      { slug: { contains: q, mode: "insensitive" } },
+                    ],
+                  },
+                },
+              },
+            },
           ],
         }
       : {}),
