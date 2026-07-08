@@ -7,7 +7,7 @@ the engineering foundation into apps and packages.
 
 - `apps/web`: public website boundary and `MemoryGalaxy` export.
 - `apps/admin`: admin dashboard boundary. The active entry is
-  `apps/admin/src/main.jsx`, which reuses the existing approved admin UI.
+  `apps/admin/src/main.tsx`, which reuses the existing approved admin UI.
 - `apps/api`: standalone TypeScript REST API with controller, service,
   repository, validation, and auth layers.
 
