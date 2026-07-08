@@ -1,5 +1,3 @@
-# Backwards-compatible default image. The production compose file uses
-# docker/web.Dockerfile, docker/admin.Dockerfile, and docker/api.Dockerfile.
 FROM node:22-slim AS deps
 ENV NPM_CONFIG_AUDIT=false
 ENV NPM_CONFIG_FUND=false

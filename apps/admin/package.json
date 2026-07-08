@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config ../../vite.config.mjs --host 127.0.0.1",
-    "build": "vite build --config ../../vite.config.mjs"
+    "build": "vite build --config ../../vite.config.mjs",
+    "test": "node -e \"const fs = await import('node:fs'); if (!fs.existsSync('src/main.jsx')) process.exit(1); console.log('admin app entry ok')\""
   }
 }

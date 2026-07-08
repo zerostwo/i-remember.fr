@@ -1,32 +1,32 @@
 # Migration Plan
 
-## Phase 1: Current Architecture
+## Phase 1: Analyze Existing Code
 
-Completed. The restored archive runtime is a static public experience patched by
-`public/js/revival-runtime.js`, served by Vite or `server.mjs`, with SQLite
-business logic in `src/server`.
+Completed. The public galaxy is a legacy static/runtime experience served by
+`server.mjs` and `src/server/revival.js`.
 
-## Phase 2: Visualization Boundary
+## Phase 2: Extract Visualization Boundary
 
-Completed as a thin `packages/memory-engine` wrapper. The visual runtime itself
-remains untouched until a parity test can validate a real move.
+In progress. `packages/memory-engine` exposes `MemoryGalaxy` without changing
+the legacy visual runtime.
 
-## Phase 3: Backend API
+## Phase 3: Create New Backend
 
-Started. `/api/v1/memories`, `/api/v1/search`, `/api/v1/users`, and
-`/api/v1/assets` now sit beside legacy routes.
+In progress. `apps/api` is a TypeScript REST service with controller, service,
+repository, validation, auth, and Prisma persistence boundaries.
 
-## Phase 4: Database
+## Phase 4: Migrate Database
 
-Started. SQLite migrations now include users, attachments, normalized tags, and
-future AI metadata columns while preserving existing runtime tables.
+In progress. `packages/database/prisma/schema.prisma` defines the PostgreSQL
+schema. Legacy SQLite remains as a compatibility layer until archive reads and
+writes are fully moved.
 
-## Phase 5: Admin
+## Phase 5: Replace Old Admin
 
-Deferred. `AGENTS.md` requires Figma confirmation before replacing the admin
-experience.
+In progress. `apps/admin` now owns the admin entry point while reusing the
+current admin UI to avoid visual churn.
 
-## Phase 6: Deprecated Code Removal
+## Phase 6: Remove Deprecated Code
 
-Deferred. Remove legacy endpoints only after the public archive runtime no
-longer calls them.
+Pending. Remove legacy API and SQLite code only after public archive parity and
+data migration are proven.

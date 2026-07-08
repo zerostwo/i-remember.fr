@@ -1,5 +1,10 @@
 node_modules/
 dist/
+.turbo/
+apps/*/.turbo/
+packages/*/.turbo/
+apps/*/dist/
+packages/*/dist/
 qa/
 data/
 db/

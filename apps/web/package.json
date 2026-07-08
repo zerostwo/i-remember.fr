@@ -4,6 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config ../../vite.config.mjs --host 127.0.0.1",
-    "build": "vite build --config ../../vite.config.mjs"
+    "build": "vite build --config ../../vite.config.mjs",
+    "test": "node -e \"await import('../../packages/memory-engine/src/index.js'); console.log('web memory engine ok')\""
+  },
+  "dependencies": {
+    "@i-remember/memory-engine": "workspace:*"
   }
 }

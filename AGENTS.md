@@ -9,12 +9,13 @@ When implementing from a selected generated mock, treat that image as the source
 Current backend/product decisions:
 
 - Keep the restored archive UI visually unchanged while modernizing the backend.
+- For the production architecture refactor requested on 2026-07-08, the pasted refactor document is the highest-priority product/engineering source. Implement the pnpm/turbo monorepo, TypeScript API app, PostgreSQL/Prisma database package, Docker web/admin/api/postgres services, and full verification plan from that document while keeping the archive frontend experience visually unchanged.
 - Use the admin-configured default language for `/`, missing `ln`, and bare `/memory/:id` routes; the initial default is English.
 - Preserve French support and add full Chinese support at `/zh` and `/zh/memory/:id`.
-- Use a Memos-inspired self-hosted backend: SQLite by default, app-local data directory, local filesystem image storage, and SQL migrations. AI memory search is intentionally removed from the current version until it is explicitly revisited.
+- During the migration, legacy SQLite routes may remain only as compatibility fallbacks for the restored public archive; new production backend work should target PostgreSQL through Prisma.
 - Expose first-pass AI agent support through HTTP APIs, not MCP.
 - Keep Facebook and Instagram API modernization out of scope until explicitly requested.
-- Publish through an app-only Docker image; DockerHub image name and tag must come from `DOCKERHUB_IMAGE` and `TAG` env vars.
+- Publish through the refactor document's multi-service Docker deployment; DockerHub image names and tags must still come from `DOCKERHUB_IMAGE` and `TAG` env vars where an app image is published.
 - For the admin experience, create and confirm Figma UI designs first; only build the clickable responsive backend prototype after the UI is approved.
 - The future admin should cover common personal-blog management modules while preserving anonymous public memory submission, and should include first-class support for self-hosted Umami tracking.
 - The admin prototype information architecture is: login, dashboard, content management with Memory/Page/Comment/Attachment sections, appearance with Theme/Menu sections, and system with Settings/Backup sections. Blog posts are folded into Memory; long-form Memory entries use a Read more affordance instead of a separate Posts module.

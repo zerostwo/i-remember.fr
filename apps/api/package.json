@@ -3,8 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node ../../server.mjs",
-    "start": "node ../../server.mjs",
-    "test": "node ../../scripts/check-api-v1.mjs"
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "test": "node dist/check.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@i-remember/database": "workspace:*",
+    "@i-remember/storage": "workspace:*",
+    "@i-remember/types": "workspace:*"
   }
 }

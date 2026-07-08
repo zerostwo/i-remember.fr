@@ -1,32 +1,44 @@
 # Deployment
 
-Production deployment remains an app-only Docker image.
+Production deployment follows the refactor document's multi-service shape:
+
+- `web`: public archive experience.
+- `admin`: admin experience served separately.
+- `api`: TypeScript REST API.
+- `postgres`: PostgreSQL database for Prisma.
 
 ## Build
 
 ```bash
-npm run build
-docker compose build app
+pnpm install
+pnpm build
+docker compose build
 ```
 
-The published image name is controlled by environment:
+The published image names use:
 
 - `DOCKERHUB_IMAGE`
 - `TAG`
 
-## Runtime
+Compose appends `-web`, `-admin`, and `-api` to the configured image base.
 
-`docker-compose.yml` exposes only the `app` service. The container serves the
-public site, admin prototype, and API through `server.mjs`.
+## Runtime Environment
 
-Important environment variables:
+Required production variables:
 
-- `DATABASE_URL`: reserved for future external database adapters.
-- `AUTH_SECRET`: reserved for future stateless auth sessions.
-- `I_REMEMBER_DATA_DIR`: SQLite database and upload storage directory.
-- `I_REMEMBER_DEFAULT_LANGUAGE`: default UI language.
-- `I_REMEMBER_ANONYMOUS_SUBMISSIONS`: controls anonymous memory posting.
-- `UMAMI_SRC` and `UMAMI_WEBSITE_ID`: optional self-hosted Umami tracking.
+- `DATABASE_URL`
+- `AUTH_SECRET`
+- `STORAGE_PATH`
 
-The current Docker volume stores SQLite and uploaded files at
-`/var/opt/i-remember.fr`.
+Common operational variables:
+
+- `API_BASE_URL`
+- `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `I_REMEMBER_DEFAULT_LANGUAGE`
+- `I_REMEMBER_ANONYMOUS_SUBMISSIONS`
+- `UMAMI_SRC`
+- `UMAMI_WEBSITE_ID`
+
+The legacy public archive compatibility layer still needs
+`I_REMEMBER_DATA_DIR` until the public frontend fully reads from the new API.

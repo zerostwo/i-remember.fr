@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  USER
+  ANONYMOUS
+}
+
+enum Visibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+enum MemoryStatus {
+  NORMAL
+  PENDING
+  ARCHIVED
+  REJECTED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  memories     Memory[] @relation("MemoryAuthor")
+
+  @@map("users")
+}
+
+model Memory {
+  id             String       @id @default(cuid())
+  publicId       String       @unique @default(cuid()) @map("public_id")
+  legacyId       Int?         @map("legacy_id")
+  title          String
+  content        String
+  excerpt        String?
+  authorId       String?      @map("author_id")
+  authorName     String?      @map("author_name")
+  visibility     Visibility   @default(PUBLIC)
+  status         MemoryStatus @default(PENDING)
+  latitude       Float?
+  longitude      Float?
+  emotion        String?
+  metadata       Json?
+  embedding      Json?
+  aiSummary      String?      @map("ai_summary")
+  knowledgeGraph Json?        @map("knowledge_graph")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  author         User?        @relation("MemoryAuthor", fields: [authorId], references: [id])
+  attachments    Attachment[]
+  tags           MemoryTag[]
+
+  @@index([visibility, status, createdAt])
+  @@index([legacyId])
+  @@map("memories")
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  memoryId  String   @map("memory_id")
+  url       String
+  type      String
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  memory    Memory   @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([memoryId])
+  @@map("attachments")
+}
+
+model Tag {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  slug      String      @unique
+  createdAt DateTime    @default(now()) @map("created_at")
+  memories  MemoryTag[]
+
+  @@map("tags")
+}
+
+model MemoryTag {
+  memoryId  String   @map("memory_id")
+  tagId     String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  memory    Memory   @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([memoryId, tagId])
+  @@map("memory_tags")
+}

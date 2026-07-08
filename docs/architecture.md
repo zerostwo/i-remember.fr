@@ -1,30 +1,28 @@
 # Architecture
 
-The current migration keeps the public archive experience in place and builds
-production seams around it.
+The refactor keeps the public memory galaxy visually unchanged while separating
+the engineering foundation into apps and packages.
 
 ## Apps
 
-- `apps/web`: public website boundary. The visual source of truth remains root
-  `index.html`, `fr.html`, `public/css/main.css`, and
-  `public/js/revival-runtime.js`.
-- `apps/admin`: admin dashboard boundary. The current implementation remains in
-  `src/admin` until the Figma-approved admin UI is ready to move.
-- `apps/api`: HTTP API boundary. Runtime entrypoint remains `server.mjs`.
+- `apps/web`: public website boundary and `MemoryGalaxy` export.
+- `apps/admin`: admin dashboard boundary. The active entry is
+  `apps/admin/src/main.jsx`, which reuses the existing approved admin UI.
+- `apps/api`: standalone TypeScript REST API with controller, service,
+  repository, validation, and auth layers.
 
 ## Packages
 
-- `packages/memory-engine`: reusable wrapper for the preserved galaxy runtime.
-- `packages/database`: exports the SQLite store and migration-backed data dir.
-- `packages/storage`: local filesystem storage abstraction with the same
-  `upload`, `delete`, and `getUrl` shape planned for an S3 adapter.
-- `packages/types`: shared TypeScript API types.
-- `packages/ui`: shared shadcn-style UI export surface.
+- `packages/memory-engine`: reusable memory galaxy component boundary.
+- `packages/database`: Prisma schema and PostgreSQL client.
+- `packages/storage`: local filesystem and S3-compatible storage abstraction.
+- `packages/types`: shared API/domain types.
+- `packages/ui`: shared shadcn-style component exports.
 - `packages/config`: shared route, language, and role constants.
 
-## Preserved Surface
+## Preserved Visual Surface
 
-Do not move or rewrite these without a visual parity pass:
+Do not redesign or rewrite these files during backend migration:
 
 - `index.html`
 - `fr.html`
@@ -34,3 +32,6 @@ Do not move or rewrite these without a visual parity pass:
 - `public/img/*`
 - `public/audio/*`
 - `public/fonts/*`
+
+The legacy SQLite server path stays only to keep that archive surface working
+while the Prisma API grows behind it.

@@ -1,13 +1,15 @@
 services:
-  app:
+  web:
     build:
       context: .
-    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:-latest}
+      dockerfile: docker/web.Dockerfile
+    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}-web:${TAG:-latest}
     ports:
       - "7890:7890"
     environment:
       HOST: 0.0.0.0
       PORT: 7890
+      API_BASE_URL: ${API_BASE_URL:-http://api:7892}
       I_REMEMBER_DATA_DIR: /var/opt/i-remember.fr
       I_REMEMBER_AUTO_APPROVE_SUBMISSIONS: ${I_REMEMBER_AUTO_APPROVE_SUBMISSIONS:-true}
       I_REMEMBER_DEFAULT_LANGUAGE: ${I_REMEMBER_DEFAULT_LANGUAGE:-en}
@@ -19,17 +21,87 @@ services:
       UMAMI_SRC: ${UMAMI_SRC:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     volumes:
-      - i-remember-data:/var/opt/i-remember.fr
+      - web-data:/var/opt/i-remember.fr
+    depends_on:
+      api:
+        condition: service_started
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "node -e \"fetch('http://127.0.0.1:7890/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+          'node -e "fetch(''http://127.0.0.1:7890/healthz'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
         ]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
 
+  admin:
+    build:
+      context: .
+      dockerfile: docker/admin.Dockerfile
+    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}-admin:${TAG:-latest}
+    ports:
+      - "7891:7890"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 7890
+      API_BASE_URL: ${API_BASE_URL:-http://api:7892}
+      I_REMEMBER_DATA_DIR: /var/opt/i-remember.fr
+    volumes:
+      - admin-data:/var/opt/i-remember.fr
+    depends_on:
+      api:
+        condition: service_started
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}-api:${TAG:-latest}
+    ports:
+      - "7892:7892"
+    environment:
+      API_HOST: 0.0.0.0
+      API_PORT: 7892
+      DATABASE_URL: ${DATABASE_URL:-postgresql://i_remember:i_remember@postgres:5432/i_remember?schema=public}
+      AUTH_SECRET: ${AUTH_SECRET:-replace-with-a-long-random-secret}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@i-remember.fr}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-before-production}
+      STORAGE_PATH: ${STORAGE_PATH:-/var/opt/i-remember-assets}
+    volumes:
+      - api-assets:/var/opt/i-remember-assets
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://127.0.0.1:7892/healthz'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-i_remember}
+      POSTGRES_USER: ${POSTGRES_USER:-i_remember}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-i_remember}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-i_remember} -d ${POSTGRES_DB:-i_remember}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
-  i-remember-data:
+  web-data:
+  admin-data:
+  api-assets:
+  postgres-data:
