@@ -4,34 +4,44 @@ Self-hosted revival and personal-blog backend for the restored `i-remember.fr`
 frontend.
 
 This repository keeps the public archive UI visually close to the original site,
-while replacing the backend with a local SQLite server, editable admin system,
-anonymous memory submissions, footer menu management, and configurable Umami
-tracking.
+while moving the engineering foundation toward a pnpm/turbo monorepo with a
+TypeScript API, PostgreSQL/Prisma persistence, shared packages, and multi-service
+Docker deployment.
 
 ## Current Scope
 
-- Public archive frontend with English, French, and Chinese routes.
+- Public archive frontend with English, French, and Chinese routes; the restored
+  galaxy visuals remain the source of truth.
+- `apps/api`: versioned REST API at `/api/v1/*` with controllers, services,
+  repositories, validation, auth guards, and typed smoke checks.
+- `apps/admin`: React admin entry using the Figma-approved admin shell while the
+  legacy admin endpoints remain the current data source.
+- `apps/web`: public web entry with `packages/memory-engine` for reusable galaxy
+  data normalization.
+- `packages/database`: PostgreSQL Prisma schema, SQL migrations, and client.
+- `packages/storage`: local filesystem and S3-compatible `upload/delete/getUrl`
+  adapter.
 - Anonymous public memory submission with moderation status; new submissions are
   public immediately unless moderation is explicitly enabled.
-- Admin login with real password validation, session cookies, and optional TOTP
-  2FA.
 - Admin modules for Dashboard, Memory, Pages, Comments, Attachments, Theme,
   Menus, Settings, and Backups.
 - Settings for default language, anonymous submissions, and self-hosted Umami
   tracking.
-- SQLite storage in an app-local data directory.
-- Local filesystem image storage for uploaded memories.
+- Legacy SQLite remains only as a compatibility layer for the restored public
+  archive while production backend work targets PostgreSQL.
 
 ## Runtime
 
 ```bash
-npm install
-npm run build
-npm start
+pnpm install
+pnpm build
+pnpm test
+pnpm start
 ```
 
-The server listens on `PORT` and `HOST` from the environment. The default local
-URL is `http://127.0.0.1:7890/`.
+`pnpm dev` runs the web and API workspaces through Turbo. The legacy public
+archive server still listens on `PORT` and `HOST`; the default local URL is
+`http://127.0.0.1:7890/`.
 
 Admin is available at `/admin/`.
 
@@ -43,18 +53,19 @@ The running app exposes its build version at `/version`.
 ## Docker
 
 ```bash
-docker run -d \
-  --name i-remember.fr \
-  -p 7890:7890 \
-  -v ~/.i-remember.fr:/var/opt/i-remember.fr \
-  zerostwo/i-remember.fr:latest
+DOCKERHUB_IMAGE=zerostwo/i-remember.fr TAG=latest docker compose up -d
 ```
+
+Compose provides `web`, `admin`, `api`, and `postgres` services.
 
 ## Configuration
 
-Copy `.env.example` into your deployment environment and set:
+Copy `.env.example` into your deployment environment and set at least:
 
-- `I_REMEMBER_DATA_DIR`: SQLite and uploads directory.
+- `DATABASE_URL`: PostgreSQL connection string for `apps/api`.
+- `AUTH_SECRET`: bearer-token secret for admin API access.
+- `STORAGE_PATH`: local asset storage directory.
+- `I_REMEMBER_DATA_DIR`: legacy public archive compatibility data directory.
 - `I_REMEMBER_DEFAULT_LANGUAGE`: `en`, `fr`, or `zh`.
 - `I_REMEMBER_ANONYMOUS_SUBMISSIONS`: `true` or `false`.
 - `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`: `true` by default so public submissions
@@ -78,6 +89,7 @@ Generated or runtime material is intentionally excluded from Git:
 - `dist/`
 
 SQL migration source lives in `src/server/migrations/sqlite/`.
+PostgreSQL migration source lives in `packages/database/prisma/migrations/`.
 
 ## Release
 

@@ -1,5 +1,9 @@
 # Admin App
 
-The admin prototype is currently served through root `admin.html` and
-`src/admin`. Keep building future admin screens there until the Figma-approved
-admin direction is ready for a full move into this package.
+React admin workspace entry. It currently reuses the Figma-approved admin shell
+from `src/admin` so visual behavior does not drift while backend migration work
+continues.
+
+- Dev: `pnpm --filter @i-remember/admin dev`
+- Build: `pnpm --filter @i-remember/admin build`
+- Test: `pnpm --filter @i-remember/admin test`
