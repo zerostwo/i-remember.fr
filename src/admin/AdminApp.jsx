@@ -55,6 +55,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { mergeV1Dashboard } from "./v1-dashboard.js";
 
 const routes = [
   { id: "dashboard", label: "Dashboard", title: "Today in the archive", group: "Overview", icon: Home },
@@ -78,6 +79,7 @@ const groupedRoutes = routes.reduce((groups, route) => {
 const menuTypes = ["PAGE", "MEMORY", "SEARCH", "EXTERNAL", "TERMS", "CREDITS", "LANGUAGE"];
 const pageStatuses = ["PUBLISHED", "DRAFT", "ARCHIVED"];
 const memoryStatuses = ["published", "pending", "archived"];
+const v1TokenKey = "i-remember:v1-admin-token";
 
 function normalizeRouteId(value = "") {
   const routeId = decodeURIComponent(String(value || ""))
@@ -115,6 +117,41 @@ async function api(path, options = {}) {
     throw new Error(payload.message || payload.errorMsg || `Request failed: ${response.status}`);
   }
   return payload.data;
+}
+
+function adminToken(value) {
+  try {
+    if (value === undefined) return window.sessionStorage.getItem(v1TokenKey) || "";
+    if (value) window.sessionStorage.setItem(v1TokenKey, value);
+    else window.sessionStorage.removeItem(v1TokenKey);
+  } catch (_error) {
+    return "";
+  }
+  return value || "";
+}
+
+async function v1Api(path, options = {}) {
+  const token = adminToken();
+  if (!token) throw new Error("No v1 admin token");
+  return api(path, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+async function rememberV1Token(credentials) {
+  try {
+    const session = await api("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+    });
+    adminToken(session.token);
+  } catch (_error) {
+    adminToken("");
+  }
 }
 
 function escapeHtml(value = "") {
@@ -304,7 +341,9 @@ export function AdminApp() {
     setLoading(true);
     setError("");
     try {
-      const payload = await api("/api/admin/bootstrap");
+      const legacyPayload = await api("/api/admin/bootstrap");
+      const dashboard = await v1Api("/api/v1/dashboard").catch(() => null);
+      const payload = mergeV1Dashboard(legacyPayload, dashboard);
       setData(payload);
       setSelectedMemoryId((current) => (
         payload.memories.some((memory) => memory.id === current) ? current : payload.memories[0]?.id || null
@@ -360,6 +399,7 @@ export function AdminApp() {
         body: JSON.stringify(credentials),
       });
       if (session.requiresTwoFactor) return session;
+      await rememberV1Token(credentials);
       setAuthenticated(true);
       return session;
     } catch (loginError) {
@@ -378,6 +418,7 @@ export function AdminApp() {
         method: "POST",
         body: JSON.stringify(credentials),
       });
+      await rememberV1Token(credentials);
       setNeedsSetup(false);
       setAuthenticated(true);
       window.history.replaceState({ route: "dashboard" }, "", "/admin");
@@ -393,6 +434,7 @@ export function AdminApp() {
 
   async function handleLogout() {
     await api("/api/admin/logout", { method: "POST" }).catch(() => null);
+    adminToken("");
     setAuthenticated(false);
     setData(null);
     window.history.replaceState({ route: "dashboard" }, "", "/admin");

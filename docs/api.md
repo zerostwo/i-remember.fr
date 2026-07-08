@@ -40,8 +40,8 @@ pass `status=PENDING`, `status=REJECTED`, `status=ARCHIVED`, `status=all`,
 `visibility=PRIVATE`, or `visibility=all` with a bearer token for management
 views.
 
-`GET /api/v1/dashboard` is admin-only and returns total memories, pending and
-rejected counts, total users, and recent memory activity.
+`GET /api/v1/dashboard` is admin-only and returns total memories, moderation
+counts, total users, and recent memory activity.
 
 ## Architecture
 

@@ -58,18 +58,29 @@ export class DashboardService {
 
   async summary(principal: Principal) {
     requireRole(principal, ["ADMIN"]);
-    const [totalMemories, pendingMemories, rejectedMemories, totalUsers, recentMemories] =
-      await Promise.all([
-        this.memories.count({ status: "all", visibility: "all" }),
-        this.memories.count({ status: "PENDING", visibility: "all" }),
-        this.memories.count({ status: "REJECTED", visibility: "all" }),
-        this.users.count(),
-        this.memories.list({ status: "all", visibility: "all", limit: 5 }),
-      ]);
+    const [
+      totalMemories,
+      pendingMemories,
+      publishedMemories,
+      archivedMemories,
+      rejectedMemories,
+      totalUsers,
+      recentMemories,
+    ] = await Promise.all([
+      this.memories.count({ status: "all", visibility: "all" }),
+      this.memories.count({ status: "PENDING", visibility: "all" }),
+      this.memories.count({ status: "NORMAL", visibility: "all" }),
+      this.memories.count({ status: "ARCHIVED", visibility: "all" }),
+      this.memories.count({ status: "REJECTED", visibility: "all" }),
+      this.users.count(),
+      this.memories.list({ status: "all", visibility: "all", limit: 5 }),
+    ]);
 
     return {
       totalMemories,
       pendingMemories,
+      publishedMemories,
+      archivedMemories,
       rejectedMemories,
       totalUsers,
       recentActivity: recentMemories.map((memory) => ({

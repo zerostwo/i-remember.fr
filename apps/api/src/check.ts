@@ -209,6 +209,7 @@ assert.equal(dashboard.response.status, 200);
 assert.equal(dashboard.body.data.totalUsers, 1);
 assert.equal(dashboard.body.data.totalMemories, 2);
 assert.equal(dashboard.body.data.pendingMemories, 0);
+assert.equal(dashboard.body.data.publishedMemories, 2);
 
 const uploaded = await json("/api/v1/assets", {
   method: "POST",
