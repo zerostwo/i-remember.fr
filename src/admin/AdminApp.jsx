@@ -55,6 +55,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { mergeV1Assets } from "./v1-assets.js";
 import { mergeV1Dashboard } from "./v1-dashboard.js";
 import { syncV1Memory } from "./v1-memory.js";
 
@@ -344,7 +345,8 @@ export function AdminApp() {
     try {
       const legacyPayload = await api("/api/admin/bootstrap");
       const dashboard = await v1Api("/api/v1/dashboard").catch(() => null);
-      const payload = mergeV1Dashboard(legacyPayload, dashboard);
+      const assets = await v1Api("/api/v1/assets").catch(() => []);
+      const payload = mergeV1Assets(mergeV1Dashboard(legacyPayload, dashboard), assets);
       setData(payload);
       setSelectedMemoryId((current) => (
         payload.memories.some((memory) => memory.id === current) ? current : payload.memories[0]?.id || null

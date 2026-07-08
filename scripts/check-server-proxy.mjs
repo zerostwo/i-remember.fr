@@ -62,6 +62,14 @@ try {
   const body = await response.json();
   assert.equal(body.url, "/api/v1/memories?status=PENDING");
   assert.equal(body.auth, "Bearer proxy-test");
+
+  const assetsResponse = await fetch(`${baseUrl}/api/v1/assets?limit=1`, {
+    headers: { Authorization: "Bearer proxy-test" },
+  });
+  assert.equal(assetsResponse.status, 200);
+  const assetsBody = await assetsResponse.json();
+  assert.equal(assetsBody.url, "/api/v1/assets?limit=1");
+  assert.equal(assetsBody.auth, "Bearer proxy-test");
   console.log("server api proxy ok");
 } finally {
   app.kill("SIGTERM");
