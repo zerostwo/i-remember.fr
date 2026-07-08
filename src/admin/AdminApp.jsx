@@ -56,6 +56,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { mergeV1Dashboard } from "./v1-dashboard.js";
+import { syncV1Memory } from "./v1-memory.js";
 
 const routes = [
   { id: "dashboard", label: "Dashboard", title: "Today in the archive", group: "Overview", icon: Home },
@@ -460,6 +461,7 @@ export function AdminApp() {
         method: "PUT",
         body: JSON.stringify(payload),
       });
+      await syncV1Memory(v1Api, saved).catch(() => null);
       setSelectedMemoryId(saved.id);
       await refreshData();
     });
@@ -478,6 +480,7 @@ export function AdminApp() {
           bodyMarkdown: "# Untitled memory\n\nWrite this memory in Markdown.",
         }),
       });
+      await syncV1Memory(v1Api, saved).catch(() => null);
       setSelectedMemoryId(saved.id);
       await refreshData();
     });
