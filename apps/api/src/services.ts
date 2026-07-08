@@ -22,8 +22,13 @@ export class MemoryService {
     return this.memories.list(query);
   }
 
-  get(id: string) {
-    return this.memories.get(id);
+  async get(principal: Principal, id: string) {
+    const memory = await this.memories.get(id);
+    if (!memory) return null;
+    if (memory.status !== "NORMAL" || memory.visibility !== "PUBLIC") {
+      requireRole(principal, ["ADMIN"]);
+    }
+    return memory;
   }
 
   create(input: MemoryInput) {

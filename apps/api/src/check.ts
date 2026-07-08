@@ -198,6 +198,14 @@ assert.deepEqual(
 );
 assert.equal(created.body.data.attachments[0].url, "/uploads/new.jpg");
 
+const publicPendingDetail = await json(`/api/v1/memories/${created.body.data.id}`);
+assert.equal(publicPendingDetail.response.status, 401);
+
+const adminPendingDetail = await json(`/api/v1/memories/${created.body.data.id}`, {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(adminPendingDetail.response.status, 200);
+
 const publicAfterCreate = await json("/api/v1/memories");
 assert.equal(
   publicAfterCreate.body.data.some((memory: { id: string }) => memory.id === created.body.data.id),

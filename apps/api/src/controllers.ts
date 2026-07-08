@@ -48,7 +48,7 @@ export class MemoryController {
   }
 
   async get(context: RequestContext) {
-    const data = await this.memories.get(context.params.id);
+    const data = await this.memories.get(authenticate(context.req), context.params.id);
     if (!data) throw new ApiError(404, "Memory not found", "not_found");
     return { success: true, data: memoryDto(data) };
   }
