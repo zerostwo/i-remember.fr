@@ -217,9 +217,14 @@
   }
 
   function installPanelResizers() {
+    var creditWrapper = document.querySelector(".credit-wrapper");
+    var creditClose = document.querySelector(".credit-close-btn");
+    if (creditWrapper && creditClose && creditClose.parentNode !== creditWrapper) {
+      creditWrapper.appendChild(creditClose);
+    }
     restorePanelWidth();
     ensurePanelResize(document.querySelector(".terms-wrapper"));
-    ensurePanelResize(document.querySelector(".credit-wrapper"));
+    ensurePanelResize(creditWrapper);
   }
 
   function setCreditVisible(visible) {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 - 2026-07-08
+
+- Moved the Credits side-panel close control into the same top-left panel chrome
+  used by Terms.
+
 ## 0.1.1 - 2026-07-08
 
 - Made anonymous public submissions searchable immediately by default.
