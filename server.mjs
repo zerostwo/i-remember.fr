@@ -126,7 +126,9 @@ function serveStatic(req, res) {
   }
 
   const url = new URL(req.url || "/", "http://i-remember.local");
-  let filePath = safeStaticPath(url.pathname);
+  let filePath = url.pathname === "/admin" || url.pathname.startsWith("/admin/")
+    ? resolve(distDir, "admin.html")
+    : safeStaticPath(url.pathname);
   if (!filePath) {
     sendStatus(res, 403, "Forbidden");
     return;

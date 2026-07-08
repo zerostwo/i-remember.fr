@@ -1986,7 +1986,7 @@ function instagramTokenCallbackRequested(pathname) {
 }
 
 function adminPageRequested(pathname) {
-  const normalized = pathname.replace(/\/+$/g, "") || "/admin";
+  const normalized = pathname.replace(/\/+$/g, "");
   return (
     normalized === "/admin" ||
     normalized === "/admin/index.html" ||
