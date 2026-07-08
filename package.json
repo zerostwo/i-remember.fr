@@ -16,7 +16,7 @@
   "scripts": {
     "dev": "turbo run dev --parallel --filter=@i-remember/web --filter=@i-remember/api",
     "build": "turbo run build --filter=@i-remember/database --filter=@i-remember/api && vite build",
-    "typecheck": "turbo run typecheck --filter=@i-remember/database --filter=@i-remember/api --filter=@i-remember/admin",
+    "typecheck": "turbo run typecheck --filter=@i-remember/database --filter=@i-remember/api --filter=@i-remember/admin --filter=@i-remember/web",
     "lint": "eslint .",
     "format": "prettier --check .",
     "preview": "vite preview --host 127.0.0.1",

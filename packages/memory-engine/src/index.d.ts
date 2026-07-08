@@ -1,5 +1,3 @@
-import type * as React from "react";
-
 export type GalaxyMemory = {
   id: string;
   publicId: string;
@@ -25,7 +23,7 @@ export function MemoryGalaxy(props: {
   title?: string;
   deterministic?: boolean;
   className?: string;
-  style?: React.CSSProperties;
-}): React.ReactElement;
+  style?: Record<string, string | number>;
+}): unknown;
 
 export const legacyRuntimePath: string;
