@@ -57,6 +57,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { mergeV1Assets, v1AssetUploadPayload } from "./v1-assets.js";
+import { deleteV1MenuItem, syncV1MenuItem, syncV1Page, syncV1Settings } from "./v1-content.js";
 import { mergeV1Dashboard } from "./v1-dashboard.js";
 import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
 
@@ -529,6 +530,7 @@ export function AdminApp() {
         method: "PUT",
         body: JSON.stringify(payload),
       });
+      await syncV1Page(v1Api, saved).catch(() => null);
       setSelectedPageSlug(saved.slug);
       await refreshData();
     });
@@ -547,6 +549,7 @@ export function AdminApp() {
           bodyMarkdown: "# Untitled page\n\nWrite this page in Markdown.",
         }),
       });
+      await syncV1Page(v1Api, saved).catch(() => null);
       setSelectedPageSlug(saved.slug);
       await refreshData();
     });
@@ -558,6 +561,7 @@ export function AdminApp() {
         method: "PUT",
         body: JSON.stringify(payload),
       });
+      await syncV1MenuItem(v1Api, saved).catch(() => null);
       setSelectedMenuId(saved.id);
       await refreshData();
     });
@@ -575,14 +579,17 @@ export function AdminApp() {
           isVisible: true,
         }),
       });
+      await syncV1MenuItem(v1Api, saved).catch(() => null);
       setSelectedMenuId(saved.id);
       await refreshData();
     });
   }
 
   async function deleteMenuItem(id) {
+    const item = data?.menu?.find((candidate) => candidate.id === id);
     await runAction("Menu item deleted", async () => {
       await api(`/api/admin/menu-items/${id}`, { method: "DELETE" });
+      await deleteV1MenuItem(v1Api, item).catch(() => null);
       setSelectedMenuId(null);
       await refreshData();
     });
@@ -594,6 +601,7 @@ export function AdminApp() {
         method: "PUT",
         body: JSON.stringify(payload),
       });
+      await syncV1Settings(v1Api, settings).catch(() => null);
       setData((current) => current ? { ...current, settings: { ...current.settings, ...settings } } : current);
     });
   }
