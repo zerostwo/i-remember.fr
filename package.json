@@ -3,11 +3,13 @@
   "version": "0.1.2",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.17.1",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server.mjs",
+    "test": "node scripts/check-api-v1.mjs",
     "db:import": "node scripts/import-sqlite.mjs",
     "docker:build": "docker compose build app",
     "docker:push": "docker compose push app"

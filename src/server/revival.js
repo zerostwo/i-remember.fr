@@ -1295,6 +1295,49 @@ function publicMenuItem(row) {
     : null;
 }
 
+function apiMemory(post) {
+  return {
+    id: String(post.public_id || post.id || ""),
+    legacyId: Number.parseInt(post.id, 10),
+    title: post.title || post.name || "I Remember",
+    author: post.name || "I Remember",
+    excerpt: post.excerpt || post.text || "",
+    content: post.body_markdown || post.text || "",
+    url: publicMemoryUrl(post),
+    imageUrl: legacyImageUrl(post.img, "resized"),
+    thumbnailUrl: legacyImageUrl(post.img, "thumb"),
+    language: languageFromLegacyId(post.language_id),
+    createdAt: post.created_at,
+    metadata: {
+      imageKey: post.img || "revival-upload",
+      isLongForm: post.is_long_form === "1",
+      tags: post.tags || {},
+    },
+  };
+}
+
+function apiAsset(row) {
+  return {
+    id: row.image_key,
+    url: legacyImageUrl(row.image_key, "resized"),
+    thumbnailUrl: legacyImageUrl(row.image_key, "thumb"),
+    type: row.mime_type || "image/jpeg",
+    storage: row.storage_type,
+    metadata: {
+      width: row.width,
+      height: row.height,
+      sha256: row.sha256,
+      fallback: Boolean(row.fallback),
+    },
+    updatedAt: row.updated_at,
+  };
+}
+
+function apiV1MemoryId(pathname) {
+  const match = pathname.match(/^\/api\/v1\/memories\/([^/]+)$/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 function safeScriptJson(payload) {
   return JSON.stringify(payload).replace(/[<>&\u2028\u2029]/g, (char) => {
     switch (char) {
@@ -1662,6 +1705,11 @@ class RevivalBackend {
     return paginatePosts(matchingPosts(posts, tag), url);
   }
 
+  async apiMemories(language, tag, url) {
+    const posts = await this.searchPosts(language, tag, url);
+    return posts.map(apiMemory);
+  }
+
   async relatedTagCounts(language, id) {
     const posts = await this.allPosts(language);
     const post = posts.find((item) => String(item.id) === String(id));
@@ -1856,6 +1904,10 @@ class RevivalBackend {
       .listMenuItems(normalizeLanguage(language), { visibleOnly: true })
       .map(publicMenuItem)
       .filter(Boolean);
+  }
+
+  assets(limit = 80) {
+    return this.store.listImages(limit).map(apiAsset);
   }
 
   async publicMenuTarget(id, language = "en") {
@@ -2428,6 +2480,112 @@ async function handleRequest(backend, req, res, next, options = {}) {
     sendJson(req, res, {
       success: true,
       data: await backend.publicMenuTarget(id, memoryLanguage),
+    });
+    return;
+  }
+
+  if (pathname === "/api/v1/memories" && req.method === "GET") {
+    assertRateLimit(req, "api-v1-memories", 240, 60 * 1000);
+    const query = (url.searchParams.get("q") || url.searchParams.get("tag") || "").slice(0, 120);
+    sendJson(req, res, {
+      success: true,
+      data: await backend.apiMemories(memoryLanguage, query, url),
+      meta: {
+        language: memoryLanguage,
+        query: routeTag(query),
+      },
+    });
+    return;
+  }
+
+  if (pathname === "/api/v1/search" && req.method === "GET") {
+    assertRateLimit(req, "api-v1-search", 240, 60 * 1000);
+    const query = (url.searchParams.get("q") || url.searchParams.get("tag") || "").slice(0, 120);
+    sendJson(req, res, {
+      success: true,
+      data: await backend.apiMemories(memoryLanguage, query, url),
+      meta: {
+        language: memoryLanguage,
+        query: routeTag(query),
+      },
+    });
+    return;
+  }
+
+  if (pathname === "/api/v1/memories" && req.method === "POST") {
+    assertSameOrigin(req);
+    if (!backend.siteSettings().anonymousSubmissions) {
+      throw new HttpError(403, "Anonymous submissions are closed", "submissions_closed");
+    }
+    assertRateLimit(req, "api-v1-memory-create", 10, 10 * 60 * 1000);
+    const body = await collectRequest(req, maxJsonBodyBytes);
+    const post = await backend.createPost(parseJsonObject(body));
+    sendJson(req, res, {
+      success: true,
+      data: apiMemory(post),
+    }, 201);
+    return;
+  }
+
+  const apiMemoryId = apiV1MemoryId(pathname);
+  if (apiMemoryId && req.method === "GET") {
+    assertRateLimit(req, "api-v1-memory-read", 240, 60 * 1000);
+    const post = await backend.directPost(apiMemoryId, memoryLanguage);
+    if (!post) throw new HttpError(404, "Memory not found", "not_found");
+    sendJson(req, res, {
+      success: true,
+      data: apiMemory(post),
+    });
+    return;
+  }
+
+  if (apiMemoryId && req.method === "PATCH") {
+    assertSameOrigin(req);
+    requireAdmin(req);
+    const row = backend.memoryByPublicId(apiMemoryId, memoryLanguage);
+    if (!row) throw new HttpError(404, "Memory not found", "not_found");
+    const body = await collectRequest(req, maxJsonBodyBytes);
+    sendJson(req, res, {
+      success: true,
+      data: backend.saveMemory({ ...parseJsonObject(body), id: row.id }),
+    });
+    return;
+  }
+
+  if (apiMemoryId && req.method === "DELETE") {
+    assertSameOrigin(req);
+    requireAdmin(req);
+    const row = backend.memoryByPublicId(apiMemoryId, memoryLanguage);
+    if (!row) throw new HttpError(404, "Memory not found", "not_found");
+    backend.saveMemory({ id: row.id, status: "ARCHIVED" });
+    sendJson(req, res, {
+      success: true,
+      data: {
+        id: apiMemoryId,
+        status: "archived",
+      },
+    });
+    return;
+  }
+
+  if (pathname === "/api/v1/users" && req.method === "GET") {
+    requireAdmin(req);
+    sendJson(req, res, {
+      success: true,
+      data: [backend.publicAdminProfile()],
+      meta: {
+        roles: ["ADMIN", "USER", "ANONYMOUS"],
+      },
+    });
+    return;
+  }
+
+  if (pathname === "/api/v1/assets" && req.method === "GET") {
+    requireAdmin(req);
+    const limit = Math.min(Number.parseInt(url.searchParams.get("limit") || "80", 10) || 80, 200);
+    sendJson(req, res, {
+      success: true,
+      data: backend.assets(limit),
     });
     return;
   }

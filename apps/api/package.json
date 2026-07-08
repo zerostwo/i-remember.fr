@@ -1,0 +1,10 @@
+{
+  "name": "@i-remember/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../server.mjs",
+    "start": "node ../../server.mjs",
+    "test": "node ../../scripts/check-api-v1.mjs"
+  }
+}
