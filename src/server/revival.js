@@ -1757,6 +1757,12 @@ class RevivalBackend {
     return adminMemory(row, language);
   }
 
+  archiveMemory(id) {
+    const existing = this.store.getMemoryByRowId(id);
+    if (!existing) throw new HttpError(404, "Memory not found", "not_found");
+    return this.saveMemory({ id, language_code: existing.language_code, status: "ARCHIVED" });
+  }
+
   savePage(input = {}) {
     const language = normalizeLanguage(
       input.language || input.language_code || this.siteSettings().defaultLanguage,
@@ -2522,6 +2528,17 @@ async function handleRequest(backend, req, res, next, options = {}) {
     sendJson(req, res, {
       success: true,
       data: backend.saveMemory({ ...input, id }),
+    });
+    return;
+  }
+
+  if (/^\/api\/admin\/memories\/\d+$/.test(pathname) && req.method === "DELETE") {
+    assertSameOrigin(req);
+    requireAdmin(req);
+    const id = Number.parseInt(pathname.split("/").pop(), 10);
+    sendJson(req, res, {
+      success: true,
+      data: backend.archiveMemory(id),
     });
     return;
   }

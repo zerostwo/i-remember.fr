@@ -57,7 +57,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { mergeV1Assets } from "./v1-assets.js";
 import { mergeV1Dashboard } from "./v1-dashboard.js";
-import { syncV1Memory } from "./v1-memory.js";
+import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
 
 const routes = [
   { id: "dashboard", label: "Dashboard", title: "Today in the archive", group: "Overview", icon: Home },
@@ -488,6 +488,16 @@ export function AdminApp() {
     });
   }
 
+  async function deleteMemory(id) {
+    const memory = data?.memories?.find((item) => item.id === id);
+    if (!memory || !window.confirm(`Archive "${memory.title || memory.excerpt || "this memory"}"?`)) return;
+    await runAction("Memory archived", async () => {
+      const archived = await api(`/api/admin/memories/${id}`, { method: "DELETE" });
+      await archiveV1Memory(v1Api, archived).catch(() => null);
+      await refreshData();
+    });
+  }
+
   async function savePage(slug, payload) {
     await runAction("Page saved", async () => {
       const saved = await api(`/api/admin/pages/${encodeURIComponent(slug)}`, {
@@ -671,6 +681,7 @@ export function AdminApp() {
                 setSelectedMenuId={setSelectedMenuId}
                 createMemory={createMemory}
                 saveMemory={saveMemory}
+                deleteMemory={deleteMemory}
                 createPage={createPage}
                 savePage={savePage}
                 createMenuItem={createMenuItem}
@@ -1007,6 +1018,7 @@ function MemoryView({
   setSelectedMemoryId,
   createMemory,
   saveMemory,
+  deleteMemory,
 }) {
   const [page, setPage] = useState(1);
   const memories = data.memories || [];
@@ -1090,7 +1102,7 @@ function MemoryView({
           </div>
         </CardContent>
       </Card>
-      <MemoryEditor memory={selected} onSave={saveMemory} />
+      <MemoryEditor memory={selected} onSave={saveMemory} onDelete={deleteMemory} />
     </div>
   );
 }
@@ -1113,7 +1125,7 @@ function MemoryListItem({ memory, compact = false }) {
   );
 }
 
-function MemoryEditor({ memory, onSave }) {
+function MemoryEditor({ memory, onSave, onDelete }) {
   const [draft, setDraft] = useState(null);
 
   useEffect(() => {
@@ -1168,6 +1180,10 @@ function MemoryEditor({ memory, onSave }) {
             <Button type="submit">
               <Save data-icon="inline-start" />
               Save memory
+            </Button>
+            <Button type="button" variant="outline" onClick={() => onDelete(memory.id)} disabled={draft.status === "archived"}>
+              <Trash2 data-icon="inline-start" />
+              Archive memory
             </Button>
             {draft.publicUrl ? (
               <Button variant="outline" asChild>

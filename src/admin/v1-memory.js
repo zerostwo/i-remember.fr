@@ -79,3 +79,18 @@ export async function syncV1Memory(v1Api, memory) {
     body: JSON.stringify(payload),
   });
 }
+
+export async function archiveV1Memory(v1Api, memory = {}) {
+  const legacyId = numberOrNull(memory.legacyId ?? memory.rowId ?? memory.id);
+  if (!legacyId) return null;
+
+  const matches = await v1Api(
+    `/api/v1/memories?legacyId=${encodeURIComponent(legacyId)}&status=all&visibility=all`,
+  );
+  const existing = matches?.[0];
+  if (!existing) return null;
+
+  return v1Api(`/api/v1/memories/${encodeURIComponent(existing.id)}`, {
+    method: "DELETE",
+  });
+}
