@@ -32,11 +32,9 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server.mjs ./server.mjs
 COPY --from=build /app/src ./src
-COPY --from=build /app/db ./db
 COPY --from=build /app/index.html ./index.html
 COPY --from=build /app/fr.html ./fr.html
 COPY --from=build /app/legal.html ./legal.html
-COPY --from=build /app/data ./data
 COPY --from=build /app/public ./public
 RUN mkdir -p /var/opt/i-remember \
   && chown -R node:node /var/opt/i-remember /app

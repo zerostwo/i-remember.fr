@@ -9,8 +9,11 @@ db/
 *.sqlite
 *.sqlite-*
 *.db
-public/uploads/
-src/server/migrations/
+public/uploads/*
+!public/uploads/posts/
+public/uploads/posts/*
+!public/uploads/posts/revival-upload/
+!public/uploads/posts/revival-upload/*.jpg
 .env
 .env.*
 !.env.example
