@@ -10,6 +10,7 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 - `PATCH /api/v1/memories/:id`
 - `DELETE /api/v1/memories/:id`
 - `GET /api/v1/search`
+- `GET /api/v1/dashboard`
 - `GET /api/v1/users`
 - `GET /api/v1/assets`
 - `POST /api/v1/assets`
@@ -38,6 +39,9 @@ moderation status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`.
 pass `status=PENDING`, `status=REJECTED`, `status=ARCHIVED`, `status=all`,
 `visibility=PRIVATE`, or `visibility=all` with a bearer token for management
 views.
+
+`GET /api/v1/dashboard` is admin-only and returns total memories, pending and
+rejected counts, total users, and recent memory activity.
 
 ## Architecture
 

@@ -2,7 +2,7 @@ import { authenticate, login } from "./auth.js";
 import type { MemoryRecord } from "./domain.js";
 import { ApiError } from "./errors.js";
 import { readJson, type RequestContext } from "./http.js";
-import { AssetService, MemoryService, UserService } from "./services.js";
+import { AssetService, DashboardService, MemoryService, UserService } from "./services.js";
 import { assetUploadInput, memoryInput, memoryListQuery, memoryPatchInput } from "./validation.js";
 
 function memoryDto(memory: MemoryRecord) {
@@ -79,6 +79,15 @@ export class UserController {
 
   async list(context: RequestContext) {
     const data = await this.users.list(authenticate(context.req));
+    return { success: true, data };
+  }
+}
+
+export class DashboardController {
+  constructor(private readonly dashboard: DashboardService) {}
+
+  async summary(context: RequestContext) {
+    const data = await this.dashboard.summary(authenticate(context.req));
     return { success: true, data };
   }
 }

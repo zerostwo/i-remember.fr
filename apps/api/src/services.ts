@@ -50,6 +50,38 @@ export class UserService {
   }
 }
 
+export class DashboardService {
+  constructor(
+    private readonly memories: MemoryRepository,
+    private readonly users: UserRepository,
+  ) {}
+
+  async summary(principal: Principal) {
+    requireRole(principal, ["ADMIN"]);
+    const [totalMemories, pendingMemories, rejectedMemories, totalUsers, recentMemories] =
+      await Promise.all([
+        this.memories.count({ status: "all", visibility: "all" }),
+        this.memories.count({ status: "PENDING", visibility: "all" }),
+        this.memories.count({ status: "REJECTED", visibility: "all" }),
+        this.users.count(),
+        this.memories.list({ status: "all", visibility: "all", limit: 5 }),
+      ]);
+
+    return {
+      totalMemories,
+      pendingMemories,
+      rejectedMemories,
+      totalUsers,
+      recentActivity: recentMemories.map((memory) => ({
+        id: memory.publicId,
+        title: memory.title,
+        status: memory.status,
+        createdAt: memory.createdAt.toISOString(),
+      })),
+    };
+  }
+}
+
 export class AssetService {
   constructor(
     private readonly assets: AssetRepository,

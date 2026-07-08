@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   AuthController,
   AssetController,
+  DashboardController,
   MemoryController,
   SearchController,
   UserController,
@@ -13,7 +14,7 @@ import {
   PrismaUserRepository,
 } from "./prisma-repositories.js";
 import type { AssetRepository, MemoryRepository, UserRepository } from "./repositories.js";
-import { AssetService, MemoryService, UserService } from "./services.js";
+import { AssetService, DashboardService, MemoryService, UserService } from "./services.js";
 import type { StorageAdapter } from "@i-remember/storage";
 
 export type ApiDependencies = {
@@ -24,13 +25,15 @@ export type ApiDependencies = {
 };
 
 export function createApiV1Router(dependencies: ApiDependencies = {}) {
-  const memoryService = new MemoryService(dependencies.memories || new PrismaMemoryRepository());
-  const userService = new UserService(dependencies.users || new PrismaUserRepository());
-  const assetService = new AssetService(
-    dependencies.assets || new PrismaAssetRepository(),
-    dependencies.storage,
-  );
+  const memoryRepository = dependencies.memories || new PrismaMemoryRepository();
+  const userRepository = dependencies.users || new PrismaUserRepository();
+  const assetRepository = dependencies.assets || new PrismaAssetRepository();
+  const memoryService = new MemoryService(memoryRepository);
+  const userService = new UserService(userRepository);
+  const assetService = new AssetService(assetRepository, dependencies.storage);
+  const dashboardService = new DashboardService(memoryRepository, userRepository);
   const memories = new MemoryController(memoryService);
+  const dashboard = new DashboardController(dashboardService);
   const search = new SearchController(memoryService);
   const users = new UserController(userService);
   const assets = new AssetController(assetService);
@@ -43,6 +46,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   router.add("PATCH", "/api/v1/memories/:id", (context) => memories.update(context));
   router.add("DELETE", "/api/v1/memories/:id", (context) => memories.archive(context));
   router.add("GET", "/api/v1/search", (context) => search.search(context));
+  router.add("GET", "/api/v1/dashboard", (context) => dashboard.summary(context));
   router.add("GET", "/api/v1/users", (context) => users.list(context));
   router.add("GET", "/api/v1/assets", (context) => assets.list(context));
   router.add("POST", "/api/v1/assets", (context) => assets.upload(context));

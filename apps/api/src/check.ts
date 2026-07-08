@@ -43,6 +43,10 @@ class MemoryRepo implements MemoryRepository {
     });
   }
 
+  async count(query: MemoryListQuery) {
+    return (await this.list(query)).length;
+  }
+
   async get(id: string) {
     return this.memories.find((memory) => memory.publicId === id || memory.id === id) || null;
   }
@@ -83,6 +87,10 @@ class MemoryRepo implements MemoryRepository {
 class UserRepo implements UserRepository {
   async list(): Promise<UserRecord[]> {
     return [{ id: "u1", email: "admin@example.com", role: "ADMIN", createdAt: new Date() }];
+  }
+
+  async count() {
+    return (await this.list()).length;
   }
 }
 
@@ -190,6 +198,17 @@ const authorized = await json("/api/v1/users", {
 });
 assert.equal(authorized.response.status, 200);
 assert.equal(authorized.body.data[0].role, "ADMIN");
+
+const unauthorizedDashboard = await json("/api/v1/dashboard");
+assert.equal(unauthorizedDashboard.response.status, 401);
+
+const dashboard = await json("/api/v1/dashboard", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(dashboard.response.status, 200);
+assert.equal(dashboard.body.data.totalUsers, 1);
+assert.equal(dashboard.body.data.totalMemories, 2);
+assert.equal(dashboard.body.data.pendingMemories, 0);
 
 const uploaded = await json("/api/v1/assets", {
   method: "POST",

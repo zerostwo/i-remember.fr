@@ -15,6 +15,7 @@ export type MemoryListQuery = {
 
 export interface MemoryRepository {
   list(query: MemoryListQuery): Promise<MemoryRecord[]>;
+  count(query: MemoryListQuery): Promise<number>;
   get(id: string): Promise<MemoryRecord | null>;
   create(input: MemoryInput): Promise<MemoryRecord>;
   update(id: string, input: MemoryUpdateInput): Promise<MemoryRecord>;
@@ -23,6 +24,7 @@ export interface MemoryRepository {
 
 export interface UserRepository {
   list(): Promise<UserRecord[]>;
+  count(): Promise<number>;
 }
 
 export interface AssetRepository {

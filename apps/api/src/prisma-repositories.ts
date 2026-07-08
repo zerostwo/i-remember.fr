@@ -34,29 +34,37 @@ function memory(row: any): MemoryRecord {
   };
 }
 
+function memoryWhere(query: MemoryListQuery) {
+  const q = query.q?.trim();
+  return {
+    ...(query.status === "all" ? {} : { status: query.status || "NORMAL" }),
+    ...(query.visibility === "all" ? {} : { visibility: query.visibility || "PUBLIC" }),
+    ...(q
+      ? {
+          OR: [
+            { title: { contains: q, mode: "insensitive" } },
+            { content: { contains: q, mode: "insensitive" } },
+            { excerpt: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+}
+
 export class PrismaMemoryRepository implements MemoryRepository {
   constructor(private readonly db = getPrismaClient()) {}
 
   async list(query: MemoryListQuery) {
-    const q = query.q?.trim();
     const rows = await this.db.memory.findMany({
-      where: {
-        ...(query.status === "all" ? {} : { status: query.status || "NORMAL" }),
-        ...(query.visibility === "all" ? {} : { visibility: query.visibility || "PUBLIC" }),
-        ...(q
-          ? {
-              OR: [
-                { title: { contains: q, mode: "insensitive" } },
-                { content: { contains: q, mode: "insensitive" } },
-                { excerpt: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-      },
+      where: memoryWhere(query) as any,
       orderBy: { createdAt: "desc" },
       take: Math.min(query.limit || 100, 200),
     });
     return rows.map(memory);
+  }
+
+  async count(query: MemoryListQuery) {
+    return this.db.memory.count({ where: memoryWhere(query) as any });
   }
 
   async get(id: string) {
@@ -127,6 +135,10 @@ export class PrismaUserRepository implements UserRepository {
 
   async list(): Promise<UserRecord[]> {
     return this.db.user.findMany({ orderBy: { createdAt: "desc" } });
+  }
+
+  async count() {
+    return this.db.user.count();
   }
 }
 
