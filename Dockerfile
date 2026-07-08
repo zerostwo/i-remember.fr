@@ -23,8 +23,8 @@ RUN npm run build
 FROM node:22-slim AS runtime
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=8080
-ENV I_REMEMBER_DATA_DIR=/var/opt/i-remember
+ENV PORT=7890
+ENV I_REMEMBER_DATA_DIR=/var/opt/i-remember.fr
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -36,9 +36,9 @@ COPY --from=build /app/index.html ./index.html
 COPY --from=build /app/fr.html ./fr.html
 COPY --from=build /app/legal.html ./legal.html
 COPY --from=build /app/public ./public
-RUN mkdir -p /var/opt/i-remember \
-  && chown -R node:node /var/opt/i-remember /app
+RUN mkdir -p /var/opt/i-remember.fr \
+  && chown -R node:node /var/opt/i-remember.fr /app
 USER node
 
-EXPOSE 8080
+EXPOSE 7890
 CMD ["node", "server.mjs"]

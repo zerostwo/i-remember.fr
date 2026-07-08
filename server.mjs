@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,7 +7,8 @@ import { createRevivalMiddleware } from "./src/server/revival.js";
 const rootDir = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const distDir = resolve(rootDir, "dist");
 const host = process.env.HOST || "127.0.0.1";
-const port = Number.parseInt(process.env.PORT || "8080", 10);
+const port = Number.parseInt(process.env.PORT || "7890", 10);
+const packageJson = JSON.parse(readFileSync(resolve(rootDir, "package.json"), "utf8"));
 
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
@@ -151,6 +152,14 @@ function serveStatic(req, res) {
 
 const revivalMiddleware = createRevivalMiddleware({ production: true });
 const server = createServer((req, res) => {
+  if (req.method === "GET" && req.url === "/version") {
+    setSecurityHeaders(res);
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.end(JSON.stringify({ name: packageJson.name, version: packageJson.version }));
+    return;
+  }
+
   revivalMiddleware(req, res, () => serveStatic(req, res));
 });
 server.requestTimeout = 30_000;

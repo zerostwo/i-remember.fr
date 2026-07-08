@@ -2,13 +2,13 @@ services:
   app:
     build:
       context: .
-    image: ${DOCKERHUB_IMAGE:-i-remember-fr}:${TAG:-latest}
+    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:-latest}
     ports:
-      - "8080:8080"
+      - "7890:7890"
     environment:
       HOST: 0.0.0.0
-      PORT: 8080
-      I_REMEMBER_DATA_DIR: /var/opt/i-remember
+      PORT: 7890
+      I_REMEMBER_DATA_DIR: /var/opt/i-remember.fr
       I_REMEMBER_AUTO_APPROVE_SUBMISSIONS: ${I_REMEMBER_AUTO_APPROVE_SUBMISSIONS:-false}
       I_REMEMBER_DEFAULT_LANGUAGE: ${I_REMEMBER_DEFAULT_LANGUAGE:-en}
       I_REMEMBER_ANONYMOUS_SUBMISSIONS: ${I_REMEMBER_ANONYMOUS_SUBMISSIONS:-true}
@@ -19,12 +19,12 @@ services:
       UMAMI_SRC: ${UMAMI_SRC:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     volumes:
-      - i-remember-data:/var/opt/i-remember
+      - i-remember-data:/var/opt/i-remember.fr
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "node -e \"fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
+          "node -e \"fetch('http://127.0.0.1:7890/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
         ]
       interval: 30s
       timeout: 5s

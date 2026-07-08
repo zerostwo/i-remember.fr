@@ -19,6 +19,23 @@ npm start
   -> dist static files fallback
 ```
 
+## Memos-Inspired Boundaries
+
+The upstream `usememos/memos` repo splits product code by purpose: server,
+store, web, scripts, docs, and release metadata. This project keeps the same
+boundary without copying the Go-specific `cmd/internal` layout:
+
+- `src/server/`: HTTP middleware, APIs, auth, uploads, settings, and SQLite
+  store wiring.
+- `src/server/migrations/sqlite/`: durable schema migrations.
+- `src/admin/` and `src/components/`: Vite admin web app and local UI
+  primitives.
+- `public/`, `index.html`, `fr.html`, `legal.html`: restored public archive
+  shell and vendor-like legacy assets.
+- `scripts/`: one-off operational/import scripts.
+- `Dockerfile`, `docker-compose.yml`, `.github/workflows/`: app-only release
+  path.
+
 ## Public App
 
 - `index.html`: restored English archive shell and embedded default post data.
@@ -95,4 +112,3 @@ npm start
 - Admin UI behavior: `src/admin/AdminApp.jsx`; add UI primitives only if existing `src/components/ui/*` cannot cover it.
 - Public visual shell: prefer `public/js/revival-runtime.js` or server HTML patches; edit `public/js/main.js` only as last resort.
 - Docker publish issues: `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `.env.example`.
-

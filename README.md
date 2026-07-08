@@ -30,7 +30,7 @@ npm start
 ```
 
 The server listens on `PORT` and `HOST` from the environment. The default local
-URL is `http://127.0.0.1:8080/`.
+URL is `http://127.0.0.1:7890/`.
 
 Admin is available at `/admin/`.
 
@@ -42,6 +42,18 @@ prototype
 ```
 
 Set `I_REMEMBER_ADMIN_EMAIL` and `I_REMEMBER_ADMIN_PASSWORD` before deployment.
+
+The running app exposes its build version at `/version`.
+
+## Docker
+
+```bash
+docker run -d \
+  --name i-remember.fr \
+  -p 7890:7890 \
+  -v ~/.i-remember.fr:/var/opt/i-remember.fr \
+  zerostwo/i-remember.fr:latest
+```
 
 ## Configuration
 
@@ -67,6 +79,15 @@ Generated or runtime material is intentionally excluded from Git:
 - `dist/`
 
 SQL migration source lives in `src/server/migrations/sqlite/`.
+
+## Release
+
+- `package.json` is the source of truth for the app version.
+- `CHANGELOG.md` records user-facing changes.
+- `.github/workflows/docker.yml` publishes `zerostwo/i-remember.fr:<version>`,
+  `zerostwo/i-remember.fr:latest`, and `zerostwo/i-remember.fr:sha-<commit>` on
+  pushes to `main`.
+- Pushing a `vX.Y.Z` tag also publishes `X.Y.Z`, `X.Y`, and `latest`.
 
 ## License Position
 
