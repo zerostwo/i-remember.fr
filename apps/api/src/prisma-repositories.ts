@@ -1,5 +1,11 @@
 import { getPrismaClient } from "@i-remember/database";
-import type { AssetRecord, MemoryInput, MemoryRecord, UserRecord } from "./domain.js";
+import type {
+  AssetRecord,
+  MemoryInput,
+  MemoryRecord,
+  MemoryUpdateInput,
+  UserRecord,
+} from "./domain.js";
 import { ApiError } from "./errors.js";
 import type {
   AssetRepository,
@@ -82,7 +88,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
     );
   }
 
-  async update(id: string, input: Partial<MemoryInput>) {
+  async update(id: string, input: MemoryUpdateInput) {
     const existing = await this.get(id);
     if (!existing) throw new ApiError(404, "Memory not found", "not_found");
     return memory(
@@ -97,6 +103,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
           latitude: input.latitude,
           longitude: input.longitude,
           emotion: input.emotion,
+          status: input.status,
           metadata: input.metadata as any,
         },
       }),

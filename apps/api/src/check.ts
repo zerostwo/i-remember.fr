@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import { createServer } from "node:http";
-import type { AssetRecord, MemoryInput, MemoryRecord, UserRecord } from "./domain.js";
+import type {
+  AssetRecord,
+  MemoryInput,
+  MemoryRecord,
+  MemoryUpdateInput,
+  UserRecord,
+} from "./domain.js";
 import { createApiV1Middleware } from "./index.js";
 import type {
   AssetRepository,
@@ -55,7 +61,7 @@ class MemoryRepo implements MemoryRepository {
     return memory;
   }
 
-  async update(id: string, input: Partial<MemoryInput>) {
+  async update(id: string, input: MemoryUpdateInput) {
     const memory = await this.get(id);
     assert.ok(memory);
     Object.assign(memory, input, { updatedAt: new Date("2026-01-03T00:00:00Z") });
@@ -148,6 +154,14 @@ const created = await json("/api/v1/memories", {
 });
 assert.equal(created.response.status, 201);
 assert.equal(created.body.data.status, "PENDING");
+
+const moderated = await json(`/api/v1/memories/${created.body.data.id}`, {
+  method: "PATCH",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({ status: "NORMAL" }),
+});
+assert.equal(moderated.response.status, 200);
+assert.equal(moderated.body.data.status, "NORMAL");
 
 const unauthorized = await json("/api/v1/users");
 assert.equal(unauthorized.response.status, 401);

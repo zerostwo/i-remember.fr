@@ -3,7 +3,7 @@ import type { MemoryRecord } from "./domain.js";
 import { ApiError } from "./errors.js";
 import { readJson, type RequestContext } from "./http.js";
 import { AssetService, MemoryService, UserService } from "./services.js";
-import { assetUploadInput, memoryInput } from "./validation.js";
+import { assetUploadInput, memoryInput, memoryPatchInput } from "./validation.js";
 
 function memoryDto(memory: MemoryRecord) {
   return {
@@ -51,7 +51,7 @@ export class MemoryController {
     const data = await this.memories.update(
       authenticate(context.req),
       context.params.id,
-      memoryInput(await readJson(context.req)),
+      memoryPatchInput(await readJson(context.req)),
     );
     return { success: true, data: memoryDto(data) };
   }

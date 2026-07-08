@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { createLocalStorage, type StorageAdapter } from "@i-remember/storage";
-import type { AssetUploadInput, MemoryInput, Principal } from "./domain.js";
+import type { AssetUploadInput, MemoryInput, MemoryUpdateInput, Principal } from "./domain.js";
 import { requireRole } from "./auth.js";
 import type { AssetRepository, MemoryRepository, UserRepository } from "./repositories.js";
 
@@ -19,7 +19,7 @@ export class MemoryService {
     return this.memories.create(input);
   }
 
-  update(principal: Principal, id: string, input: Partial<MemoryInput>) {
+  update(principal: Principal, id: string, input: MemoryUpdateInput) {
     requireRole(principal, ["ADMIN"]);
     return this.memories.update(id, input);
   }

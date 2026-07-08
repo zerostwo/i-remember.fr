@@ -1,7 +1,14 @@
-import type { AssetUploadInput, MemoryInput, Visibility } from "./domain.js";
+import type {
+  AssetUploadInput,
+  MemoryInput,
+  MemoryStatus,
+  MemoryUpdateInput,
+  Visibility,
+} from "./domain.js";
 import { ApiError } from "./errors.js";
 
 const visibilityValues = new Set(["PUBLIC", "UNLISTED", "PRIVATE"]);
+const statusValues = new Set(["NORMAL", "PENDING", "ARCHIVED", "REJECTED"]);
 
 function text(value: unknown, fallback = "", max = 1000) {
   return String(value ?? fallback)
@@ -15,6 +22,10 @@ function optionalNumber(value: unknown) {
   const next = Number(value);
   if (!Number.isFinite(next)) throw new ApiError(400, "Invalid numeric value", "invalid_number");
   return next;
+}
+
+function has(value: Record<string, unknown>, key: string) {
+  return Object.prototype.hasOwnProperty.call(value, key);
 }
 
 export function memoryInput(value: Record<string, unknown>): MemoryInput {
@@ -41,6 +52,55 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
         ? (value.metadata as Record<string, unknown>)
         : undefined,
   };
+}
+
+export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateInput {
+  const input: MemoryUpdateInput = {};
+
+  if (has(value, "title")) {
+    input.title = text(value.title, "", 180);
+    if (!input.title) throw new ApiError(400, "Title is required", "missing_title");
+  }
+
+  if (has(value, "content") || has(value, "bodyMarkdown") || has(value, "text")) {
+    input.content = text(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
+    if (!input.content) throw new ApiError(400, "Content is required", "missing_content");
+  }
+
+  if (has(value, "authorName") || has(value, "author")) {
+    input.authorName = text(value.authorName ?? value.author, "", 120);
+  }
+
+  if (has(value, "visibility")) {
+    const visibility = text(value.visibility, "", 20).toUpperCase();
+    if (!visibilityValues.has(visibility)) {
+      throw new ApiError(400, "Invalid visibility", "invalid_visibility");
+    }
+    input.visibility = visibility as Visibility;
+  }
+
+  if (has(value, "status")) {
+    const status = text(value.status, "", 20).toUpperCase();
+    if (!statusValues.has(status)) {
+      throw new ApiError(400, "Invalid status", "invalid_status");
+    }
+    input.status = status as MemoryStatus;
+  }
+
+  if (has(value, "latitude")) input.latitude = optionalNumber(value.latitude);
+  if (has(value, "longitude")) input.longitude = optionalNumber(value.longitude);
+  if (has(value, "emotion"))
+    input.emotion = value.emotion ? text(value.emotion, "", 80) : undefined;
+  if (has(value, "metadata")) {
+    input.metadata =
+      value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)
+        ? (value.metadata as Record<string, unknown>)
+        : undefined;
+  }
+
+  if (!Object.keys(input).length)
+    throw new ApiError(400, "No memory fields to update", "empty_patch");
+  return input;
 }
 
 export function assetUploadInput(value: Record<string, unknown>): AssetUploadInput {

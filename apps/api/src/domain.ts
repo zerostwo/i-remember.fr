@@ -36,6 +36,10 @@ export type MemoryInput = {
   metadata?: Record<string, unknown>;
 };
 
+export type MemoryUpdateInput = Partial<MemoryInput> & {
+  status?: MemoryStatus;
+};
+
 export type UserRecord = {
   id: string;
   email: string;

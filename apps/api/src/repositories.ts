@@ -1,4 +1,10 @@
-import type { AssetRecord, MemoryInput, MemoryRecord, UserRecord } from "./domain.js";
+import type {
+  AssetRecord,
+  MemoryInput,
+  MemoryRecord,
+  MemoryUpdateInput,
+  UserRecord,
+} from "./domain.js";
 
 export type MemoryListQuery = {
   q?: string;
@@ -9,7 +15,7 @@ export interface MemoryRepository {
   list(query: MemoryListQuery): Promise<MemoryRecord[]>;
   get(id: string): Promise<MemoryRecord | null>;
   create(input: MemoryInput): Promise<MemoryRecord>;
-  update(id: string, input: Partial<MemoryInput>): Promise<MemoryRecord>;
+  update(id: string, input: MemoryUpdateInput): Promise<MemoryRecord>;
   archive(id: string): Promise<MemoryRecord>;
 }
 

@@ -31,6 +31,9 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 The storage layer returns a URL from the configured local filesystem adapter or
 an S3-compatible adapter.
 
+`PATCH /api/v1/memories/:id` is admin-only and accepts partial edits, including
+moderation status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`.
+
 ## Architecture
 
 The API app is split into:
