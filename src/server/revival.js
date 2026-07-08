@@ -1845,7 +1845,10 @@ class RevivalBackend {
       created_at: existingMemory?.created_at || new Date().toISOString(),
     });
 
-    return adminPage(page);
+    return {
+      ...adminPage(page),
+      linkedMemoryLegacyId: legacyId,
+    };
   }
 
   saveMenuItem(input = {}) {

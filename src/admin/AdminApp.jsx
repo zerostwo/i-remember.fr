@@ -57,7 +57,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { mergeV1Assets, v1AssetUploadPayload } from "./v1-assets.js";
-import { deleteV1MenuItem, syncV1MenuItem, syncV1Page, syncV1Settings } from "./v1-content.js";
+import { deleteV1MenuItem, syncV1MenuItem, syncV1Page, syncV1Settings, v1PageMemory } from "./v1-content.js";
 import { mergeV1Dashboard } from "./v1-dashboard.js";
 import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
 
@@ -531,6 +531,8 @@ export function AdminApp() {
         body: JSON.stringify(payload),
       });
       await syncV1Page(v1Api, saved).catch(() => null);
+      const pageMemory = v1PageMemory(saved);
+      if (pageMemory) await syncV1Memory(v1Api, pageMemory).catch(() => null);
       setSelectedPageSlug(saved.slug);
       await refreshData();
     });
@@ -550,6 +552,8 @@ export function AdminApp() {
         }),
       });
       await syncV1Page(v1Api, saved).catch(() => null);
+      const pageMemory = v1PageMemory(saved);
+      if (pageMemory) await syncV1Memory(v1Api, pageMemory).catch(() => null);
       setSelectedPageSlug(saved.slug);
       await refreshData();
     });

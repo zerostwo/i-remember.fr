@@ -35,6 +35,29 @@ export function v1PagePayload(page = {}) {
   };
 }
 
+export function v1PageMemory(page = {}) {
+  if (!page.linkedMemoryLegacyId) return null;
+  return {
+    legacyId: page.linkedMemoryLegacyId,
+    uid: page.linkedMemoryUid,
+    language: page.language,
+    source: "page",
+    title: page.title,
+    author: "I Remember",
+    excerpt: page.excerpt,
+    bodyMarkdown: page.bodyMarkdown,
+    isLongForm: true,
+    dbStatus: page.status === "PUBLISHED" ? "NORMAL" : "ARCHIVED",
+    metadata: {
+      pageSlug: page.slug,
+      linkedMemoryUid: page.linkedMemoryUid,
+      isLongForm: true,
+      source: "page",
+    },
+    tags: [page.slug, "page", "memory"].filter(Boolean),
+  };
+}
+
 export async function syncV1Page(v1Api, page) {
   const payload = v1PagePayload(page);
   const path = `/api/v1/pages/${encodeURIComponent(page?.slug || payload.slug)}?language=${encodeURIComponent(payload.language)}`;

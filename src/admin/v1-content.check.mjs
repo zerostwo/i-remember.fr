@@ -5,6 +5,7 @@ import {
   syncV1Page,
   syncV1Settings,
   v1MenuItemPayload,
+  v1PageMemory,
   v1PagePayload,
   v1SettingsPayload,
 } from "./v1-content.js";
@@ -16,6 +17,9 @@ assert.deepEqual(v1PagePayload({
   bodyMarkdown: "# About",
   status: "PUBLISHED",
 }).metadata, { legacyId: 7, legacyUid: "" });
+assert.equal(v1PageMemory({ linkedMemoryLegacyId: 9002, status: "PUBLISHED" }).dbStatus, "NORMAL");
+assert.equal(v1PageMemory({ linkedMemoryLegacyId: 9002, status: "DRAFT" }).dbStatus, "ARCHIVED");
+assert.equal(v1PageMemory({}), null);
 
 assert.equal(v1MenuItemPayload({ id: 2, label: "About", type: "PAGE" }).uid, "legacy-menu-2");
 assert.equal(v1SettingsPayload({ defaultLanguage: "zh", tracking: { enabled: true } }).defaultLanguage, "zh");
