@@ -1,5 +1,6 @@
 import { getPrismaClient } from "@i-remember/database";
 import type {
+  AttachmentInput,
   AssetRecord,
   MemoryInput,
   MemoryRecord,
@@ -13,6 +14,41 @@ import type {
   MemoryRepository,
   UserRepository,
 } from "./repositories.js";
+
+const memoryInclude = {
+  attachments: { orderBy: { createdAt: "asc" } },
+  tags: { include: { tag: true }, orderBy: { createdAt: "asc" } },
+} as const;
+
+function tagSlug(name: string) {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "tag"
+  );
+}
+
+function tagCreates(tags: string[] = []) {
+  const unique = new Map(tags.map((name) => [tagSlug(name), name]));
+  return [...unique].map(([slug, name]) => ({
+    tag: {
+      connectOrCreate: {
+        where: { slug },
+        create: { name, slug },
+      },
+    },
+  }));
+}
+
+function attachmentCreates(attachments: AttachmentInput[] = []) {
+  return attachments.map((attachment) => ({
+    url: attachment.url,
+    type: attachment.type || "application/octet-stream",
+    metadata: attachment.metadata as any,
+  }));
+}
 
 function memory(row: any): MemoryRecord {
   return {
@@ -29,6 +65,20 @@ function memory(row: any): MemoryRecord {
     longitude: row.longitude,
     emotion: row.emotion,
     metadata: row.metadata,
+    attachments: (row.attachments || []).map((attachment: any) => ({
+      id: attachment.id,
+      memoryId: attachment.memoryId,
+      url: attachment.url,
+      type: attachment.type,
+      metadata:
+        attachment.metadata && typeof attachment.metadata === "object" ? attachment.metadata : null,
+      createdAt: attachment.createdAt,
+    })),
+    tags: (row.tags || []).map(({ tag }: any) => ({
+      id: tag.id,
+      name: tag.name,
+      slug: tag.slug,
+    })),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -57,6 +107,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
   async list(query: MemoryListQuery) {
     const rows = await this.db.memory.findMany({
       where: memoryWhere(query) as any,
+      include: memoryInclude,
       orderBy: { createdAt: "desc" },
       take: Math.min(query.limit || 100, 200),
     });
@@ -73,6 +124,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
         OR: [{ id }, { publicId: id }],
         status: { not: "ARCHIVED" },
       },
+      include: memoryInclude,
     });
     return row ? memory(row) : null;
   }
@@ -91,7 +143,12 @@ export class PrismaMemoryRepository implements MemoryRepository {
           longitude: input.longitude,
           emotion: input.emotion,
           metadata: input.metadata as any,
+          attachments: input.attachments?.length
+            ? { create: attachmentCreates(input.attachments) }
+            : undefined,
+          tags: input.tags?.length ? { create: tagCreates(input.tags) } : undefined,
         },
+        include: memoryInclude,
       }),
     );
   }
@@ -99,21 +156,29 @@ export class PrismaMemoryRepository implements MemoryRepository {
   async update(id: string, input: MemoryUpdateInput) {
     const existing = await this.get(id);
     if (!existing) throw new ApiError(404, "Memory not found", "not_found");
+    const data: any = {
+      title: input.title,
+      content: input.content,
+      excerpt: input.content ? input.content.slice(0, 220) : undefined,
+      authorName: input.authorName,
+      visibility: input.visibility,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      emotion: input.emotion,
+      status: input.status,
+      metadata: input.metadata as any,
+    };
+    if (input.attachments) {
+      data.attachments = { deleteMany: {}, create: attachmentCreates(input.attachments) };
+    }
+    if (input.tags) {
+      data.tags = { deleteMany: {}, create: tagCreates(input.tags) };
+    }
     return memory(
       await this.db.memory.update({
         where: { id: existing.id },
-        data: {
-          title: input.title,
-          content: input.content,
-          excerpt: input.content ? input.content.slice(0, 220) : undefined,
-          authorName: input.authorName,
-          visibility: input.visibility,
-          latitude: input.latitude,
-          longitude: input.longitude,
-          emotion: input.emotion,
-          status: input.status,
-          metadata: input.metadata as any,
-        },
+        data,
+        include: memoryInclude,
       }),
     );
   }
@@ -125,6 +190,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
       await this.db.memory.update({
         where: { id: existing.id },
         data: { status: "ARCHIVED" },
+        include: memoryInclude,
       }),
     );
   }

@@ -40,6 +40,9 @@ pass `status=PENDING`, `status=REJECTED`, `status=ARCHIVED`, `status=all`,
 `visibility=PRIVATE`, or `visibility=all` with a bearer token for management
 views.
 
+Memory create and patch bodies may include `tags` and `attachments`; memory
+responses include both relation lists.
+
 `GET /api/v1/dashboard` is admin-only and returns total memories, moderation
 counts, total users, and recent memory activity.
 

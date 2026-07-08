@@ -21,8 +21,16 @@ export type MemoryRecord = {
   longitude?: number | null;
   emotion?: string | null;
   metadata?: Record<string, unknown> | null;
+  attachments?: AttachmentRecord[];
+  tags?: TagRecord[];
   createdAt: Date;
   updatedAt: Date;
+};
+
+export type AttachmentInput = {
+  url: string;
+  type?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type MemoryInput = {
@@ -34,6 +42,8 @@ export type MemoryInput = {
   longitude?: number;
   emotion?: string;
   metadata?: Record<string, unknown>;
+  attachments?: AttachmentInput[];
+  tags?: string[];
 };
 
 export type MemoryUpdateInput = Partial<MemoryInput> & {
@@ -54,6 +64,14 @@ export type AssetRecord = {
   type: string;
   metadata?: Record<string, unknown> | null;
   createdAt: Date;
+};
+
+export type AttachmentRecord = AssetRecord;
+
+export type TagRecord = {
+  id: string;
+  name: string;
+  slug: string;
 };
 
 export type AssetUploadInput = {

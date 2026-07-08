@@ -19,6 +19,18 @@ function memoryDto(memory: MemoryRecord) {
     longitude: memory.longitude,
     emotion: memory.emotion,
     metadata: memory.metadata || {},
+    attachments: (memory.attachments || []).map((attachment) => ({
+      id: attachment.id,
+      url: attachment.url,
+      type: attachment.type,
+      metadata: attachment.metadata || {},
+      createdAt: attachment.createdAt.toISOString(),
+    })),
+    tags: (memory.tags || []).map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      slug: tag.slug,
+    })),
     createdAt: memory.createdAt.toISOString(),
     updatedAt: memory.updatedAt.toISOString(),
   };

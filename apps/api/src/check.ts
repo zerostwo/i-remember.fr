@@ -17,6 +17,25 @@ import type {
 } from "./repositories.js";
 import type { StorageAdapter } from "@i-remember/storage";
 
+function tag(name: string) {
+  return {
+    id: `tag-${name.toLowerCase()}`,
+    name,
+    slug: name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+  };
+}
+
+function attachments(input: MemoryInput["attachments"] = [], memoryId = "internal-1") {
+  return input.map((attachment, index) => ({
+    id: `attachment-${index + 1}`,
+    memoryId,
+    url: attachment.url,
+    type: attachment.type || "application/octet-stream",
+    metadata: attachment.metadata || {},
+    createdAt: new Date("2026-01-02T00:00:00Z"),
+  }));
+}
+
 class MemoryRepo implements MemoryRepository {
   memories: MemoryRecord[] = [
     {
@@ -62,6 +81,8 @@ class MemoryRepo implements MemoryRepository {
       visibility: input.visibility || "PUBLIC",
       status: "PENDING",
       metadata: input.metadata || {},
+      attachments: attachments(input.attachments, `internal-${this.memories.length + 1}`),
+      tags: (input.tags || []).map(tag),
       createdAt: new Date("2026-01-02T00:00:00Z"),
       updatedAt: new Date("2026-01-02T00:00:00Z"),
     } satisfies MemoryRecord;
@@ -162,10 +183,20 @@ assert.equal((await json("/api/v1/memories/pub_1")).body.data.title, "First memo
 
 const created = await json("/api/v1/memories", {
   method: "POST",
-  body: JSON.stringify({ title: "New", content: "Created through v1 API" }),
+  body: JSON.stringify({
+    title: "New",
+    content: "Created through v1 API",
+    tags: ["Paris", "Archive"],
+    attachments: [{ url: "/uploads/new.jpg", type: "image/jpeg" }],
+  }),
 });
 assert.equal(created.response.status, 201);
 assert.equal(created.body.data.status, "PENDING");
+assert.deepEqual(
+  created.body.data.tags.map((item: { name: string }) => item.name),
+  ["Paris", "Archive"],
+);
+assert.equal(created.body.data.attachments[0].url, "/uploads/new.jpg");
 
 const publicAfterCreate = await json("/api/v1/memories");
 assert.equal(

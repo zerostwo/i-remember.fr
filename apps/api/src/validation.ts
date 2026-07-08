@@ -29,6 +29,42 @@ function has(value: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
+function tags(value: unknown) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const raw = Array.isArray(value) ? value : String(value).split(",");
+  const seen = new Set<string>();
+  return raw
+    .map((tag) => text(tag, "", 80))
+    .filter((tag) => {
+      const key = tag.toLowerCase();
+      if (!tag || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 24);
+}
+
+function attachments(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) throw new ApiError(400, "Invalid attachments", "invalid_attachments");
+  return value.slice(0, 24).map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new ApiError(400, "Invalid attachment", "invalid_attachment");
+    }
+    const record = item as Record<string, unknown>;
+    const url = text(record.url, "", 2000);
+    if (!url) throw new ApiError(400, "Attachment URL is required", "missing_attachment_url");
+    return {
+      url,
+      type: text(record.type ?? record.contentType, "application/octet-stream", 120),
+      metadata:
+        record.metadata && typeof record.metadata === "object" && !Array.isArray(record.metadata)
+          ? (record.metadata as Record<string, unknown>)
+          : undefined,
+    };
+  });
+}
+
 export function memoryInput(value: Record<string, unknown>): MemoryInput {
   const title = text(value.title, "", 180);
   const content = text(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
@@ -52,6 +88,8 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
       value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)
         ? (value.metadata as Record<string, unknown>)
         : undefined,
+    attachments: attachments(value.attachments),
+    tags: tags(value.tags),
   };
 }
 
@@ -118,6 +156,8 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
         ? (value.metadata as Record<string, unknown>)
         : undefined;
   }
+  if (has(value, "attachments")) input.attachments = attachments(value.attachments) || [];
+  if (has(value, "tags")) input.tags = tags(value.tags) || [];
 
   if (!Object.keys(input).length)
     throw new ApiError(400, "No memory fields to update", "empty_patch");
