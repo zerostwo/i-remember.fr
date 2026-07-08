@@ -15,6 +15,8 @@ restored public archive compatibility layer while the migration is in progress.
 - `Attachment`: memory-linked asset URL, type, metadata.
 - `Tag`: normalized tag name and slug.
 - `MemoryTag`: many-to-many memory/tag join.
+- `Comment`: memory-linked moderation queue with author, content, status, and
+  metadata.
 - `Page`: editable Markdown pages for footer/content management.
 - `MenuItem`: public footer navigation targets for pages, memories, searches,
   external URLs, language, terms, and credits.

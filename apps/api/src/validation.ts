@@ -1,6 +1,9 @@
 import type {
   AgentQueryInput,
   AssetUploadInput,
+  CommentInput,
+  CommentStatus,
+  CommentUpdateInput,
   MenuItemInput,
   MenuItemType,
   MenuItemUpdateInput,
@@ -13,7 +16,7 @@ import type {
   Visibility,
 } from "./domain.js";
 import { ApiError } from "./errors.js";
-import type { MemoryListQuery } from "./repositories.js";
+import type { CommentListQuery, MemoryListQuery } from "./repositories.js";
 
 const visibilityValues = new Set(["PUBLIC", "UNLISTED", "PRIVATE"]);
 const statusValues = new Set(["NORMAL", "PENDING", "ARCHIVED", "REJECTED"]);
@@ -362,6 +365,74 @@ export function menuItemPatchInput(value: Record<string, unknown>): MenuItemUpda
   if (has(value, "metadata")) input.metadata = metadata(value.metadata);
   if (!Object.keys(input).length)
     throw new ApiError(400, "No menu fields to update", "empty_patch");
+  return input;
+}
+
+function commentStatus(value: unknown, fallback = "PENDING") {
+  const status = text(value, fallback, 20).toUpperCase();
+  if (!statusValues.has(status)) {
+    throw new ApiError(400, "Invalid comment status", "invalid_comment_status");
+  }
+  return status as CommentStatus;
+}
+
+export function commentListQuery(searchParams: URLSearchParams): CommentListQuery {
+  const status = text(searchParams.get("status"), "PENDING", 20).toUpperCase();
+  const limit = Math.min(Math.max(Number(searchParams.get("limit") || 100), 1), 200);
+  if (status !== "ALL" && !statusValues.has(status)) {
+    throw new ApiError(400, "Invalid comment status", "invalid_comment_status");
+  }
+  return {
+    q: searchParams.get("q") || undefined,
+    limit,
+    memoryId: searchParams.get("memoryId") || searchParams.get("memory_id") || undefined,
+    status: status === "ALL" ? "all" : (status as CommentStatus),
+  };
+}
+
+export function commentInput(value: Record<string, unknown>): CommentInput {
+  const content = text(value.content ?? value.body ?? value.text, "", 10000);
+  if (!content) throw new ApiError(400, "Comment content is required", "missing_comment_content");
+  return {
+    memoryId:
+      value.memoryId || value.memory_id
+        ? text(value.memoryId ?? value.memory_id, "", 240)
+        : undefined,
+    authorName: text(value.authorName ?? value.author, "Anonymous", 120),
+    authorEmail:
+      value.authorEmail || value.author_email
+        ? text(value.authorEmail ?? value.author_email, "", 240)
+        : undefined,
+    content,
+    status: commentStatus(value.status),
+    metadata: metadata(value.metadata),
+  };
+}
+
+export function commentPatchInput(value: Record<string, unknown>): CommentUpdateInput {
+  const input: CommentUpdateInput = {};
+  if (has(value, "memoryId") || has(value, "memory_id")) {
+    input.memoryId =
+      value.memoryId || value.memory_id
+        ? text(value.memoryId ?? value.memory_id, "", 240)
+        : undefined;
+  }
+  if (has(value, "authorName") || has(value, "author"))
+    input.authorName = text(value.authorName ?? value.author, "Anonymous", 120);
+  if (has(value, "authorEmail") || has(value, "author_email"))
+    input.authorEmail =
+      value.authorEmail || value.author_email
+        ? text(value.authorEmail ?? value.author_email, "", 240)
+        : undefined;
+  if (has(value, "content") || has(value, "body") || has(value, "text")) {
+    input.content = text(value.content ?? value.body ?? value.text, "", 10000);
+    if (!input.content)
+      throw new ApiError(400, "Comment content is required", "missing_comment_content");
+  }
+  if (has(value, "status")) input.status = commentStatus(value.status);
+  if (has(value, "metadata")) input.metadata = metadata(value.metadata);
+  if (!Object.keys(input).length)
+    throw new ApiError(400, "No comment fields to update", "empty_patch");
   return input;
 }
 

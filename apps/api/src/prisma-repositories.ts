@@ -3,6 +3,9 @@ import type {
   AttachmentInput,
   AssetCreateInput,
   AssetRecord,
+  CommentInput,
+  CommentRecord,
+  CommentUpdateInput,
   MenuItemInput,
   MenuItemRecord,
   MenuItemUpdateInput,
@@ -18,6 +21,8 @@ import type {
 import { ApiError } from "./errors.js";
 import type {
   AssetRepository,
+  CommentListQuery,
+  CommentRepository,
   MenuItemRepository,
   MemoryListQuery,
   MemoryRepository,
@@ -138,6 +143,22 @@ function setting(row: any): SettingRecord {
   };
 }
 
+function comment(row: any): CommentRecord {
+  return {
+    id: row.id,
+    memoryId: row.memoryId,
+    memoryPublicId: row.memory?.publicId,
+    memoryTitle: row.memory?.title,
+    authorName: row.authorName,
+    authorEmail: row.authorEmail,
+    content: row.content,
+    status: row.status,
+    metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
 function memoryWhere(query: MemoryListQuery) {
   const q = query.q?.trim();
   return {
@@ -165,6 +186,30 @@ function memoryWhere(query: MemoryListQuery) {
           ],
         }
       : {}),
+  };
+}
+
+function commentWhere(query: CommentListQuery) {
+  const q = query.q?.trim();
+  const and = [];
+  if (query.memoryId) {
+    and.push({
+      OR: [{ memoryId: query.memoryId }, { memory: { is: { publicId: query.memoryId } } }],
+    });
+  }
+  if (q) {
+    and.push({
+      OR: [
+        { content: { contains: q, mode: "insensitive" } },
+        { authorName: { contains: q, mode: "insensitive" } },
+        { authorEmail: { contains: q, mode: "insensitive" } },
+        { memory: { is: { title: { contains: q, mode: "insensitive" } } } },
+      ],
+    });
+  }
+  return {
+    ...(query.status === "all" ? {} : { status: query.status || "PENDING" }),
+    ...(and.length ? { AND: and } : {}),
   };
 }
 
@@ -262,6 +307,73 @@ export class PrismaMemoryRepository implements MemoryRepository {
         include: memoryInclude,
       }),
     );
+  }
+}
+
+export class PrismaCommentRepository implements CommentRepository {
+  constructor(private readonly db = getPrismaClient()) {}
+
+  async list(query: CommentListQuery) {
+    const rows = await this.db.comment.findMany({
+      where: commentWhere(query) as any,
+      include: { memory: { select: { publicId: true, title: true } } },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(query.limit || 100, 200),
+    });
+    return rows.map(comment);
+  }
+
+  async create(input: CommentInput) {
+    const memory = input.memoryId
+      ? await this.db.memory.findFirst({
+          where: { OR: [{ id: input.memoryId }, { publicId: input.memoryId }] },
+          select: { id: true },
+        })
+      : null;
+    if (input.memoryId && !memory) throw new ApiError(404, "Memory not found", "not_found");
+    return comment(
+      await this.db.comment.create({
+        data: {
+          memoryId: memory?.id,
+          authorName: input.authorName || "Anonymous",
+          authorEmail: input.authorEmail,
+          content: input.content,
+          status: input.status || "PENDING",
+          metadata: input.metadata as any,
+        },
+        include: { memory: { select: { publicId: true, title: true } } },
+      }),
+    );
+  }
+
+  async update(id: string, input: CommentUpdateInput) {
+    const existing = await this.db.comment.findUnique({ where: { id } });
+    if (!existing) throw new ApiError(404, "Comment not found", "not_found");
+    const memory = input.memoryId
+      ? await this.db.memory.findFirst({
+          where: { OR: [{ id: input.memoryId }, { publicId: input.memoryId }] },
+          select: { id: true },
+        })
+      : null;
+    if (input.memoryId && !memory) throw new ApiError(404, "Memory not found", "not_found");
+    return comment(
+      await this.db.comment.update({
+        where: { id },
+        data: {
+          memoryId: input.memoryId ? memory?.id : undefined,
+          authorName: input.authorName,
+          authorEmail: input.authorEmail,
+          content: input.content,
+          status: input.status,
+          metadata: input.metadata as any,
+        },
+        include: { memory: { select: { publicId: true, title: true } } },
+      }),
+    );
+  }
+
+  async archive(id: string) {
+    return this.update(id, { status: "ARCHIVED" });
   }
 }
 

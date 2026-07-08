@@ -1,6 +1,7 @@
 export type Role = "ADMIN" | "USER" | "ANONYMOUS";
 export type Visibility = "PUBLIC" | "UNLISTED" | "PRIVATE";
 export type MemoryStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
+export type CommentStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
 export type PageStatus = "PUBLISHED" | "DRAFT" | "ARCHIVED";
 export type MenuItemType =
   "PAGE" | "MEMORY" | "SEARCH" | "EXTERNAL" | "TERMS" | "CREDITS" | "LANGUAGE";
@@ -112,6 +113,31 @@ export type PageInput = {
 };
 
 export type PageUpdateInput = Partial<PageInput>;
+
+export type CommentRecord = {
+  id: string;
+  memoryId?: string | null;
+  memoryPublicId?: string | null;
+  memoryTitle?: string | null;
+  authorName: string;
+  authorEmail?: string | null;
+  content: string;
+  status: CommentStatus;
+  metadata?: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type CommentInput = {
+  memoryId?: string;
+  authorName?: string;
+  authorEmail?: string;
+  content: string;
+  status?: CommentStatus;
+  metadata?: Record<string, unknown>;
+};
+
+export type CommentUpdateInput = Partial<CommentInput>;
 
 export type MenuItemRecord = {
   id: string;

@@ -1,6 +1,9 @@
 import type {
   AssetCreateInput,
   AssetRecord,
+  CommentInput,
+  CommentRecord,
+  CommentUpdateInput,
   MenuItemInput,
   MenuItemRecord,
   MenuItemUpdateInput,
@@ -20,6 +23,13 @@ export type MemoryListQuery = {
   limit?: number;
   status?: "all" | MemoryRecord["status"];
   visibility?: "all" | MemoryRecord["visibility"];
+};
+
+export type CommentListQuery = {
+  q?: string;
+  limit?: number;
+  memoryId?: string;
+  status?: "all" | CommentRecord["status"];
 };
 
 export interface MemoryRepository {
@@ -49,6 +59,13 @@ export interface MenuItemRepository {
   create(input: MenuItemInput): Promise<MenuItemRecord>;
   update(id: string, input: MenuItemUpdateInput): Promise<MenuItemRecord>;
   delete(id: string): Promise<void>;
+}
+
+export interface CommentRepository {
+  list(query: CommentListQuery): Promise<CommentRecord[]>;
+  create(input: CommentInput): Promise<CommentRecord>;
+  update(id: string, input: CommentUpdateInput): Promise<CommentRecord>;
+  archive(id: string): Promise<CommentRecord>;
 }
 
 export interface SettingRepository {

@@ -1,10 +1,17 @@
 import { authenticate, login } from "./auth.js";
-import type { MenuItemRecord, MemoryRecord, PageRecord, SettingRecord } from "./domain.js";
+import type {
+  CommentRecord,
+  MenuItemRecord,
+  MemoryRecord,
+  PageRecord,
+  SettingRecord,
+} from "./domain.js";
 import { ApiError } from "./errors.js";
 import { readJson, type RequestContext } from "./http.js";
 import {
   AgentService,
   AssetService,
+  CommentService,
   DashboardService,
   MenuItemService,
   MemoryService,
@@ -15,6 +22,9 @@ import {
 import {
   agentQueryInput,
   assetUploadInput,
+  commentInput,
+  commentListQuery,
+  commentPatchInput,
   languageQuery,
   menuItemInput,
   menuItemPatchInput,
@@ -89,6 +99,21 @@ function menuItemDto(item: MenuItemRecord) {
     metadata: item.metadata || {},
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
+  };
+}
+
+function commentDto(comment: CommentRecord) {
+  return {
+    id: comment.id,
+    memoryId: comment.memoryPublicId || comment.memoryId,
+    memoryTitle: comment.memoryTitle,
+    authorName: comment.authorName,
+    authorEmail: comment.authorEmail,
+    content: comment.content,
+    status: comment.status,
+    metadata: comment.metadata || {},
+    createdAt: comment.createdAt.toISOString(),
+    updatedAt: comment.updatedAt.toISOString(),
   };
 }
 
@@ -266,6 +291,41 @@ export class SettingController {
       settingsInput(await readJson(context.req)),
     );
     return { success: true, data: settingsDto(data) };
+  }
+}
+
+export class CommentController {
+  constructor(private readonly comments: CommentService) {}
+
+  async list(context: RequestContext) {
+    const data = await this.comments.list(
+      authenticate(context.req),
+      commentListQuery(context.url.searchParams),
+    );
+    return { success: true, data: data.map(commentDto) };
+  }
+
+  async create(context: RequestContext) {
+    const data = await this.comments.create(
+      authenticate(context.req),
+      commentInput(await readJson(context.req)),
+    );
+    context.res.statusCode = 201;
+    return { success: true, data: commentDto(data) };
+  }
+
+  async update(context: RequestContext) {
+    const data = await this.comments.update(
+      authenticate(context.req),
+      context.params.id,
+      commentPatchInput(await readJson(context.req)),
+    );
+    return { success: true, data: commentDto(data) };
+  }
+
+  async archive(context: RequestContext) {
+    const data = await this.comments.archive(authenticate(context.req), context.params.id);
+    return { success: true, data: commentDto(data) };
   }
 }
 

@@ -6,6 +6,7 @@ export const apiRoutes = {
   search: "/api/v1/search",
   agent: "/api/v1/agent",
   users: "/api/v1/users",
+  comments: "/api/v1/comments",
   pages: "/api/v1/pages",
   menuItems: "/api/v1/menu-items",
   settings: "/api/v1/settings",

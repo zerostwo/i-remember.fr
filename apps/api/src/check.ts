@@ -4,6 +4,9 @@ import { createServer } from "node:http";
 import type {
   AssetCreateInput,
   AssetRecord,
+  CommentInput,
+  CommentRecord,
+  CommentUpdateInput,
   MenuItemInput,
   MenuItemRecord,
   MenuItemUpdateInput,
@@ -19,6 +22,8 @@ import type {
 import { createApiV1Middleware } from "./index.js";
 import type {
   AssetRepository,
+  CommentListQuery,
+  CommentRepository,
   MenuItemRepository,
   MemoryListQuery,
   MemoryRepository,
@@ -236,6 +241,60 @@ class SettingRepo implements SettingRepository {
   }
 }
 
+class CommentRepo implements CommentRepository {
+  comments: CommentRecord[] = [];
+
+  async list(query: CommentListQuery) {
+    return this.comments.filter((comment) => {
+      if (query.status !== "all" && comment.status !== (query.status || "PENDING")) return false;
+      if (
+        query.memoryId &&
+        comment.memoryId !== query.memoryId &&
+        comment.memoryPublicId !== query.memoryId
+      ) {
+        return false;
+      }
+      const q = query.q?.toLowerCase();
+      return (
+        !q ||
+        [comment.authorName, comment.authorEmail, comment.content, comment.memoryTitle]
+          .join(" ")
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+  }
+
+  async create(input: CommentInput) {
+    const comment = {
+      id: `comment-${this.comments.length + 1}`,
+      memoryId: "internal-1",
+      memoryPublicId: input.memoryId || "pub_1",
+      memoryTitle: "First memory",
+      authorName: input.authorName || "Anonymous",
+      authorEmail: input.authorEmail,
+      content: input.content,
+      status: input.status || "PENDING",
+      metadata: input.metadata || {},
+      createdAt: new Date("2026-01-06T00:00:00Z"),
+      updatedAt: new Date("2026-01-06T00:00:00Z"),
+    } satisfies CommentRecord;
+    this.comments.unshift(comment);
+    return comment;
+  }
+
+  async update(id: string, input: CommentUpdateInput) {
+    const comment = this.comments.find((candidate) => candidate.id === id);
+    assert.ok(comment);
+    Object.assign(comment, input, { updatedAt: new Date("2026-01-07T00:00:00Z") });
+    return comment;
+  }
+
+  async archive(id: string) {
+    return this.update(id, { status: "ARCHIVED" });
+  }
+}
+
 class AssetRepo implements AssetRepository {
   assets: AssetRecord[] = [
     {
@@ -297,6 +356,7 @@ const middleware = createApiV1Middleware({
   memories: new MemoryRepo(),
   users: new UserRepo(),
   assets: new AssetRepo(),
+  comments: new CommentRepo(),
   pages: new PageRepo(),
   menuItems: new MenuItemRepo(),
   settings: new SettingRepo(),
@@ -403,6 +463,40 @@ assert.equal(authorized.body.data[0].role, "ADMIN");
 
 const unauthorizedPages = await json("/api/v1/pages");
 assert.equal(unauthorizedPages.response.status, 401);
+
+const unauthorizedComments = await json("/api/v1/comments");
+assert.equal(unauthorizedComments.response.status, 401);
+
+const createdComment = await json("/api/v1/comments", {
+  method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    memoryId: "pub_1",
+    authorName: "Reader",
+    content: "A pending comment",
+  }),
+});
+assert.equal(createdComment.response.status, 201);
+assert.equal(createdComment.body.data.status, "PENDING");
+assert.equal(createdComment.body.data.memoryId, "pub_1");
+
+const listedComments = await json("/api/v1/comments?status=all&q=reader", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(listedComments.body.data[0].id, createdComment.body.data.id);
+
+const approvedComment = await json(`/api/v1/comments/${createdComment.body.data.id}`, {
+  method: "PATCH",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({ status: "NORMAL" }),
+});
+assert.equal(approvedComment.body.data.status, "NORMAL");
+
+const archivedComment = await json(`/api/v1/comments/${createdComment.body.data.id}`, {
+  method: "DELETE",
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(archivedComment.body.data.status, "ARCHIVED");
 
 const createdPage = await json("/api/v1/pages", {
   method: "POST",

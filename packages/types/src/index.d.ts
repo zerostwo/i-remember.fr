@@ -1,6 +1,7 @@
 export type Role = "ADMIN" | "USER" | "ANONYMOUS";
 export type Visibility = "PUBLIC" | "PRIVATE" | "UNLISTED";
 export type MemoryStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
+export type CommentStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
 export type PageStatus = "PUBLISHED" | "DRAFT" | "ARCHIVED";
 export type MenuItemType =
   "PAGE" | "MEMORY" | "SEARCH" | "EXTERNAL" | "TERMS" | "CREDITS" | "LANGUAGE";
@@ -74,6 +75,19 @@ export interface Page {
   bodyMarkdown: string;
   status: PageStatus;
   linkedMemoryId?: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Comment {
+  id: string;
+  memoryId?: string | null;
+  memoryTitle?: string | null;
+  authorName: string;
+  authorEmail?: string | null;
+  content: string;
+  status: CommentStatus;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

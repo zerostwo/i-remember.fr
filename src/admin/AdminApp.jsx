@@ -357,7 +357,11 @@ export function AdminApp() {
       const legacyPayload = await api("/api/admin/bootstrap");
       const dashboard = await v1Api("/api/v1/dashboard").catch(() => null);
       const assets = await v1Api("/api/v1/assets").catch(() => []);
-      const payload = mergeV1Assets(mergeV1Dashboard(legacyPayload, dashboard), assets);
+      const comments = await v1Api("/api/v1/comments?status=all").catch(() => []);
+      const payload = {
+        ...mergeV1Assets(mergeV1Dashboard(legacyPayload, dashboard), assets),
+        comments,
+      };
       setData(payload);
       setSelectedMemoryId((current) => (
         payload.memories.some((memory) => memory.id === current) ? current : payload.memories[0]?.id || null
@@ -599,6 +603,20 @@ export function AdminApp() {
     });
   }
 
+  async function updateCommentStatus(id, status) {
+    await runAction("Comment updated", async () => {
+      if (status === "ARCHIVED") {
+        await v1Api(`/api/v1/comments/${encodeURIComponent(id)}`, { method: "DELETE" });
+      } else {
+        await v1Api(`/api/v1/comments/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ status }),
+        });
+      }
+      await refreshData();
+    });
+  }
+
   async function saveSettings(payload) {
     await runAction("Settings saved", async () => {
       const settings = await api("/api/admin/settings", {
@@ -725,6 +743,7 @@ export function AdminApp() {
                 createMenuItem={createMenuItem}
                 saveMenuItem={saveMenuItem}
                 deleteMenuItem={deleteMenuItem}
+                updateCommentStatus={updateCommentStatus}
                 saveSettings={saveSettings}
                 saveAccount={saveAccount}
                 setupTwoFactor={setupTwoFactor}
@@ -948,7 +967,13 @@ function AdminRoute(props) {
     case "pages":
       return <PagesView {...props} />;
     case "comments":
-      return <CommentsView data={props.data} search={props.search} />;
+      return (
+        <CommentsView
+          data={props.data}
+          search={props.search}
+          updateCommentStatus={props.updateCommentStatus}
+        />
+      );
     case "attachments":
       return (
         <AttachmentsView
@@ -1444,33 +1469,62 @@ function MenuEditor({ item, onSave, onDelete }) {
   );
 }
 
-function CommentsView({ data, search }) {
-  const comments = data.comments?.length ? data.comments : [
-    { id: "placeholder", title: "Comment moderation", meta: "API placeholder; no public comments yet", status: "Draft" },
-  ];
-  const filtered = comments.filter((comment) => containsQuery([comment.title, comment.meta, comment.status], search));
+function CommentsView({ data, search, updateCommentStatus }) {
+  const comments = data.comments || [];
+  const filtered = comments.filter((comment) => (
+    containsQuery([
+      comment.authorName,
+      comment.authorEmail,
+      comment.content,
+      comment.memoryTitle,
+      comment.status,
+    ], search)
+  ));
 
   return (
     <Card className="rounded-lg">
       <CardHeader>
         <CardTitle>Comments</CardTitle>
-        <CardDescription>Prepared moderation queue for future public discussion features.</CardDescription>
+        <CardDescription>Moderate comments stored in the v1 backend.</CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Item</TableHead>
+              <TableHead>Comment</TableHead>
               <TableHead>Context</TableHead>
-              <TableHead className="text-right">Status</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
+            {!filtered.length ? (
+              <TableRow>
+                <TableCell className="text-muted-foreground" colSpan={4}>No comments found.</TableCell>
+              </TableRow>
+            ) : null}
             {filtered.map((comment) => (
               <TableRow key={comment.id}>
-                <TableCell>{comment.title}</TableCell>
-                <TableCell className="text-muted-foreground">{comment.meta}</TableCell>
-                <TableCell className="text-right"><StatusBadge value={comment.status} /></TableCell>
+                <TableCell>
+                  <p className="font-medium">{comment.authorName || "Anonymous"}</p>
+                  <p className="line-clamp-2 text-sm text-muted-foreground">{comment.content}</p>
+                </TableCell>
+                <TableCell className="text-muted-foreground">{comment.memoryTitle || comment.memoryId || "General"}</TableCell>
+                <TableCell><StatusBadge value={comment.status} /></TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => updateCommentStatus(comment.id, "NORMAL")}>
+                      Approve
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => updateCommentStatus(comment.id, "REJECTED")}>
+                      Reject
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={() => updateCommentStatus(comment.id, "ARCHIVED")}>
+                      <Trash2 data-icon="inline-start" />
+                      Archive
+                    </Button>
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

@@ -13,6 +13,10 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 - `POST /api/v1/agent`
 - `GET /api/v1/dashboard`
 - `GET /api/v1/users`
+- `GET /api/v1/comments`
+- `POST /api/v1/comments`
+- `PATCH /api/v1/comments/:id`
+- `DELETE /api/v1/comments/:id`
 - `GET /api/v1/pages`
 - `POST /api/v1/pages`
 - `GET /api/v1/pages/:slug`
@@ -74,6 +78,10 @@ Pages accept Markdown in `bodyMarkdown`; menu items cover footer navigation
 targets (`PAGE`, `MEMORY`, `SEARCH`, `EXTERNAL`, `TERMS`, `CREDITS`,
 `LANGUAGE`); settings stores deployment-level JSON values such as default
 language and Umami tracking config.
+
+`/api/v1/comments` is admin-authenticated and stores the admin moderation queue
+for comments. `PATCH` accepts `status` changes to `NORMAL`, `PENDING`,
+`ARCHIVED`, or `REJECTED`; `DELETE` archives the comment.
 
 ## Architecture
 

@@ -4,6 +4,8 @@ import type {
   AgentAnswer,
   AgentQueryInput,
   AssetUploadInput,
+  CommentInput,
+  CommentUpdateInput,
   MenuItemInput,
   MenuItemUpdateInput,
   MemoryInput,
@@ -16,6 +18,8 @@ import type {
 import { requireRole } from "./auth.js";
 import type {
   AssetRepository,
+  CommentListQuery,
+  CommentRepository,
   MenuItemRepository,
   MemoryListQuery,
   MemoryRepository,
@@ -135,6 +139,30 @@ export class SettingService {
   upsertMany(principal: Principal, values: Record<string, unknown>) {
     requireRole(principal, ["ADMIN"]);
     return this.settings.upsertMany(values);
+  }
+}
+
+export class CommentService {
+  constructor(private readonly comments: CommentRepository) {}
+
+  list(principal: Principal, query: CommentListQuery) {
+    requireRole(principal, ["ADMIN"]);
+    return this.comments.list(query);
+  }
+
+  create(principal: Principal, input: CommentInput) {
+    requireRole(principal, ["ADMIN"]);
+    return this.comments.create(input);
+  }
+
+  update(principal: Principal, id: string, input: CommentUpdateInput) {
+    requireRole(principal, ["ADMIN"]);
+    return this.comments.update(id, input);
+  }
+
+  archive(principal: Principal, id: string) {
+    requireRole(principal, ["ADMIN"]);
+    return this.comments.archive(id);
   }
 }
 

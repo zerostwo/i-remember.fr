@@ -25,6 +25,13 @@ enum MemoryStatus {
   REJECTED
 }
 
+enum CommentStatus {
+  NORMAL
+  PENDING
+  ARCHIVED
+  REJECTED
+}
+
 enum PageStatus {
   PUBLISHED
   DRAFT
@@ -76,6 +83,7 @@ model Memory {
   author         User?        @relation("MemoryAuthor", fields: [authorId], references: [id])
   attachments    Attachment[]
   tags           MemoryTag[]
+  comments       Comment[]
 
   @@index([visibility, status, createdAt])
   @@index([legacyId])
@@ -114,6 +122,23 @@ model MemoryTag {
 
   @@id([memoryId, tagId])
   @@map("memory_tags")
+}
+
+model Comment {
+  id          String        @id @default(cuid())
+  memoryId    String?       @map("memory_id")
+  authorName  String        @default("Anonymous") @map("author_name")
+  authorEmail String?       @map("author_email")
+  content     String
+  status      CommentStatus @default(PENDING)
+  metadata    Json?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  memory      Memory?       @relation(fields: [memoryId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([memoryId])
+  @@map("comments")
 }
 
 model Page {
