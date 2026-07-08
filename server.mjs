@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, resolve, sep } from "node:path";
+import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { createRevivalMiddleware } from "./src/server/revival.js";
 
@@ -8,7 +9,18 @@ const rootDir = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const distDir = resolve(rootDir, "dist");
 const host = process.env.HOST || "127.0.0.1";
 const port = Number.parseInt(process.env.PORT || "7890", 10);
+const apiBaseUrl = process.env.API_BASE_URL || "";
 const packageJson = JSON.parse(readFileSync(resolve(rootDir, "package.json"), "utf8"));
+const hopByHopHeaders = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailer",
+  "transfer-encoding",
+  "upgrade",
+]);
 
 const contentTypes = {
   ".css": "text/css; charset=utf-8",
@@ -59,6 +71,42 @@ function sendStatus(res, statusCode, message) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.end(message);
+}
+
+function apiProxyTarget(req) {
+  if (!apiBaseUrl) return null;
+  const url = new URL(req.url || "/", "http://i-remember.local");
+  if (url.pathname !== "/api/v1" && !url.pathname.startsWith("/api/v1/")) return null;
+  return new URL(`${url.pathname}${url.search}`, apiBaseUrl);
+}
+
+async function proxyApi(req, res, target) {
+  const headers = new Headers();
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (value === undefined || hopByHopHeaders.has(name.toLowerCase())) continue;
+    headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+  }
+
+  try {
+    const upstream = await fetch(target, {
+      method: req.method,
+      headers,
+      body: req.method === "GET" || req.method === "HEAD" ? undefined : req,
+      duplex: req.method === "GET" || req.method === "HEAD" ? undefined : "half",
+      redirect: "manual",
+    });
+    res.statusCode = upstream.status;
+    upstream.headers.forEach((value, name) => {
+      if (!hopByHopHeaders.has(name.toLowerCase())) res.setHeader(name, value);
+    });
+    if (req.method === "HEAD" || !upstream.body) {
+      res.end();
+      return;
+    }
+    Readable.fromWeb(upstream.body).pipe(res);
+  } catch (_error) {
+    sendStatus(res, 502, "API upstream unavailable");
+  }
 }
 
 function serveFile(req, res, filePath, stat) {
@@ -154,6 +202,12 @@ function serveStatic(req, res) {
 
 const revivalMiddleware = createRevivalMiddleware({ production: true });
 const server = createServer((req, res) => {
+  const target = apiProxyTarget(req);
+  if (target) {
+    proxyApi(req, res, target);
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/version") {
     setSecurityHeaders(res);
     res.setHeader("Cache-Control", "no-store");
