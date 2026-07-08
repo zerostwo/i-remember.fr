@@ -2,6 +2,9 @@
   "name": "@i-remember/config",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test": "node src/check.js"
+  },
   "exports": {
     ".": "./src/index.js"
   }
