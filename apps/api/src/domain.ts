@@ -70,6 +70,13 @@ export type AssetRecord = {
 
 export type AttachmentRecord = AssetRecord;
 
+export type AssetCreateInput = {
+  memoryId: string;
+  url: string;
+  type: string;
+  metadata?: Record<string, unknown>;
+};
+
 export type TagRecord = {
   id: string;
   name: string;
@@ -79,12 +86,15 @@ export type TagRecord = {
 export type AssetUploadInput = {
   key: string;
   contentBase64: string;
+  memoryId?: string;
   contentType?: string;
   metadata?: Record<string, unknown>;
 };
 
 export type AssetUploadResult = {
+  id?: string;
   key: string;
+  memoryId?: string;
   url: string;
   type: string;
   metadata?: Record<string, unknown>;

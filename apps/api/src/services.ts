@@ -117,8 +117,24 @@ export class AssetService {
     const data = Buffer.from(input.contentBase64, "base64");
     if (!data.length) throw new Error("Asset content decoded to an empty file");
     const url = await this.storage.upload(input.key, data, { contentType: input.contentType });
+    let record = null;
+    try {
+      record = input.memoryId
+        ? await this.assets.create({
+            memoryId: input.memoryId,
+            url,
+            type: input.contentType || "application/octet-stream",
+            metadata: input.metadata,
+          })
+        : null;
+    } catch (error) {
+      await this.storage.delete(input.key).catch(() => null);
+      throw error;
+    }
     return {
+      id: record?.id,
       key: input.key,
+      memoryId: record?.memoryId,
       url,
       type: input.contentType || "application/octet-stream",
       metadata: input.metadata,
@@ -136,6 +152,7 @@ export class AssetService {
   async delete(principal: Principal, key: string) {
     requireRole(principal, ["ADMIN"]);
     await this.storage.delete(key);
+    await this.assets.deleteByUrl(this.storage.getUrl(key));
     return { key, deleted: true };
   }
 }

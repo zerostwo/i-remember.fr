@@ -184,6 +184,10 @@ export function assetUploadInput(value: Record<string, unknown>): AssetUploadInp
   return {
     key,
     contentBase64,
+    memoryId:
+      value.memoryId || value.memory_id
+        ? text(value.memoryId ?? value.memory_id, "", 240)
+        : undefined,
     contentType,
     metadata:
       value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)

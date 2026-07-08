@@ -17,6 +17,14 @@ export interface Attachment {
   createdAt?: string;
 }
 
+export interface AssetUpload {
+  key: string;
+  contentBase64: string;
+  memoryId?: string;
+  contentType?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface Memory {
   id: string;
   legacyId?: number | null;

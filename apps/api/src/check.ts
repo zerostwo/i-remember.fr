@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import { createServer } from "node:http";
 import type {
+  AssetCreateInput,
   AssetRecord,
   MemoryInput,
   MemoryRecord,
@@ -15,6 +16,7 @@ import type {
   MemoryRepository,
   UserRepository,
 } from "./repositories.js";
+import { ApiError } from "./errors.js";
 import type { StorageAdapter } from "@i-remember/storage";
 
 function tag(name: string) {
@@ -126,17 +128,37 @@ class UserRepo implements UserRepository {
 }
 
 class AssetRepo implements AssetRepository {
+  assets: AssetRecord[] = [
+    {
+      id: "a1",
+      memoryId: "internal-1",
+      url: "/uploads/a1.jpg",
+      type: "image/jpeg",
+      metadata: {},
+      createdAt: new Date(),
+    },
+  ];
+
   async list(): Promise<AssetRecord[]> {
-    return [
-      {
-        id: "a1",
-        memoryId: "internal-1",
-        url: "/uploads/a1.jpg",
-        type: "image/jpeg",
-        metadata: {},
-        createdAt: new Date(),
-      },
-    ];
+    return this.assets;
+  }
+
+  async create(input: AssetCreateInput): Promise<AssetRecord> {
+    if (input.memoryId === "missing") throw new ApiError(404, "Memory not found", "not_found");
+    const asset = {
+      id: `asset-${this.assets.length + 1}`,
+      memoryId: input.memoryId,
+      url: input.url,
+      type: input.type,
+      metadata: input.metadata || {},
+      createdAt: new Date(),
+    };
+    this.assets.unshift(asset);
+    return asset;
+  }
+
+  async deleteByUrl(url: string) {
+    this.assets = this.assets.filter((asset) => asset.url !== url);
   }
 }
 
@@ -160,12 +182,13 @@ class Storage implements StorageAdapter {
 process.env.AUTH_SECRET = "test-secret";
 process.env.ADMIN_EMAIL = "admin@example.com";
 process.env.ADMIN_PASSWORD = "password123456";
+const storage = new Storage();
 
 const middleware = createApiV1Middleware({
   memories: new MemoryRepo(),
   users: new UserRepo(),
   assets: new AssetRepo(),
-  storage: new Storage(),
+  storage,
 });
 const server = createServer((req, res) => {
   middleware(req, res, () => {
@@ -269,12 +292,32 @@ const uploaded = await json("/api/v1/assets", {
   headers: { Authorization: "Bearer test-secret" },
   body: JSON.stringify({
     key: "asset-test.txt",
+    memoryId: created.body.data.id,
     contentBase64: Buffer.from("asset smoke").toString("base64"),
     contentType: "text/plain",
   }),
 });
 assert.equal(uploaded.response.status, 201);
 assert.equal(uploaded.body.data.url, "/uploads/asset-test.txt");
+assert.equal(uploaded.body.data.memoryId, created.body.data.id);
+
+const failedUpload = await json("/api/v1/assets", {
+  method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    key: "orphan-test.txt",
+    memoryId: "missing",
+    contentBase64: Buffer.from("orphan").toString("base64"),
+    contentType: "text/plain",
+  }),
+});
+assert.equal(failedUpload.response.status, 404);
+assert.equal(storage.keys.has("orphan-test.txt"), false);
+
+const assetsAfterUpload = await json("/api/v1/assets", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(assetsAfterUpload.body.data[0].url, "/uploads/asset-test.txt");
 
 const assetUrl = await json("/api/v1/assets/asset-test.txt", {
   headers: { Authorization: "Bearer test-secret" },
@@ -286,6 +329,15 @@ const deleted = await json("/api/v1/assets/asset-test.txt", {
   headers: { Authorization: "Bearer test-secret" },
 });
 assert.equal(deleted.body.data.deleted, true);
+const assetsAfterDelete = await json("/api/v1/assets", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(
+  assetsAfterDelete.body.data.some(
+    (asset: { url: string }) => asset.url === "/uploads/asset-test.txt",
+  ),
+  false,
+);
 
 await new Promise<void>((resolve, reject) => {
   server.close((error) => (error ? reject(error) : resolve()));

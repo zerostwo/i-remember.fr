@@ -1,4 +1,5 @@
 import type {
+  AssetCreateInput,
   AssetRecord,
   MemoryInput,
   MemoryRecord,
@@ -30,4 +31,6 @@ export interface UserRepository {
 
 export interface AssetRepository {
   list(limit: number): Promise<AssetRecord[]>;
+  create(input: AssetCreateInput): Promise<AssetRecord>;
+  deleteByUrl(url: string): Promise<void>;
 }

@@ -1,6 +1,7 @@
 import { getPrismaClient } from "@i-remember/database";
 import type {
   AttachmentInput,
+  AssetCreateInput,
   AssetRecord,
   MemoryInput,
   MemoryRecord,
@@ -240,5 +241,36 @@ export class PrismaAssetRepository implements AssetRepository {
       metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : null,
       createdAt: row.createdAt,
     }));
+  }
+
+  async create(input: AssetCreateInput): Promise<AssetRecord> {
+    const memory = await this.db.memory.findFirst({
+      where: { OR: [{ id: input.memoryId }, { publicId: input.memoryId }] },
+      select: { id: true },
+    });
+    if (!memory) throw new ApiError(404, "Memory not found", "not_found");
+    const row = await this.db.attachment.create({
+      data: {
+        memoryId: memory.id,
+        url: input.url,
+        type: input.type,
+        metadata: input.metadata as any,
+      },
+    });
+    return {
+      id: row.id,
+      memoryId: row.memoryId,
+      url: row.url,
+      type: row.type,
+      metadata:
+        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+          ? (row.metadata as Record<string, unknown>)
+          : null,
+      createdAt: row.createdAt,
+    };
+  }
+
+  async deleteByUrl(url: string) {
+    await this.db.attachment.deleteMany({ where: { url } });
   }
 }

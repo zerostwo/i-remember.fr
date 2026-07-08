@@ -23,6 +23,7 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 ```json
 {
   "key": "memory/example.jpg",
+  "memoryId": "public-memory-id",
   "contentBase64": "...",
   "contentType": "image/jpeg",
   "metadata": {}
@@ -30,7 +31,8 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 ```
 
 The storage layer returns a URL from the configured local filesystem adapter or
-an S3-compatible adapter.
+an S3-compatible adapter. When `memoryId` is present, the upload is also stored
+as a Prisma `Attachment` for that memory.
 
 `PATCH /api/v1/memories/:id` is admin-only and accepts partial edits, including
 moderation status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`.
