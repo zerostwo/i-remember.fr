@@ -30,6 +30,28 @@ function memoryAttachments(memory) {
   return undefined;
 }
 
+function memoryMetadata(memory = {}) {
+  let custom = {};
+  const raw = memory.metadataJson ?? memory.metadata_json ?? memory.metadata;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    custom = raw;
+  } else if (raw) {
+    try {
+      custom = JSON.parse(String(raw));
+    } catch {
+      custom = {};
+    }
+  }
+  return {
+    ...custom,
+    language: memory.language,
+    source: memory.source || "admin",
+    legacyUid: memory.uid,
+    isLongForm: Boolean(memory.isLongForm || memory.is_long_form),
+    imageKey: memory.imageKey,
+  };
+}
+
 export function v1MemoryPayload(memory = {}) {
   const legacyId = numberOrNull(memory.legacyId ?? memory.rowId ?? memory.id);
   const content = String(
@@ -42,13 +64,7 @@ export function v1MemoryPayload(memory = {}) {
     authorName: String(memory.authorName || memory.author || memory.name || "I Remember"),
     visibility: "PUBLIC",
     status: v1Status(memory.dbStatus || memory.status),
-    metadata: {
-      language: memory.language,
-      source: memory.source || "admin",
-      legacyUid: memory.uid,
-      isLongForm: Boolean(memory.isLongForm || memory.is_long_form),
-      imageKey: memory.imageKey,
-    },
+    metadata: memoryMetadata(memory),
     tags: memoryTags(memory.tags),
     attachments: memoryAttachments(memory),
   };

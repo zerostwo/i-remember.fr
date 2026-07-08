@@ -1206,6 +1206,12 @@ function MemoryEditor({ memory, onSave, onDelete }) {
               checked={Boolean(draft.isLongForm)}
               onCheckedChange={(value) => update("isLongForm", value)}
             />
+            <TextareaField
+              label="Metadata JSON"
+              value={draft.metadataJson}
+              onChange={(value) => update("metadataJson", value)}
+              rows={5}
+            />
             <TextareaField label="Memory Markdown" value={draft.bodyMarkdown} onChange={(value) => update("bodyMarkdown", value)} rows={12} />
             <MarkdownPreview value={draft.bodyMarkdown} />
           </FieldGroup>

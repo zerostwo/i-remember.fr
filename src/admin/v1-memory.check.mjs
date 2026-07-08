@@ -7,12 +7,15 @@ const payload = v1MemoryPayload({
   author: "Ada",
   status: "published",
   bodyMarkdown: "# Saved\n\nBody",
+  metadataJson: "{\"mood\":\"quiet\"}",
   imageKey: "photo-1",
   tags: "Paris, Archive",
 });
 
 assert.equal(payload.legacyId, 12);
 assert.equal(payload.status, "NORMAL");
+assert.equal(payload.metadata.mood, "quiet");
+assert.equal(payload.metadata.imageKey, "photo-1");
 assert.deepEqual(payload.tags, ["Paris", "Archive"]);
 assert.equal(payload.attachments[0].url, "/uploads/posts/photo-1/resized.jpg");
 

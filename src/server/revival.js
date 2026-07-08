@@ -1218,6 +1218,18 @@ function dbStatus(value) {
   return "ARCHIVED";
 }
 
+function metadataJson(value, fallback = null) {
+  if (value === undefined) return fallback;
+  if (value && typeof value === "object" && !Array.isArray(value)) return JSON.stringify(value);
+  const text = String(value || "").trim();
+  if (!text) return null;
+  try {
+    return JSON.stringify(JSON.parse(text));
+  } catch (_error) {
+    throw new HttpError(400, "Metadata must be valid JSON", "invalid_metadata");
+  }
+}
+
 function adminMemory(row, language = row?.language_code || "en") {
   if (!row) return null;
   const post = memoryToPost(row);
@@ -1237,6 +1249,7 @@ function adminMemory(row, language = row?.language_code || "en") {
     excerpt: row.excerpt || excerptFromMarkdown(bodyMarkdown || row.text || ""),
     text: row.text || "",
     bodyMarkdown,
+    metadataJson: row.metadata_json || "",
     bodyHtml: markdownToHtml(bodyMarkdown || row.text || ""),
     isLongForm: Boolean(row.is_long_form),
     imageKey: row.image_key || "revival-upload",
@@ -1749,6 +1762,10 @@ class RevivalBackend {
       has_created_tags: existing?.has_created_tags ?? true,
       is_stared: Boolean(input.isStared ?? existing?.is_stared),
       tags: existing?.tags || defaultTags(language),
+      metadata_json: metadataJson(
+        input.metadataJson ?? input.metadata_json ?? input.metadata,
+        existing?.metadata_json || null,
+      ),
       source: input.source || existing?.source || "admin",
       status: dbStatus(input.status || existing?.status || "PENDING"),
       created_at: existing?.created_at || new Date().toISOString(),
