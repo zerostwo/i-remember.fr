@@ -27,5 +27,8 @@ PostgreSQL without changing the public archive rendering path.
 ```bash
 pnpm db:generate
 pnpm db:migrate
+pnpm db:migrate:legacy:check
+pnpm db:migrate:legacy -- --dry-run
+pnpm db:migrate:legacy
 pnpm --filter @i-remember/database test
 ```

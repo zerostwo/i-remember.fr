@@ -18,8 +18,17 @@ repository, validation, auth, and Prisma persistence boundaries.
 ## Phase 4: Migrate Database
 
 In progress. `packages/database/prisma/schema.prisma` defines the PostgreSQL
-schema. Legacy SQLite remains as a compatibility layer until archive reads and
-writes are fully moved.
+schema. `scripts/migrate-sqlite-to-postgres.mjs` imports legacy SQLite users,
+memories, attachments, tags, and memory/tag joins into Prisma-backed PostgreSQL.
+
+```bash
+pnpm db:migrate
+pnpm db:migrate:legacy -- --dry-run
+pnpm db:migrate:legacy
+```
+
+Legacy SQLite remains as a compatibility layer until archive reads and writes
+are fully moved.
 
 ## Phase 5: Replace Old Admin
 
