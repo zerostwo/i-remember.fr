@@ -14,8 +14,9 @@ Docker deployment.
   galaxy visuals remain the source of truth.
 - `apps/api`: versioned REST API at `/api/v1/*` with controllers, services,
   repositories, validation, auth guards, and typed smoke checks.
-- `apps/admin`: React admin entry using the Figma-approved admin shell while the
-  legacy admin endpoints remain the current data source.
+- `apps/admin`: React admin entry using the Figma-approved admin shell; writes
+  preserve the restored archive backend and mirror Memory, Pages, Menu,
+  Settings, and Attachment changes into the v1 API where available.
 - `apps/web`: public web entry with `packages/memory-engine` for reusable galaxy
   data normalization.
 - `packages/database`: PostgreSQL Prisma schema, SQL migrations, and client.

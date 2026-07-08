@@ -64,6 +64,56 @@ function memoryData(row) {
   };
 }
 
+function pageData(row) {
+  const language = row.language_code || "en";
+  const pageSlug = slug(row.slug) || `page-${row.id}`;
+  return {
+    id: `page_${language}_${pageSlug}`,
+    slug: pageSlug,
+    language,
+    title: String(row.title || "Untitled page").slice(0, 180),
+    excerpt: row.excerpt || null,
+    bodyMarkdown: row.body_markdown || "",
+    status: enumValue(row.status, new Set(["PUBLISHED", "DRAFT", "ARCHIVED"]), "DRAFT"),
+    linkedMemoryId: row.linked_memory_uid || null,
+    metadata: { legacyId: row.id },
+    createdAt: date(row.created_at),
+    updatedAt: date(row.updated_at),
+  };
+}
+
+function menuItemData(row) {
+  const language = row.language_code || "en";
+  const uid = row.uid || `legacy-menu-${row.id}`;
+  return {
+    id: `menu_${language}_${uid}`,
+    uid,
+    language,
+    label: String(row.label || "Menu item").slice(0, 120),
+    type: enumValue(
+      row.item_type,
+      new Set(["PAGE", "MEMORY", "SEARCH", "EXTERNAL", "TERMS", "CREDITS", "LANGUAGE"]),
+      "PAGE",
+    ),
+    targetValue: row.target_value || null,
+    url: row.url || null,
+    position: Number(row.position || 0),
+    isVisible: row.is_visible !== 0,
+    opensNewTab: row.opens_new_tab === 1,
+    metadata: { legacyId: row.id },
+    createdAt: date(row.created_at),
+    updatedAt: date(row.updated_at),
+  };
+}
+
+function settingData(row) {
+  return {
+    key: row.key,
+    value: parseJson(row.value, row.value),
+    updatedAt: date(row.updated_at),
+  };
+}
+
 function tagRowsFromMemory(row) {
   const tags = parseJson(row.tags_json, {}) || {};
   return Object.keys(tags)
@@ -95,6 +145,9 @@ function readSqlite() {
     attachments: safeAll(db, "select * from attachments order by created_at"),
     tags,
     memoryTags,
+    pages: safeAll(db, "select * from pages order by language_code, slug"),
+    menuItems: safeAll(db, "select * from menu_items order by language_code, position, id"),
+    settings: safeAll(db, "select * from app_settings order by key"),
   };
   const source = { dbPath: store.dbPath, dataDir: store.dataDir };
   store.close();
@@ -181,6 +234,39 @@ async function importRows(rows) {
     });
   }
 
+  for (const row of rows.pages) {
+    const data = pageData(row);
+    const update = { ...data };
+    delete update.id;
+    delete update.createdAt;
+    await prisma.page.upsert({
+      where: { language_slug: { language: data.language, slug: data.slug } },
+      update,
+      create: data,
+    });
+  }
+
+  for (const row of rows.menuItems) {
+    const data = menuItemData(row);
+    const update = { ...data };
+    delete update.id;
+    delete update.createdAt;
+    await prisma.menuItem.upsert({
+      where: { language_uid: { language: data.language, uid: data.uid } },
+      update,
+      create: data,
+    });
+  }
+
+  for (const row of rows.settings) {
+    const data = settingData(row);
+    await prisma.appSetting.upsert({
+      where: { key: data.key },
+      update: { value: data.value },
+      create: data,
+    });
+  }
+
   await prisma.$disconnect();
 }
 
@@ -191,6 +277,9 @@ function summarize(rows) {
     attachments: rows.attachments.length,
     tags: new Set(rows.tags.map((row) => row.slug || slug(row.name))).size,
     memoryTags: new Set(rows.memoryTags.map((row) => `${row.memoryId}:${row.tagId}`)).size,
+    pages: rows.pages.length,
+    menuItems: rows.menuItems.length,
+    settings: rows.settings.length,
   };
 }
 
@@ -214,6 +303,15 @@ function selfCheck() {
   assert.equal(memory.metadata.languageCode, "en");
   assert.equal(memory.metadata.mood, "quiet");
   assert.equal(tagRowsFromMemory(row)[0].slug, "test");
+  assert.equal(
+    pageData({ id: 2, slug: "About", language_code: "en", title: "About" }).id,
+    "page_en_about",
+  );
+  assert.equal(
+    menuItemData({ id: 3, uid: "credits", language_code: "en", label: "Credits" }).type,
+    "PAGE",
+  );
+  assert.equal(settingData({ key: "site.tracking_enabled", value: "true" }).value, true);
   console.log("legacy migration mapper ok");
 }
 

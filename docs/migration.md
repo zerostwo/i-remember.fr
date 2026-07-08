@@ -19,7 +19,8 @@ repository, validation, auth, and Prisma persistence boundaries.
 
 In progress. `packages/database/prisma/schema.prisma` defines the PostgreSQL
 schema. `scripts/migrate-sqlite-to-postgres.mjs` imports legacy SQLite users,
-memories, attachments, tags, and memory/tag joins into Prisma-backed PostgreSQL.
+memories, attachments, tags, memory/tag joins, pages, menu items, and app
+settings into Prisma-backed PostgreSQL.
 
 ```bash
 pnpm db:migrate
