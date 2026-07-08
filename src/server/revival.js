@@ -2143,8 +2143,8 @@ function patchLanguageShell(html, language) {
     .replace(/lang="(?:en-US|fr-FR|zh-CN)"/g, `lang="${htmlLang[normalized]}"`)
     .replace(/var LANG = '[^']+';/, `var LANG = '${normalized}';`)
     .replace(
-      /<div class="footer-link-lang-text">[\s\S]*?<\/div>\s*<div class="footer-link-lang-list">[\s\S]*?<\/div>/,
-      `<div class="footer-link-lang-text">${labels[normalized]}</div>\n                <div class="footer-link-lang-list">\n${menu}\n                </div>`,
+      /<div class="footer-link-lang footer-link-item footer-fade-item">[\s\S]*?(?=\s*<div class="footer-link-credits)/,
+      `<div class="footer-link-lang footer-link-item footer-fade-item">\n                <div class="footer-link-lang-text">${labels[normalized]}</div>\n                <div class="footer-link-lang-list">\n${menu}\n                </div>\n            </div>`,
     );
 }
 

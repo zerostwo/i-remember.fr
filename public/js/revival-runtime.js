@@ -90,19 +90,22 @@
   function setCreditVisible(visible) {
     var credit = document.querySelector(".credit");
     var wrapper = document.querySelector(".credit-wrapper");
+    var items;
     if (!credit || !wrapper) return;
 
     var transform = transformProperty();
     if (visible) {
       credit.style.display = "block";
       wrapper.style[transform] = "translate3d(0,0,0)";
-      Array.prototype.forEach.call(
-        credit.querySelectorAll(".bss-inner > *"),
-        function (element) {
+      items = credit.querySelectorAll(".bss-inner > *");
+      Array.prototype.forEach.call(items, function (element, index) {
+        element.style.opacity = "0";
+        element.style[transform] = "translate3d(0,30px,0)";
+        window.setTimeout(function () {
           element.style.opacity = "1";
           element.style[transform] = "translate3d(0,0,0)";
-        }
-      );
+        }, 100 * index);
+      });
       return;
     }
 
@@ -363,7 +366,7 @@
     if (
       !(
         (method === "GET" && /^\/api\/(?:search-posts|auto-complete-tags|related-post-count)(?:\/|$)/.test(path)) ||
-        (method === "POST" && path === "/api/upload-image")
+        (method === "POST" && (path === "/api/upload-image" || path === "/api/post"))
       )
     ) {
       return null;
@@ -747,12 +750,7 @@
     style.id = "revival-managed-menu-styles";
     style.textContent = [
       ".footer-content[data-managed-menu='true']>.footer-link-donate:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-link-terms:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-link-credits:not(.footer-managed-item){display:none!important}",
-      ".footer-content[data-managed-menu='true']{display:flex;align-items:flex-end;justify-content:flex-end;gap:10px 18px;padding:0 50px 26px 20px;flex-wrap:wrap}",
-      ".footer-content[data-managed-menu='true']>*{float:none!important;margin-left:0!important}",
-      ".footer-content[data-managed-menu='true']>.footer-managed-item{display:block!important;margin-top:0!important;white-space:nowrap}",
-      ".footer-content[data-managed-menu='true']>.footer-link-lang{margin-top:0!important;position:relative}",
-      ".footer-content[data-managed-menu='true']>.footer-logo-wrapper{margin:0 0 0 16px!important}",
-      ".footer-content[data-managed-menu='true']>.footer-share,.footer-content[data-managed-menu='true']>.footer-sound-btn{margin-top:0!important}",
+      ".footer-content[data-managed-menu='true']>.footer-managed-item{display:block!important;float:right!important;white-space:nowrap}",
       ".footer[data-managed-menu='true']>.footer-link-donate:not(.footer-managed-item),.footer[data-managed-menu='true']>.footer-link-terms:not(.footer-managed-item),.footer[data-managed-menu='true']>.footer-link-credits:not(.footer-managed-item){display:none!important}",
       ".footer[data-managed-menu='true']>.footer-managed-item{display:block!important}",
       ".revival-menu-memory{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.36);pointer-events:auto}",
@@ -768,7 +766,7 @@
       ".revival-menu-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}",
       ".revival-menu-actions button,.revival-menu-actions a{border:1px solid rgba(255,255,255,.24);border-radius:999px;background:transparent;color:white;cursor:pointer;font:12px Helvetica,Arial,sans-serif;min-height:36px;padding:0 16px;text-decoration:none;text-transform:uppercase}",
       ".revival-menu-close{position:absolute;right:22px;top:18px;border:0;background:transparent;color:white;cursor:pointer;font-size:30px;line-height:1;opacity:.72}",
-      "@media(max-width:760px){.footer-content[data-managed-menu='true']{align-content:flex-end;gap:8px 12px;padding:0 20px 18px}.footer-content[data-managed-menu='true']>.footer-share,.footer-content[data-managed-menu='true']>.footer-sound-btn{display:none!important}.footer-content[data-managed-menu='true']>.footer-logo-wrapper{width:42px;height:50px}.footer-content[data-managed-menu='true']>.footer-managed-item{font-size:9px}}",
+      "html.revival-empty-memory .add-steps-add-options-look,html.revival-empty-memory .nav-map-wrapper{display:none!important;pointer-events:none!important}",
       "@media(max-width:720px){.revival-menu-card{grid-template-columns:1fr;max-height:calc(100vh - 80px)}.revival-menu-image{min-height:190px;border-right:0;border-bottom:1px solid rgba(255,255,255,.18)}.revival-menu-body{padding:22px}.revival-menu-body h2{font-size:25px}}"
     ].join("");
     document.head.appendChild(style);
@@ -1137,7 +1135,8 @@
     var message = document.querySelector(".search-not-found");
     if (!search) return;
     if (message) {
-      message.innerHTML = message.innerHTML.replace(/\{\{interpolation\}\}/g, escapeHtml(tagName));
+      if (!message.getAttribute("data-template")) message.setAttribute("data-template", message.innerHTML);
+      message.innerHTML = message.getAttribute("data-template").replace(/\{\{interpolation\}\}/g, escapeHtml(tagName));
       message.style.opacity = "1";
     }
     search.classList.add("not-found");
@@ -1148,13 +1147,7 @@
   function submitSearchFallback() {
     var raw = searchInputText();
     var tag = normalizeSearchTag(raw);
-    var postController = legacyModule("postController");
     var url;
-
-    if (postController && postController.searchPosts) {
-      postController.searchPosts(tag || raw);
-      return true;
-    }
 
     if (!tag) return false;
     url =
@@ -1175,8 +1168,10 @@
             ? payload.data.posts
             : [];
         if (posts.length > 0) {
-          showLegacySearchResults({ data: { posts: posts } });
           setSearchFallbackNav(raw || tag);
+          try {
+            showLegacySearchResults({ data: { posts: posts } });
+          } catch (error) {}
         } else {
           showSearchFallbackNoResult(raw || tag);
         }
@@ -1293,6 +1288,13 @@
     }, true);
   }
 
+  function applyEmptyMemoryState() {
+    var posts = window.DEFAULT_POSTS && window.DEFAULT_POSTS.data && window.DEFAULT_POSTS.data.posts;
+    if (!posts || posts.length > 0) return;
+    ensureManagedMenuStyles();
+    document.documentElement.classList.add("revival-empty-memory");
+  }
+
   function loadManagedFooter() {
     fetchJson("/api/public/menu?ln=" + encodeURIComponent(siteLanguage()))
       .then(function (data) {
@@ -1302,6 +1304,8 @@
   }
 
   loadManagedFooter();
+  applyEmptyMemoryState();
+  document.addEventListener("DOMContentLoaded", applyEmptyMemoryState);
   installIntroFastForward();
   installSearchFallback();
   installUploadWatchdog();
