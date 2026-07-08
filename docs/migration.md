@@ -7,20 +7,22 @@ Completed. The public galaxy is a legacy static/runtime experience served by
 
 ## Phase 2: Extract Visualization Boundary
 
-In progress. `packages/memory-engine` exposes `MemoryGalaxy` without changing
-the legacy visual runtime.
+Completed for the current refactor. `packages/memory-engine` exposes
+`MemoryGalaxy` and galaxy data normalization without changing the legacy visual
+runtime.
 
 ## Phase 3: Create New Backend
 
-In progress. `apps/api` is a TypeScript REST service with controller, service,
-repository, validation, auth, and Prisma persistence boundaries.
+Completed for the current refactor. `apps/api` is a TypeScript REST service
+with controller, service, repository, validation, auth, and Prisma persistence
+boundaries.
 
 ## Phase 4: Migrate Database
 
-In progress. `packages/database/prisma/schema.prisma` defines the PostgreSQL
-schema. `scripts/migrate-sqlite-to-postgres.mjs` imports legacy SQLite users,
-memories, attachments, tags, memory/tag joins, pages, menu items, and app
-settings into Prisma-backed PostgreSQL.
+Completed for the current refactor. `packages/database/prisma/schema.prisma`
+defines the PostgreSQL schema. `scripts/migrate-sqlite-to-postgres.mjs` imports
+legacy SQLite users, memories, attachments, tags, memory/tag joins, pages, menu
+items, and app settings into Prisma-backed PostgreSQL.
 
 ```bash
 pnpm db:migrate
@@ -33,10 +35,13 @@ are fully moved.
 
 ## Phase 5: Replace Old Admin
 
-In progress. `apps/admin` now owns the admin entry point while reusing the
-current admin UI to avoid visual churn.
+Completed for the current refactor. `apps/admin` owns the admin entry point
+while reusing the approved admin UI to avoid visual churn, and admin writes
+mirror Memory, Page, Menu, Settings, Attachment, and Comment data to the v1
+backend where applicable.
 
 ## Phase 6: Remove Deprecated Code
 
-Pending. Remove legacy API and SQLite code only after public archive parity and
-data migration are proven.
+Deferred intentionally. Legacy API and SQLite code remain only as compatibility
+fallbacks for the restored public archive until public archive reads and writes
+are fully proven against the v1 API.
