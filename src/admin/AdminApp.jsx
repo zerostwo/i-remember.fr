@@ -18,6 +18,7 @@ import {
   Settings,
   ShieldCheck,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +56,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { mergeV1Assets } from "./v1-assets.js";
+import { mergeV1Assets, v1AssetUploadPayload } from "./v1-assets.js";
 import { mergeV1Dashboard } from "./v1-dashboard.js";
 import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
 
@@ -154,6 +155,15 @@ async function rememberV1Token(credentials) {
   } catch (_error) {
     adminToken("");
   }
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(String(reader.result || "")));
+    reader.addEventListener("error", () => reject(reader.error || new Error("File read failed")));
+    reader.readAsDataURL(file);
+  });
 }
 
 function escapeHtml(value = "") {
@@ -498,6 +508,21 @@ export function AdminApp() {
     });
   }
 
+  async function uploadAttachment(file, memoryId) {
+    const memory = data?.memories?.find((item) => String(item.id) === String(memoryId));
+    if (!file || !memory) return;
+    await runAction("Attachment uploaded", async () => {
+      const synced = await syncV1Memory(v1Api, memory);
+      if (!synced?.id) throw new Error("Memory could not be synced to v1 before upload");
+      const contentBase64 = await readFileAsDataUrl(file);
+      await v1Api("/api/v1/assets", {
+        method: "POST",
+        body: JSON.stringify(v1AssetUploadPayload(file, contentBase64, synced.id)),
+      });
+      await refreshData();
+    });
+  }
+
   async function savePage(slug, payload) {
     await runAction("Page saved", async () => {
       const saved = await api(`/api/admin/pages/${encodeURIComponent(slug)}`, {
@@ -682,6 +707,7 @@ export function AdminApp() {
                 createMemory={createMemory}
                 saveMemory={saveMemory}
                 deleteMemory={deleteMemory}
+                uploadAttachment={uploadAttachment}
                 createPage={createPage}
                 savePage={savePage}
                 createMenuItem={createMenuItem}
@@ -912,7 +938,14 @@ function AdminRoute(props) {
     case "comments":
       return <CommentsView data={props.data} search={props.search} />;
     case "attachments":
-      return <AttachmentsView data={props.data} search={props.search} />;
+      return (
+        <AttachmentsView
+          data={props.data}
+          search={props.search}
+          selectedMemoryId={props.selectedMemoryId}
+          uploadAttachment={props.uploadAttachment}
+        />
+      );
     case "theme":
       return <ThemeView data={props.data} />;
     case "menus":
@@ -1429,13 +1462,50 @@ function CommentsView({ data, search }) {
   );
 }
 
-function AttachmentsView({ data, search }) {
+function AttachmentsView({ data, search, selectedMemoryId, uploadAttachment }) {
+  const [memoryId, setMemoryId] = useState(String(selectedMemoryId || data.memories?.[0]?.id || ""));
   const attachments = (data.attachments || []).filter((attachment) => (
     containsQuery([attachment.imageKey, attachment.storageType, attachment.mimeType], search)
   ));
+  const memoryOptions = (data.memories || []).map((memory) => ({
+    value: String(memory.id),
+    label: memory.title || memory.excerpt || `Memory ${memory.id}`,
+  }));
+
+  useEffect(() => {
+    if (!memoryId && memoryOptions[0]?.value) setMemoryId(memoryOptions[0].value);
+  }, [memoryId, memoryOptions]);
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <Card className="rounded-lg sm:col-span-2 xl:col-span-4">
+        <CardHeader>
+          <CardTitle>Upload attachment</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <Field>
+            <FieldLabel>Memory</FieldLabel>
+            <AdminSelect value={memoryId} onValueChange={setMemoryId} options={memoryOptions} />
+          </Field>
+          <Button asChild disabled={!memoryId}>
+            <label>
+              <Upload data-icon="inline-start" />
+              Upload image
+              <input
+                className="sr-only"
+                type="file"
+                disabled={!memoryId}
+                accept="image/*"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file && memoryId) uploadAttachment(file, memoryId);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+          </Button>
+        </CardContent>
+      </Card>
       {attachments.map((attachment) => (
         <Card key={attachment.imageKey} className="rounded-lg">
           <div className="aspect-[4/3] bg-cover bg-center" style={{ backgroundImage: `url("${attachment.thumbUrl}")` }} />

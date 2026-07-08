@@ -17,6 +17,26 @@ function adminAttachment(asset = {}) {
   };
 }
 
+export function v1AssetKey(file = {}, stamp = Date.now()) {
+  const name =
+    String(file.name || "upload.bin")
+      .replace(/\\/g, "/")
+      .split("/")
+      .pop()
+      ?.replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "upload.bin";
+  return `admin/${stamp}-${name}`;
+}
+
+export function v1AssetUploadPayload(file = {}, contentBase64 = "", memoryId, stamp) {
+  return {
+    key: v1AssetKey(file, stamp),
+    memoryId,
+    contentBase64,
+    contentType: file.type || "application/octet-stream",
+  };
+}
+
 export function mergeV1Assets(payload, assets = []) {
   if (!assets?.length) return payload;
   const seen = new Set((payload.attachments || []).map((item) => item.resizedUrl || item.thumbUrl));
