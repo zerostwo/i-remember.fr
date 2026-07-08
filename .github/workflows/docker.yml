@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Resolve version tags
+      - name: Resolve Docker tags
         id: version
         shell: bash
         run: |
@@ -31,15 +31,14 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             version="${GITHUB_REF_NAME#v}"
           fi
+          tags=("${version}" "latest" "sha-${GITHUB_SHA::12}")
+          if [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            tags+=("${version%.*}")
+          fi
           {
-            echo "tag=${version}"
+            echo "primary=${version}"
             echo "tags<<EOF"
-            echo "${DOCKERHUB_IMAGE}:${version}"
-            echo "${DOCKERHUB_IMAGE}:latest"
-            echo "${DOCKERHUB_IMAGE}:sha-${GITHUB_SHA::12}"
-            if [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              echo "${DOCKERHUB_IMAGE}:${version%.*}"
-            fi
+            printf "%s\n" "${tags[@]}"
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
           echo "TAG=${version}" >> "${GITHUB_ENV}"
@@ -53,13 +52,24 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and push
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.version.outputs.tags }}
-          labels: |
-            org.opencontainers.image.title=i-remember.fr
-            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
-            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Build compose images
+        run: docker compose build web admin api
+
+      - name: Push compose images
+        shell: bash
+        env:
+          PRIMARY_TAG: ${{ steps.version.outputs.primary }}
+          TAGS: ${{ steps.version.outputs.tags }}
+        run: |
+          set -euo pipefail
+          services=(web admin api)
+          while IFS= read -r tag; do
+            [[ -n "${tag}" ]] || continue
+            for service in "${services[@]}"; do
+              image="${DOCKERHUB_IMAGE}-${service}"
+              if [[ "${tag}" != "${PRIMARY_TAG}" ]]; then
+                docker tag "${image}:${PRIMARY_TAG}" "${image}:${tag}"
+              fi
+              docker push "${image}:${tag}"
+            done
+          done <<< "${TAGS}"

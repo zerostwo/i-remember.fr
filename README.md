@@ -96,10 +96,11 @@ PostgreSQL migration source lives in `packages/database/prisma/migrations/`.
 
 - `package.json` is the source of truth for the app version.
 - `CHANGELOG.md` records user-facing changes.
-- `.github/workflows/docker.yml` publishes `zerostwo/i-remember.fr:<version>`,
-  `zerostwo/i-remember.fr:latest`, and `zerostwo/i-remember.fr:sha-<commit>` on
-  pushes to `main`.
-- Pushing a `vX.Y.Z` tag also publishes `X.Y.Z`, `X.Y`, and `latest`.
+- `.github/workflows/docker.yml` publishes the compose app images
+  `zerostwo/i-remember.fr-web`, `zerostwo/i-remember.fr-admin`, and
+  `zerostwo/i-remember.fr-api` on pushes to `main`.
+- Each app image gets `<version>`, `latest`, and `sha-<commit>` tags. Pushing a
+  `vX.Y.Z` tag also publishes `X.Y.Z`, `X.Y`, and `latest`.
 
 ## License Position
 

@@ -25,6 +25,9 @@ Compose appends `-web`, `-admin`, and `-api` to the configured image base.
 public archive still reads legacy SQLite data; production API state lives in
 PostgreSQL.
 
+The GitHub workflow builds and pushes those same compose images instead of a
+single root image.
+
 ## Runtime Environment
 
 Required production variables:
