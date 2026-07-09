@@ -28,6 +28,7 @@ const patched = await syncV1Memory(async (path, options = {}) => {
 
 assert.equal(patched.id, "pub_existing");
 assert.equal(patchedCalls[1].options.method, "PATCH");
+assert.equal(JSON.parse(patchedCalls[1].options.body).legacyId, 12);
 
 const createdCalls = [];
 await syncV1Memory(async (path, options = {}) => {
@@ -38,7 +39,9 @@ await syncV1Memory(async (path, options = {}) => {
 }, { ...payload, legacyId: 13 });
 
 assert.equal(createdCalls[1].options.method, "POST");
+assert.equal(JSON.parse(createdCalls[1].options.body).legacyId, 13);
 assert.equal(createdCalls[2].options.method, "PATCH");
+assert.equal(JSON.parse(createdCalls[2].options.body).legacyId, 13);
 
 const archivedCalls = [];
 await archiveV1Memory(async (path, options = {}) => {
