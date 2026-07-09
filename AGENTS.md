@@ -15,7 +15,7 @@ Current backend/product decisions:
 - Because the project is still early, do not preserve previous legacy compatibility; remove compatibility fallbacks as production PostgreSQL/Prisma paths become available.
 - Expose first-pass AI agent support through HTTP APIs, not MCP.
 - Keep Facebook and Instagram API modernization out of scope until explicitly requested.
-- Publish through the refactor document's multi-service Docker deployment; DockerHub image names and tags must still come from `DOCKERHUB_IMAGE` and `TAG` env vars where an app image is published.
+- Publish one Docker image only; do not split publishing into separate `web`, `admin`, and `api` images. DockerHub image name and tag must still come from `DOCKERHUB_IMAGE` and `TAG`.
 - For the admin experience, create and confirm Figma UI designs first; only build the clickable responsive backend prototype after the UI is approved.
 - The future admin should cover common personal-blog management modules while preserving anonymous public memory submission, and should include first-class support for self-hosted Umami tracking.
 - The admin prototype information architecture is: login, dashboard, content management with Memory/Page/Comment/Attachment sections, appearance with Theme/Menu sections, and system with Settings/Backup sections. Blog posts are folded into Memory; long-form Memory entries use a Read more affordance instead of a separate Posts module.
