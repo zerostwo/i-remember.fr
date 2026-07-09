@@ -458,6 +458,12 @@ const anonymousAuthor = await json("/api/v1/memories", {
 });
 assert.equal(anonymousAuthor.response.status, 401);
 
+const anonymousLegacyId = await json("/api/v1/memories", {
+  method: "POST",
+  body: JSON.stringify({ title: "Legacy", content: "Nope", legacyId: 9002 }),
+});
+assert.equal(anonymousLegacyId.response.status, 401);
+
 const created = await json("/api/v1/memories", {
   method: "POST",
   headers: { Authorization: "Bearer test-secret" },
@@ -572,6 +578,13 @@ const userSpoofedAuthor = await json("/api/v1/memories", {
   body: JSON.stringify({ title: "Spoofed", content: "Nope", authorId: "u1" }),
 });
 assert.equal(userSpoofedAuthor.response.status, 403);
+
+const userLegacyId = await json("/api/v1/memories", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${userLogin.body.data.token}` },
+  body: JSON.stringify({ title: "Legacy", content: "Nope", legacyId: 9002 }),
+});
+assert.equal(userLegacyId.response.status, 403);
 
 const unauthorizedPages = await json("/api/v1/pages");
 assert.equal(unauthorizedPages.response.status, 401);
