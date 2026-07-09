@@ -132,6 +132,20 @@ function attachments(value: unknown) {
   });
 }
 
+function base64Content(value: unknown) {
+  const raw = bodyText(value, "", 15 * 1024 * 1024);
+  const content = (raw.includes(",") ? raw.split(",").pop() || "" : raw).replace(/\s+/g, "");
+  if (!content) throw new ApiError(400, "Asset content is required", "missing_asset_content");
+  if (
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(content) ||
+    /=[^=]/.test(content) ||
+    content.length % 4 === 1
+  ) {
+    throw new ApiError(400, "Invalid asset content", "invalid_asset_content");
+  }
+  return content;
+}
+
 export function memoryInput(value: Record<string, unknown>): MemoryInput {
   const title = text(value.title, "", 180);
   const content = bodyText(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
@@ -241,14 +255,12 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
 
 export function assetUploadInput(value: Record<string, unknown>): AssetUploadInput {
   const key = text(value.key ?? value.filename, "", 240);
-  const rawContent = text(value.contentBase64 ?? value.data, "", 15 * 1024 * 1024);
-  const contentBase64 = rawContent.includes(",") ? rawContent.split(",").pop() || "" : rawContent;
   const contentType = value.contentType
     ? text(value.contentType, "", 120)
     : "application/octet-stream";
 
   if (!key) throw new ApiError(400, "Asset key is required", "missing_asset_key");
-  if (!contentBase64) throw new ApiError(400, "Asset content is required", "missing_asset_content");
+  const contentBase64 = base64Content(value.contentBase64 ?? value.data);
 
   return {
     key,

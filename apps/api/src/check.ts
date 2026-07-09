@@ -687,6 +687,18 @@ assert.equal(uploaded.response.status, 201);
 assert.equal(uploaded.body.data.url, "/uploads/asset-test.txt");
 assert.equal(uploaded.body.data.memoryId, created.body.data.id);
 
+const invalidAssetContent = await json("/api/v1/assets", {
+  method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    key: "invalid.txt",
+    contentBase64: "%%%not-base64%%%",
+    contentType: "text/plain",
+  }),
+});
+assert.equal(invalidAssetContent.response.status, 400);
+assert.equal(invalidAssetContent.body.error.code, "invalid_asset_content");
+
 const failedUpload = await json("/api/v1/assets", {
   method: "POST",
   headers: { Authorization: "Bearer test-secret" },
