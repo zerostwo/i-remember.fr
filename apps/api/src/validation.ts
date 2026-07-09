@@ -15,21 +15,21 @@ import type {
   PageUpdateInput,
   Visibility,
 } from "./domain.js";
+import {
+  commentStatuses,
+  menuItemTypes,
+  memoryStatuses,
+  pageStatuses,
+  visibilityValues as schemaVisibilityValues,
+} from "@i-remember/database";
 import { ApiError } from "./errors.js";
 import type { CommentListQuery, MemoryListQuery } from "./repositories.js";
 
-const visibilityValues = new Set(["PUBLIC", "UNLISTED", "PRIVATE"]);
-const statusValues = new Set(["NORMAL", "PENDING", "ARCHIVED", "REJECTED"]);
-const pageStatusValues = new Set(["PUBLISHED", "DRAFT", "ARCHIVED"]);
-const menuItemTypeValues = new Set([
-  "PAGE",
-  "MEMORY",
-  "SEARCH",
-  "EXTERNAL",
-  "TERMS",
-  "CREDITS",
-  "LANGUAGE",
-]);
+const visibilityValues = new Set<string>(schemaVisibilityValues);
+const memoryStatusValues = new Set<string>(memoryStatuses);
+const commentStatusValues = new Set<string>(commentStatuses);
+const pageStatusValues = new Set<string>(pageStatuses);
+const menuItemTypeValues = new Set<string>(menuItemTypes);
 const languageValues = new Set(["en", "fr", "zh"]);
 
 function text(value: unknown, fallback = "", max = 1000) {
@@ -142,7 +142,7 @@ export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery 
   const limit = Math.min(Math.max(Number(searchParams.get("limit") || 100), 1), 200);
   const legacyId = optionalNumber(searchParams.get("legacyId") ?? searchParams.get("legacy_id"));
 
-  if (status !== "ALL" && !statusValues.has(status)) {
+  if (status !== "ALL" && !memoryStatusValues.has(status)) {
     throw new ApiError(400, "Invalid status", "invalid_status");
   }
   if (visibility !== "ALL" && !visibilityValues.has(visibility)) {
@@ -188,7 +188,7 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
 
   if (has(value, "status")) {
     const status = text(value.status, "", 20).toUpperCase();
-    if (!statusValues.has(status)) {
+    if (!memoryStatusValues.has(status)) {
       throw new ApiError(400, "Invalid status", "invalid_status");
     }
     input.status = status as MemoryStatus;
@@ -370,7 +370,7 @@ export function menuItemPatchInput(value: Record<string, unknown>): MenuItemUpda
 
 function commentStatus(value: unknown, fallback = "PENDING") {
   const status = text(value, fallback, 20).toUpperCase();
-  if (!statusValues.has(status)) {
+  if (!commentStatusValues.has(status)) {
     throw new ApiError(400, "Invalid comment status", "invalid_comment_status");
   }
   return status as CommentStatus;
@@ -379,7 +379,7 @@ function commentStatus(value: unknown, fallback = "PENDING") {
 export function commentListQuery(searchParams: URLSearchParams): CommentListQuery {
   const status = text(searchParams.get("status"), "PENDING", 20).toUpperCase();
   const limit = Math.min(Math.max(Number(searchParams.get("limit") || 100), 1), 200);
-  if (status !== "ALL" && !statusValues.has(status)) {
+  if (status !== "ALL" && !commentStatusValues.has(status)) {
     throw new ApiError(400, "Invalid comment status", "invalid_comment_status");
   }
   return {
