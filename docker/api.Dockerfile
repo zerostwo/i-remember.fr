@@ -20,6 +20,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY . .
 RUN pnpm --filter @i-remember/database generate && pnpm --filter @i-remember/database build && pnpm --filter @i-remember/api build
 
