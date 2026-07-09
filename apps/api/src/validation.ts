@@ -54,6 +54,13 @@ function optionalNumber(value: unknown) {
   return next;
 }
 
+function coordinate(value: unknown, min: number, max: number, code: string) {
+  const next = optionalNumber(value);
+  if (next === undefined) return undefined;
+  if (next < min || next > max) throw new ApiError(400, "Invalid coordinate", code);
+  return next;
+}
+
 function limitParam(searchParams: URLSearchParams, fallback = 100) {
   const raw = searchParams.get("limit");
   if (raw === null || raw === "") return fallback;
@@ -142,8 +149,8 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
     legacyId: optionalNumber(value.legacyId ?? value.legacy_id),
     authorName: text(value.authorName ?? value.author, "Anonymous", 120),
     visibility: visibility as Visibility,
-    latitude: optionalNumber(value.latitude),
-    longitude: optionalNumber(value.longitude),
+    latitude: coordinate(value.latitude, -90, 90, "invalid_latitude"),
+    longitude: coordinate(value.longitude, -180, 180, "invalid_longitude"),
     emotion: value.emotion ? text(value.emotion, "", 80) : undefined,
     metadata:
       value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)
@@ -212,8 +219,10 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
     input.status = status as MemoryStatus;
   }
 
-  if (has(value, "latitude")) input.latitude = optionalNumber(value.latitude);
-  if (has(value, "longitude")) input.longitude = optionalNumber(value.longitude);
+  if (has(value, "latitude"))
+    input.latitude = coordinate(value.latitude, -90, 90, "invalid_latitude");
+  if (has(value, "longitude"))
+    input.longitude = coordinate(value.longitude, -180, 180, "invalid_longitude");
   if (has(value, "emotion"))
     input.emotion = value.emotion ? text(value.emotion, "", 80) : undefined;
   if (has(value, "metadata")) {

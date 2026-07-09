@@ -436,6 +436,13 @@ const emptyAgent = await json("/api/v1/agent", {
 });
 assert.equal(emptyAgent.response.status, 400);
 
+const invalidLatitude = await json("/api/v1/memories", {
+  method: "POST",
+  body: JSON.stringify({ title: "Bad coordinate", content: "Invalid", latitude: 91 }),
+});
+assert.equal(invalidLatitude.response.status, 400);
+assert.equal(invalidLatitude.body.error.code, "invalid_latitude");
+
 const memoryMarkdown = "# Created\n\nThrough v1 API";
 const created = await json("/api/v1/memories", {
   method: "POST",
@@ -464,6 +471,14 @@ const adminPendingDetail = await json(`/api/v1/memories/${created.body.data.id}`
   headers: { Authorization: "Bearer test-secret" },
 });
 assert.equal(adminPendingDetail.response.status, 200);
+
+const invalidLongitude = await json(`/api/v1/memories/${created.body.data.id}`, {
+  method: "PATCH",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({ longitude: -181 }),
+});
+assert.equal(invalidLongitude.response.status, 400);
+assert.equal(invalidLongitude.body.error.code, "invalid_longitude");
 
 const publicAfterCreate = await json("/api/v1/memories");
 assert.equal(
