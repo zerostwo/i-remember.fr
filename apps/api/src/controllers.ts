@@ -1,4 +1,4 @@
-import { authenticate } from "./auth.js";
+import { authenticate, requireRole } from "./auth.js";
 import type {
   CommentRecord,
   MenuItemRecord,
@@ -160,7 +160,9 @@ export class MemoryController {
   }
 
   async create(context: RequestContext) {
-    const data = await this.memories.create(memoryInput(await readJson(context.req)));
+    const input = memoryInput(await readJson(context.req));
+    if (input.authorId) requireRole(authenticate(context.req), ["ADMIN", "USER"]);
+    const data = await this.memories.create(input);
     context.res.statusCode = 201;
     return { success: true, data: memoryDto(data) };
   }

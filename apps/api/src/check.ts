@@ -452,8 +452,15 @@ assert.equal(invalidLatitude.response.status, 400);
 assert.equal(invalidLatitude.body.error.code, "invalid_latitude");
 
 const memoryMarkdown = "# Created\n\nThrough v1 API";
+const anonymousAuthor = await json("/api/v1/memories", {
+  method: "POST",
+  body: JSON.stringify({ title: "Spoofed", content: "Nope", authorId: "u1" }),
+});
+assert.equal(anonymousAuthor.response.status, 401);
+
 const created = await json("/api/v1/memories", {
   method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
   body: JSON.stringify({
     title: "New",
     content: memoryMarkdown,
