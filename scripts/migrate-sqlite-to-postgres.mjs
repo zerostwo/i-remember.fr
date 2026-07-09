@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import { RevivalSQLiteStore } from "../src/server/sqlite-store.js";
 
 const args = new Set(process.argv.slice(2));
@@ -30,11 +31,16 @@ function slug(value) {
     .slice(0, 80);
 }
 
+function publicId(value) {
+  const next = String(value || "").trim();
+  return /^[A-Za-z][A-Za-z0-9]*$/.test(next) ? next : `m${randomBytes(10).toString("hex")}`;
+}
+
 function memoryData(row) {
   const metadata = parseJson(row.metadata_json, {}) || {};
   return {
     id: row.uid,
-    publicId: row.public_id,
+    publicId: publicId(row.public_id),
     legacyId: Number(row.legacy_id),
     title: String(row.title || row.name || "I Remember").slice(0, 180),
     content: String(row.body_markdown || row.text || ""),
@@ -300,6 +306,7 @@ function selfCheck() {
   const memory = memoryData(row);
   assert.equal(memory.id, "mem_en_1");
   assert.equal(memory.publicId, "abc123");
+  assert.match(memoryData({ ...row, public_id: "12345" }).publicId, /^m[a-f0-9]{20}$/);
   assert.equal(memory.metadata.languageCode, "en");
   assert.equal(memory.metadata.mood, "quiet");
   assert.equal(tagRowsFromMemory(row)[0].slug, "test");
