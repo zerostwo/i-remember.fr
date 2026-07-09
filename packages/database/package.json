@@ -6,7 +6,7 @@
   "scripts": {
     "build": "pnpm generate && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "prisma validate --schema prisma/schema.prisma",
+    "test": "prisma validate --schema prisma/schema.prisma && tmp=${TMPDIR:-/tmp}/i-remember-prisma-diff.sql && prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script --output \"$tmp\" && diff -u prisma/migrations/20260708000000_init/migration.sql \"$tmp\"",
     "generate": "prisma generate --schema prisma/schema.prisma",
     "migrate": "prisma migrate deploy --schema prisma/schema.prisma"
   },
