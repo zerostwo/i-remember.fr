@@ -535,12 +535,160 @@
     }
   }
 
+  function memoryEnginePosts() {
+    var raw;
+    var posts;
+    if (!params.memoryEngineDataset || !window.sessionStorage) return null;
+    try {
+      raw = window.sessionStorage.getItem(params.memoryEngineDataset);
+      posts = raw ? JSON.parse(raw) : null;
+      return Array.isArray(posts) ? posts : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function memoryEngineTag(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function memoryEngineRouteTag(value) {
+    return memoryEngineTag(value).replace(/\s+/g, "-");
+  }
+
+  function memoryEngineHaystack(post) {
+    return memoryEngineTag([
+      post.name,
+      post.title,
+      post.excerpt,
+      post.text,
+      post.body_markdown
+    ].join(" "));
+  }
+
+  function memoryEngineMatches(posts, tag) {
+    var normalized = memoryEngineTag(tag);
+    var words;
+    var exact;
+    if (!normalized) return posts;
+    words = normalized.split(" ").filter(Boolean);
+    exact = posts.filter(function (post) {
+      var haystack = memoryEngineHaystack(post);
+      var tokens = haystack.split(" ").filter(Boolean);
+      if (words.length === 1) return tokens.indexOf(words[0]) !== -1 || haystack.indexOf(words[0]) !== -1;
+      return haystack.indexOf(normalized) !== -1;
+    });
+    if (exact.length) return exact;
+    return posts.filter(function (post) {
+      var tokens = memoryEngineHaystack(post).split(" ").filter(Boolean);
+      return words.some(function (word) {
+        return word.length > 1 && tokens.some(function (token) {
+          return token.indexOf(word) !== -1;
+        });
+      });
+    });
+  }
+
+  function memoryEnginePage(posts, url) {
+    var lastId = parseInt(url.searchParams.get("lastId") || "", 10);
+    var page = Number.isFinite(lastId)
+      ? posts.filter(function (post) { return parseInt(post.id, 10) < lastId; })
+      : posts;
+    return page.slice(0, 200);
+  }
+
+  function memoryEngineAutocomplete(posts, fragment) {
+    var normalized = memoryEngineRouteTag(fragment);
+    var tags = [];
+    var seen = {};
+    if (!normalized) return tags;
+    posts.forEach(function (post) {
+      memoryEngineHaystack(post).split(" ").forEach(function (token) {
+        token = memoryEngineRouteTag(token);
+        if (token.length > 1 && token.indexOf(normalized) === 0 && token !== normalized && !seen[token]) {
+          seen[token] = true;
+          tags.push(token);
+        }
+      });
+    });
+    return tags.sort(function (a, b) {
+      return a.length - b.length || a.localeCompare(b);
+    }).slice(0, 3);
+  }
+
+  function memoryEnginePayload(method, requestUrl) {
+    var posts = memoryEnginePosts();
+    var url;
+    var path;
+    var inputTag;
+    var fragment;
+    if (!posts || method !== "GET") return null;
+    url = new URL(requestUrl);
+    path = url.pathname;
+    if (path.indexOf("/api/auto-complete-tags/") === 0) {
+      fragment = path.replace(/^\/api\/auto-complete-tags\/?/, "").slice(0, 120);
+      return {
+        success: true,
+        data: {
+          tagFragment: memoryEngineRouteTag(fragment),
+          list: memoryEngineAutocomplete(posts, fragment)
+        }
+      };
+    }
+    if (path.indexOf("/api/search-posts") === 0 || /^\/api(?:\/[^/]+)?$/.test(path)) {
+      inputTag = url.searchParams.get("tagName") || path.replace(/^\/api(?:\/search-posts)?\/?/, "").slice(0, 120);
+      return {
+        success: 1,
+        data: {
+          tagName: memoryEngineRouteTag(inputTag),
+          posts: memoryEnginePage(memoryEngineMatches(posts, inputTag), url)
+        },
+        input: {
+          ln: siteLanguage(),
+          tagName: inputTag,
+          lastId: url.searchParams.get("lastId") || ""
+        }
+      };
+    }
+    if (path.indexOf("/api/related-post-count/") === 0) {
+      return { success: 1, data: {} };
+    }
+    return null;
+  }
+
+  function memoryEngineJqxhr(settings, payload) {
+    var jqxhr = {
+      abort: function () {},
+      readyState: 1,
+      status: 0,
+      responseJSON: null,
+      responseText: ""
+    };
+    window.setTimeout(function () {
+      jqxhr.readyState = 4;
+      jqxhr.status = 200;
+      jqxhr.responseJSON = payload;
+      jqxhr.responseText = JSON.stringify(payload);
+      if (settings.success) settings.success(payload, "success", jqxhr);
+      if (settings.complete) settings.complete(jqxhr, "success");
+    }, 0);
+    return jqxhr;
+  }
+
   function localApiAjax(settings) {
     var method = String(settings.type || settings.method || "GET").toUpperCase();
     var url = localApiUrl(settings.url);
     var path;
     var requestUrl;
     var requestOptions;
+    var memoryPayload;
     var isUploadImageRequest;
     var releaseUploadImageInflight;
     var jqxhr;
@@ -558,6 +706,9 @@
     }
 
     requestUrl = method === "GET" ? appendQueryData(url, settings.data) : url;
+    memoryPayload = memoryEnginePayload(method, requestUrl);
+    if (memoryPayload) return memoryEngineJqxhr(settings, memoryPayload);
+
     requestOptions = {
       credentials: "same-origin",
       method: method

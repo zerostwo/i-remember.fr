@@ -16,6 +16,13 @@ export type GalaxyMemory = {
 
 export function normalizeGalaxyMemory(memory: Record<string, unknown>): GalaxyMemory;
 export function normalizeGalaxyMemories(memories?: Array<Record<string, unknown>>): GalaxyMemory[];
+export function normalizeGalaxyPost(
+  memory: Record<string, unknown>,
+  index?: number,
+): Record<string, string>;
+export function normalizeGalaxyPosts(
+  memories?: Array<Record<string, unknown>>,
+): Array<Record<string, string>>;
 
 export function MemoryGalaxy(props: {
   memories?: Array<Record<string, unknown>>;
