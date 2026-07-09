@@ -97,13 +97,8 @@ function routeFromPathname(pathname = window.location.pathname) {
   return normalizeRouteId(normalized.slice("/admin/".length));
 }
 
-function routeFromLegacyHash(hash = window.location.hash) {
-  const routeId = String(hash || "").replace(/^#\/?/, "");
-  return routeId ? normalizeRouteId(routeId) : "";
-}
-
 function routeFromLocation() {
-  return routeFromLegacyHash() || routeFromPathname();
+  return routeFromPathname();
 }
 
 function pathForRoute(routeId) {
@@ -487,12 +482,6 @@ export function AdminApp() {
   }, []);
 
   useEffect(() => {
-    const legacyRoute = routeFromLegacyHash();
-    if (legacyRoute) {
-      window.history.replaceState({ route: legacyRoute }, "", pathForRoute(legacyRoute));
-      setRoute(legacyRoute);
-    }
-
     const handleLocation = () => setRoute(routeFromLocation());
     window.addEventListener("popstate", handleLocation);
     window.addEventListener("hashchange", handleLocation);

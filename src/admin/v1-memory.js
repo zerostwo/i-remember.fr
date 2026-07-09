@@ -41,7 +41,6 @@ function memoryMetadata(memory = {}) {
     ...custom,
     language: memory.language,
     source: memory.source || "admin",
-    legacyUid: memory.uid,
     isLongForm: Boolean(memory.isLongForm || memory.is_long_form),
     imageKey: memory.imageKey,
   };
