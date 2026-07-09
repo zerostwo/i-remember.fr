@@ -464,6 +464,25 @@ const anonymousLegacyId = await json("/api/v1/memories", {
 });
 assert.equal(anonymousLegacyId.response.status, 401);
 
+const anonymousSubmission = await json("/api/v1/memories", {
+  method: "POST",
+  body: JSON.stringify({
+    title: "Anonymous",
+    content: "Anonymous submission stays pending for moderation.",
+    authorName: "Visitor",
+  }),
+});
+assert.equal(anonymousSubmission.response.status, 201);
+assert.equal(anonymousSubmission.body.data.status, "PENDING");
+assert.equal(anonymousSubmission.body.data.authorName, "Visitor");
+const publicAfterAnonymous = await json("/api/v1/memories");
+assert.equal(
+  publicAfterAnonymous.body.data.some(
+    (memory: { id: string }) => memory.id === anonymousSubmission.body.data.id,
+  ),
+  false,
+);
+
 const created = await json("/api/v1/memories", {
   method: "POST",
   headers: { Authorization: "Bearer test-secret" },
@@ -733,8 +752,8 @@ const dashboard = await json("/api/v1/dashboard", {
 });
 assert.equal(dashboard.response.status, 200);
 assert.equal(dashboard.body.data.totalUsers, 2);
-assert.equal(dashboard.body.data.totalMemories, 2);
-assert.equal(dashboard.body.data.pendingMemories, 0);
+assert.equal(dashboard.body.data.totalMemories, 3);
+assert.equal(dashboard.body.data.pendingMemories, 1);
 assert.equal(dashboard.body.data.publishedMemories, 2);
 
 const userAuthoredMemory = await json("/api/v1/memories", {
