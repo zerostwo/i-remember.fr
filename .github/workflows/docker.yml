@@ -55,6 +55,41 @@ jobs:
       - name: Build image
         run: docker build --tag "${DOCKERHUB_IMAGE}:${TAG}" .
 
+      - name: Smoke test image
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="i-remember-smoke"
+          data_dir="$(mktemp -d)"
+          cleanup() {
+            docker rm -f "${name}" >/dev/null 2>&1 || true
+            rm -rf "${data_dir}"
+          }
+          trap cleanup EXIT
+
+          docker run -d \
+            --name "${name}" \
+            -p 7893:7890 \
+            -v "${data_dir}:/var/opt/i-remember.fr" \
+            "${DOCKERHUB_IMAGE}:${TAG}"
+
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:7893/healthz" >/dev/null; then
+              curl -fsS "http://127.0.0.1:7893/version" >/dev/null
+              docker exec "${name}" test -s /var/opt/i-remember.fr/postgres/PG_VERSION
+              docker exec "${name}" test -s /var/opt/i-remember.fr/auth-secret
+              exit 0
+            fi
+            if ! docker ps --format "{{.Names}}" | grep -qx "${name}"; then
+              docker logs "${name}" || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+          docker logs "${name}" || true
+          exit 1
+
       - name: Push image
         shell: bash
         env:

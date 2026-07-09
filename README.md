@@ -72,7 +72,7 @@ the generated auth secret.
 The multi-service PostgreSQL deployment is still available:
 
 ```bash
-DOCKERHUB_IMAGE=zerostwo/i-remember.fr TAG=latest docker compose up -d
+docker compose up -d --build
 ```
 
 Compose provides `web`, `admin`, `api`, and `postgres` services.

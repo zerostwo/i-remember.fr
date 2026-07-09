@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
-    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}-web:${TAG:-latest}
     ports:
       - "7890:7890"
     environment:
@@ -41,7 +40,6 @@ services:
     build:
       context: .
       dockerfile: docker/admin.Dockerfile
-    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}-admin:${TAG:-latest}
     ports:
       - "7891:7890"
     environment:
@@ -71,7 +69,6 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
-    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}-api:${TAG:-latest}
     ports:
       - "7892:7892"
     environment:
