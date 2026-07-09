@@ -88,7 +88,14 @@ importers:
         specifier: ^6.4.3
         version: 6.4.3(@types/node@26.1.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.0)
 
-  apps/admin: {}
+  apps/admin:
+    dependencies:
+      '@i-remember/memory-engine':
+        specifier: workspace:*
+        version: link:../../packages/memory-engine
+      '@i-remember/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
 
   apps/api:
     dependencies:

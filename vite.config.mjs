@@ -8,10 +8,12 @@ import { createViteRevivalPlugin } from "./src/server/revival.js";
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
+  root: rootDir,
   plugins: [react(), tailwindcss(), createViteRevivalPlugin()],
   resolve: {
     alias: {
       "@": resolve(rootDir, "src"),
+      "@i-remember/ui": resolve(rootDir, "packages/ui/src/index.js"),
     },
   },
   build: {
