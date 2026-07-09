@@ -436,11 +436,12 @@ const emptyAgent = await json("/api/v1/agent", {
 });
 assert.equal(emptyAgent.response.status, 400);
 
+const memoryMarkdown = "# Created\n\nThrough v1 API";
 const created = await json("/api/v1/memories", {
   method: "POST",
   body: JSON.stringify({
     title: "New",
-    content: "Created through v1 API",
+    content: memoryMarkdown,
     legacyId: 9001,
     tags: ["Paris", "Archive"],
     attachments: [{ url: "/uploads/new.jpg", type: "image/jpeg" }],
@@ -449,6 +450,7 @@ const created = await json("/api/v1/memories", {
 assert.equal(created.response.status, 201);
 assert.equal(created.body.data.status, "PENDING");
 assert.equal(created.body.data.legacyId, 9001);
+assert.equal(created.body.data.content, memoryMarkdown);
 assert.deepEqual(
   created.body.data.tags.map((item: { name: string }) => item.name),
   ["Paris", "Archive"],
@@ -542,12 +544,13 @@ const createdComment = await json("/api/v1/comments", {
   body: JSON.stringify({
     memoryId: "pub_1",
     authorName: "Reader",
-    content: "A pending comment",
+    content: "A pending comment\n\nSecond line",
   }),
 });
 assert.equal(createdComment.response.status, 201);
 assert.equal(createdComment.body.data.status, "PENDING");
 assert.equal(createdComment.body.data.memoryId, "pub_1");
+assert.equal(createdComment.body.data.content, "A pending comment\n\nSecond line");
 
 const listedComments = await json("/api/v1/comments?status=all&q=reader", {
   headers: { Authorization: "Bearer test-secret" },
@@ -585,6 +588,7 @@ const createdPage = await json("/api/v1/pages", {
 });
 assert.equal(createdPage.response.status, 201);
 assert.equal(createdPage.body.data.slug, "about");
+assert.equal(createdPage.body.data.bodyMarkdown, "# About\n\nManaged in v1.");
 
 const updatedPage = await json("/api/v1/pages/about", {
   method: "PATCH",

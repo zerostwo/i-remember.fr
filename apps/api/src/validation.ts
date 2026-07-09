@@ -39,6 +39,14 @@ function text(value: unknown, fallback = "", max = 1000) {
     .slice(0, max);
 }
 
+function bodyText(value: unknown, fallback = "", max = 50000) {
+  return String(value ?? fallback)
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .trim()
+    .slice(0, max);
+}
+
 function optionalNumber(value: unknown) {
   if (value === undefined || value === null || value === "") return undefined;
   const next = Number(value);
@@ -119,7 +127,7 @@ function attachments(value: unknown) {
 
 export function memoryInput(value: Record<string, unknown>): MemoryInput {
   const title = text(value.title, "", 180);
-  const content = text(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
+  const content = bodyText(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
   const visibility = text(value.visibility, "PUBLIC", 20).toUpperCase();
 
   if (!title) throw new ApiError(400, "Title is required", "missing_title");
@@ -180,7 +188,7 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
   }
 
   if (has(value, "content") || has(value, "bodyMarkdown") || has(value, "text")) {
-    input.content = text(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
+    input.content = bodyText(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
     if (!input.content) throw new ApiError(400, "Content is required", "missing_content");
   }
 
@@ -268,7 +276,7 @@ export function pageInput(value: Record<string, unknown>): PageInput {
     language: language(value.language ?? value.ln ?? "en"),
     title,
     excerpt: value.excerpt ? text(value.excerpt, "", 600) : undefined,
-    bodyMarkdown: text(value.bodyMarkdown ?? value.body_markdown ?? value.content, "", 50000),
+    bodyMarkdown: bodyText(value.bodyMarkdown ?? value.body_markdown ?? value.content, "", 50000),
     status: status as PageStatus,
     linkedMemoryId:
       value.linkedMemoryId || value.linked_memory_id
@@ -293,7 +301,7 @@ export function pagePatchInput(value: Record<string, unknown>): PageUpdateInput 
   if (has(value, "excerpt"))
     input.excerpt = value.excerpt ? text(value.excerpt, "", 600) : undefined;
   if (has(value, "bodyMarkdown") || has(value, "body_markdown") || has(value, "content")) {
-    input.bodyMarkdown = text(
+    input.bodyMarkdown = bodyText(
       value.bodyMarkdown ?? value.body_markdown ?? value.content,
       "",
       50000,
@@ -401,7 +409,7 @@ export function commentListQuery(searchParams: URLSearchParams): CommentListQuer
 }
 
 export function commentInput(value: Record<string, unknown>): CommentInput {
-  const content = text(value.content ?? value.body ?? value.text, "", 10000);
+  const content = bodyText(value.content ?? value.body ?? value.text, "", 10000);
   if (!content) throw new ApiError(400, "Comment content is required", "missing_comment_content");
   return {
     memoryId:
@@ -435,7 +443,7 @@ export function commentPatchInput(value: Record<string, unknown>): CommentUpdate
         ? text(value.authorEmail ?? value.author_email, "", 240)
         : undefined;
   if (has(value, "content") || has(value, "body") || has(value, "text")) {
-    input.content = text(value.content ?? value.body ?? value.text, "", 10000);
+    input.content = bodyText(value.content ?? value.body ?? value.text, "", 10000);
     if (!input.content)
       throw new ApiError(400, "Comment content is required", "missing_comment_content");
   }
