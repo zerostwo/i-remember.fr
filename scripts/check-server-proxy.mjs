@@ -101,6 +101,15 @@ try {
   assert.equal(assetsBody.url, "/api/v1/assets?limit=1");
   assert.equal(assetsBody.auth, "Bearer proxy-test");
 
+  const uploadedAssetResponse = await fetch(`${baseUrl}/uploads/admin/new-photo.jpg`);
+  assert.equal(uploadedAssetResponse.status, 200);
+  const uploadedAssetBody = await uploadedAssetResponse.json();
+  assert.equal(uploadedAssetBody.url, "/uploads/admin/new-photo.jpg");
+
+  const legacyUploadResponse = await fetch(`${baseUrl}/uploads/posts/revival-upload/thumb.jpg`);
+  assert.equal(legacyUploadResponse.status, 200);
+  assert.match(legacyUploadResponse.headers.get("content-type") || "", /^image\//);
+
   const agentResponse = await fetch(`${baseUrl}/api/v1/agent`, {
     method: "POST",
     headers: {

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { createServer } from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type {
   AssetCreateInput,
   AssetRecord,
@@ -20,6 +23,7 @@ import type {
   UserRecord,
 } from "./domain.js";
 import { createApiV1Middleware } from "./index.js";
+import { serveLocalAsset } from "./static-assets.js";
 import type {
   AssetRepository,
   CommentListQuery,
@@ -674,6 +678,34 @@ const nestedAssetUrl = await json("/api/v1/assets/memory/nested-test.txt", {
   headers: { Authorization: "Bearer test-secret" },
 });
 assert.equal(nestedAssetUrl.body.data.url, "/uploads/memory/nested-test.txt");
+
+const assetRoot = await mkdtemp(join(tmpdir(), "i-remember-api-assets-"));
+const assetServer = createServer((req, res) => {
+  if (serveLocalAsset(req, res, { rootDir: assetRoot, publicBaseUrl: "/uploads" })) return;
+  res.statusCode = 404;
+  res.end("not found");
+});
+try {
+  await writeFile(join(assetRoot, "served.txt"), "served asset");
+  await new Promise<void>((resolve) => assetServer.listen(0, "127.0.0.1", resolve));
+  const assetAddress = assetServer.address();
+  assert.notEqual(assetAddress, null);
+  assert.equal(typeof assetAddress, "object");
+  const assetBaseUrl = `http://127.0.0.1:${(assetAddress as AddressInfo).port}`;
+
+  const servedAsset = await fetch(`${assetBaseUrl}/uploads/served.txt`);
+  assert.equal(servedAsset.status, 200);
+  assert.equal(servedAsset.headers.get("content-type"), "text/plain; charset=utf-8");
+  assert.equal(await servedAsset.text(), "served asset");
+
+  const traversal = await fetch(`${assetBaseUrl}/uploads/..%2Fsecret.txt`);
+  assert.equal(traversal.status, 403);
+} finally {
+  await new Promise<void>((resolve, reject) => {
+    assetServer.close((error) => (error ? reject(error) : resolve()));
+  });
+  await rm(assetRoot, { recursive: true, force: true });
+}
 
 const deleted = await json("/api/v1/assets/asset-test.txt", {
   method: "DELETE",

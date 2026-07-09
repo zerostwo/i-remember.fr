@@ -10,6 +10,7 @@ services:
       HOST: 0.0.0.0
       PORT: 7890
       API_BASE_URL: ${API_BASE_URL:-http://api:7892}
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-/uploads}
       I_REMEMBER_DATA_DIR: /var/opt/i-remember.fr
       I_REMEMBER_AUTO_APPROVE_SUBMISSIONS: ${I_REMEMBER_AUTO_APPROVE_SUBMISSIONS:-true}
       I_REMEMBER_DEFAULT_LANGUAGE: ${I_REMEMBER_DEFAULT_LANGUAGE:-en}
@@ -47,6 +48,7 @@ services:
       HOST: 0.0.0.0
       PORT: 7890
       API_BASE_URL: ${API_BASE_URL:-http://api:7892}
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-/uploads}
       I_REMEMBER_DATA_DIR: /var/opt/i-remember.fr
     volumes:
       - web-data:/var/opt/i-remember.fr

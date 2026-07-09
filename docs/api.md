@@ -47,9 +47,12 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 ```
 
 The storage layer returns a URL from the configured local filesystem adapter or
-an S3-compatible adapter. Asset keys may include nested path segments such as
-`memory/example.jpg`. When `memoryId` is present, the upload is also stored as a
-Prisma `Attachment` for that memory.
+an injected S3-compatible adapter. Asset keys may include nested path segments
+such as `memory/example.jpg`. Local API assets are served from
+`STORAGE_PUBLIC_BASE_URL` (default `/uploads`), and the web/admin server proxies
+those non-legacy upload URLs to the API when `API_BASE_URL` is configured. When
+`memoryId` is present, the upload is also stored as a Prisma `Attachment` for
+that memory.
 
 `POST /api/v1/agent` is the first-pass HTTP agent surface. It accepts an
 anonymous or authenticated JSON body like `{"query":"Paris","limit":5}` and

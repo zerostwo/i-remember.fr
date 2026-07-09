@@ -10,6 +10,7 @@ const distDir = resolve(rootDir, "dist");
 const host = process.env.HOST || "127.0.0.1";
 const port = Number.parseInt(process.env.PORT || "7890", 10);
 const apiBaseUrl = process.env.API_BASE_URL || "";
+const storagePublicBaseUrl = normalizeProxyPath(process.env.STORAGE_PUBLIC_BASE_URL || "/uploads");
 const packageJson = JSON.parse(readFileSync(resolve(rootDir, "package.json"), "utf8"));
 const hopByHopHeaders = new Set([
   "connection",
@@ -65,6 +66,11 @@ function safeStaticPath(pathname) {
   return candidate;
 }
 
+function normalizeProxyPath(value) {
+  const normalized = `/${String(value || "/uploads").replace(/^\/+|\/+$/g, "")}`;
+  return normalized === "/" ? "/uploads" : normalized;
+}
+
 function sendStatus(res, statusCode, message) {
   res.statusCode = statusCode;
   setSecurityHeaders(res);
@@ -76,7 +82,11 @@ function sendStatus(res, statusCode, message) {
 function apiProxyTarget(req) {
   if (!apiBaseUrl) return null;
   const url = new URL(req.url || "/", "http://i-remember.local");
-  if (url.pathname !== "/api/v1" && !url.pathname.startsWith("/api/v1/")) return null;
+  const isApiPath = url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/");
+  const isV1AssetPath =
+    url.pathname.startsWith(`${storagePublicBaseUrl}/`) &&
+    !(storagePublicBaseUrl === "/uploads" && url.pathname.startsWith("/uploads/posts/"));
+  if (!isApiPath && !isV1AssetPath) return null;
   return new URL(`${url.pathname}${url.search}`, apiBaseUrl);
 }
 
