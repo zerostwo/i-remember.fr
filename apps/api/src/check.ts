@@ -699,6 +699,18 @@ const invalidAssetContent = await json("/api/v1/assets", {
 assert.equal(invalidAssetContent.response.status, 400);
 assert.equal(invalidAssetContent.body.error.code, "invalid_asset_content");
 
+const invalidAssetKey = await json("/api/v1/assets", {
+  method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    key: "../invalid.txt",
+    contentBase64: Buffer.from("invalid key").toString("base64"),
+    contentType: "text/plain",
+  }),
+});
+assert.equal(invalidAssetKey.response.status, 400);
+assert.equal(invalidAssetKey.body.error.code, "invalid_asset_key");
+
 const failedUpload = await json("/api/v1/assets", {
   method: "POST",
   headers: { Authorization: "Bearer test-secret" },
@@ -732,6 +744,12 @@ const nestedAssetUrl = await json("/api/v1/assets/memory/nested-test.txt", {
   headers: { Authorization: "Bearer test-secret" },
 });
 assert.equal(nestedAssetUrl.body.data.url, "/uploads/memory/nested-test.txt");
+
+const invalidAssetPath = await json("/api/v1/assets/..%2Fsecret.txt", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(invalidAssetPath.response.status, 400);
+assert.equal(invalidAssetPath.body.error.code, "invalid_asset_key");
 
 const assetRoot = await mkdtemp(join(tmpdir(), "i-remember-api-assets-"));
 const assetServer = createServer((req, res) => {

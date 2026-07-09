@@ -146,6 +146,17 @@ function base64Content(value: unknown) {
   return content;
 }
 
+export function assetKeyInput(value: unknown, missingCode = "invalid_asset_key") {
+  const parts = text(value, "", 240).replace(/\\/g, "/").split("/").filter(Boolean);
+  if (!parts.length) {
+    throw new ApiError(400, "Asset key is required", missingCode);
+  }
+  if (parts.some((part) => part === "." || part === "..")) {
+    throw new ApiError(400, "Invalid asset key", "invalid_asset_key");
+  }
+  return parts.join("/");
+}
+
 export function memoryInput(value: Record<string, unknown>): MemoryInput {
   const title = text(value.title, "", 180);
   const content = bodyText(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
@@ -254,12 +265,11 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
 }
 
 export function assetUploadInput(value: Record<string, unknown>): AssetUploadInput {
-  const key = text(value.key ?? value.filename, "", 240);
+  const key = assetKeyInput(value.key ?? value.filename, "missing_asset_key");
   const contentType = value.contentType
     ? text(value.contentType, "", 120)
     : "application/octet-stream";
 
-  if (!key) throw new ApiError(400, "Asset key is required", "missing_asset_key");
   const contentBase64 = base64Content(value.contentBase64 ?? value.data);
 
   return {

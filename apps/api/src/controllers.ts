@@ -23,6 +23,7 @@ import {
 } from "./services.js";
 import {
   agentQueryInput,
+  assetKeyInput,
   assetUploadInput,
   commentInput,
   commentListQuery,
@@ -377,12 +378,15 @@ export class AssetController {
   }
 
   async getUrl(context: RequestContext) {
-    const data = this.assets.getUrl(authenticate(context.req), context.params.key);
+    const data = this.assets.getUrl(authenticate(context.req), assetKeyInput(context.params.key));
     return { success: true, data };
   }
 
   async delete(context: RequestContext) {
-    const data = await this.assets.delete(authenticate(context.req), context.params.key);
+    const data = await this.assets.delete(
+      authenticate(context.req),
+      assetKeyInput(context.params.key),
+    );
     return { success: true, data };
   }
 }
