@@ -157,6 +157,15 @@ export function assetKeyInput(value: unknown, missingCode = "invalid_asset_key")
   return parts.join("/");
 }
 
+export function pageSlugInput(value: unknown, missingCode = "invalid_page_slug") {
+  const slug = text(value, "", 120).toLowerCase();
+  if (!slug) throw new ApiError(400, "Page slug is required", missingCode);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    throw new ApiError(400, "Invalid page slug", "invalid_page_slug");
+  }
+  return slug;
+}
+
 export function memoryInput(value: Record<string, unknown>): MemoryInput {
   const title = text(value.title, "", 180);
   const content = bodyText(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
@@ -292,11 +301,10 @@ export function languageQuery(searchParams: URLSearchParams) {
 }
 
 export function pageInput(value: Record<string, unknown>): PageInput {
-  const slug = text(value.slug, "", 120);
+  const slug = pageSlugInput(value.slug, "missing_page_slug");
   const title = text(value.title, "", 180);
   const status = text(value.status, "DRAFT", 20).toUpperCase();
 
-  if (!slug) throw new ApiError(400, "Page slug is required", "missing_page_slug");
   if (!title) throw new ApiError(400, "Page title is required", "missing_page_title");
   if (!pageStatusValues.has(status)) {
     throw new ApiError(400, "Invalid page status", "invalid_page_status");
@@ -320,8 +328,7 @@ export function pageInput(value: Record<string, unknown>): PageInput {
 export function pagePatchInput(value: Record<string, unknown>): PageUpdateInput {
   const input: PageUpdateInput = {};
   if (has(value, "slug")) {
-    input.slug = text(value.slug, "", 120);
-    if (!input.slug) throw new ApiError(400, "Page slug is required", "missing_page_slug");
+    input.slug = pageSlugInput(value.slug, "missing_page_slug");
   }
   if (has(value, "language") || has(value, "ln"))
     input.language = language(value.language ?? value.ln);

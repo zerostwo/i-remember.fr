@@ -591,6 +591,23 @@ const archivedComment = await json(`/api/v1/comments/${createdComment.body.data.
 });
 assert.equal(archivedComment.body.data.status, "ARCHIVED");
 
+const invalidPageSlug = await json("/api/v1/pages", {
+  method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    slug: "../bad",
+    title: "Bad",
+  }),
+});
+assert.equal(invalidPageSlug.response.status, 400);
+assert.equal(invalidPageSlug.body.error.code, "invalid_page_slug");
+
+const invalidPagePath = await json("/api/v1/pages/..%2Fbad", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(invalidPagePath.response.status, 400);
+assert.equal(invalidPagePath.body.error.code, "invalid_page_slug");
+
 const createdPage = await json("/api/v1/pages", {
   method: "POST",
   headers: { Authorization: "Bearer test-secret" },
@@ -604,6 +621,14 @@ const createdPage = await json("/api/v1/pages", {
 assert.equal(createdPage.response.status, 201);
 assert.equal(createdPage.body.data.slug, "about");
 assert.equal(createdPage.body.data.bodyMarkdown, "# About\n\nManaged in v1.");
+
+const invalidPageRename = await json("/api/v1/pages/about", {
+  method: "PATCH",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({ slug: "Bad Slug" }),
+});
+assert.equal(invalidPageRename.response.status, 400);
+assert.equal(invalidPageRename.body.error.code, "invalid_page_slug");
 
 const updatedPage = await json("/api/v1/pages/about", {
   method: "PATCH",

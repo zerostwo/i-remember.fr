@@ -36,6 +36,7 @@ import {
   memoryPatchInput,
   pageInput,
   pagePatchInput,
+  pageSlugInput,
   settingsInput,
 } from "./validation.js";
 
@@ -226,7 +227,7 @@ export class PageController {
   async get(context: RequestContext) {
     const data = await this.pages.get(
       authenticate(context.req),
-      context.params.slug,
+      pageSlugInput(context.params.slug),
       languageQuery(context.url.searchParams),
     );
     if (!data) throw new ApiError(404, "Page not found", "not_found");
@@ -245,7 +246,7 @@ export class PageController {
   async update(context: RequestContext) {
     const data = await this.pages.update(
       authenticate(context.req),
-      context.params.slug,
+      pageSlugInput(context.params.slug),
       pagePatchInput(await readJson(context.req)),
       languageQuery(context.url.searchParams),
     );
@@ -255,7 +256,7 @@ export class PageController {
   async archive(context: RequestContext) {
     const data = await this.pages.archive(
       authenticate(context.req),
-      context.params.slug,
+      pageSlugInput(context.params.slug),
       languageQuery(context.url.searchParams),
     );
     return { success: true, data: pageDto(data) };
