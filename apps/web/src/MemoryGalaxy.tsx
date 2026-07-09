@@ -1,1 +1,1 @@
-export { MemoryGalaxy } from "../../../packages/memory-engine/src/index.js";
+export { MemoryGalaxy } from "@i-remember/memory-engine";
