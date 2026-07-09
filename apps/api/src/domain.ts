@@ -39,6 +39,7 @@ export type MemoryRecord = {
   embedding?: number[] | null;
   aiSummary?: string | null;
   knowledgeGraph?: Record<string, unknown> | null;
+  viewCount: number;
   attachments?: AttachmentRecord[];
   tags?: TagRecord[];
   createdAt: Date;

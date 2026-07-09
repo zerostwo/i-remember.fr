@@ -10,7 +10,7 @@ function language(value) {
 
 function menuType(value) {
   const normalized = String(value || "").toUpperCase();
-  return ["PAGE", "MEMORY", "SEARCH", "EXTERNAL", "TERMS", "CREDITS", "LANGUAGE"].includes(normalized)
+  return ["PAGE", "MEMORY", "SEARCH", "EXTERNAL", "GROUP", "TERMS", "CREDITS", "LANGUAGE", "SOUND", "SHARE", "LOGO"].includes(normalized)
     ? normalized
     : "PAGE";
 }
@@ -54,7 +54,7 @@ export function v1PagePayload(page = {}) {
 }
 
 export function v1PageMemory(page = {}) {
-  const publicId = String(page.linkedMemoryPublicId || page.linked_memory_public_id || "").trim();
+  const publicId = String(page.linkedMemoryPublicId || page.linked_memory_public_id || page.linkedMemoryId || page.linked_memory_id || "").trim();
   if (!publicId) return null;
   return {
     publicId,
@@ -95,6 +95,7 @@ export async function syncV1Page(v1Api, page) {
 }
 
 export function v1MenuItemPayload(item = {}) {
+  const custom = jsonObject(item.metadataJson ?? item.metadata_json ?? item.metadata);
   return {
     uid: String(item.uid || `menu-${item.id || "item"}`),
     language: language(item.language),
@@ -105,7 +106,11 @@ export function v1MenuItemPayload(item = {}) {
     position: Number.isFinite(Number(item.position)) ? Number(item.position) : 0,
     isVisible: item.isVisible ?? item.is_visible ?? true,
     opensNewTab: item.opensNewTab ?? item.opens_new_tab ?? false,
-    metadata: sourceMetadata(item),
+    metadata: {
+      ...custom,
+      ...sourceMetadata(item),
+      ...(item.parentId ? { parentId: item.parentId } : {}),
+    },
   };
 }
 

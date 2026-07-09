@@ -115,6 +115,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   router.add("GET", "/api/v1/memories", (context) => memories.list(context));
   router.add("POST", "/api/v1/memories", (context) => memories.create(context));
   router.add("GET", "/api/v1/memories/:id", (context) => memories.get(context));
+  router.add("POST", "/api/v1/memories/:id/view", (context) => memories.view(context));
   router.add("PATCH", "/api/v1/memories/:id", (context) => memories.update(context));
   router.add("DELETE", "/api/v1/memories/:id", (context) => memories.archive(context));
   router.add("GET", "/api/v1/search", (context) => search.search(context));

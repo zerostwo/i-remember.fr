@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added persistent Memory view counts and one-level grouped Footer Menu items.
+
+### Changed
+
+- Moved Memory editing to `/admin/memory/editor`, made long-form expansion
+  automatic, and split Settings into Site, Account, and Security tabs.
+- Made published Pages create and maintain their linked long-form Memory.
+
+### Fixed
+
+- Removed Untitled placeholder memories from the public galaxy and replaced the
+  static fade value with recent published-memory activity.
+- Moved 2FA password confirmation into the Security workflow and made all
+  archive footer controls managed menu records.
+
 ## [0.1.5] - 2026-07-10
 
 ### Fixed

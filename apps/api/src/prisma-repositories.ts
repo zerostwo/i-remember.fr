@@ -92,6 +92,7 @@ function memory(row: any): MemoryRecord {
     aiSummary: row.aiSummary,
     knowledgeGraph:
       row.knowledgeGraph && typeof row.knowledgeGraph === "object" ? row.knowledgeGraph : null,
+    viewCount: Number(row.viewCount || 0),
     attachments: (row.attachments || []).map((attachment: any) => ({
       id: attachment.id,
       memoryId: attachment.memoryId,
@@ -290,6 +291,20 @@ export class PrismaMemoryRepository implements MemoryRepository {
             : undefined,
           tags: input.tags?.length ? { create: tagCreates(input.tags) } : undefined,
         },
+        include: memoryInclude,
+      }),
+    );
+  }
+
+  async incrementView(id: string) {
+    const existing = await this.get(id);
+    if (!existing || existing.status !== "NORMAL" || existing.visibility !== "PUBLIC") {
+      throw new ApiError(404, "Memory not found", "not_found");
+    }
+    return memory(
+      await this.db.memory.update({
+        where: { id: existing.id },
+        data: { viewCount: { increment: 1 } },
         include: memoryInclude,
       }),
     );

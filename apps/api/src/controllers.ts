@@ -76,6 +76,7 @@ function memoryDto(memory: MemoryRecord, includePrivate = false) {
     embedding: memory.embedding || null,
     aiSummary: memory.aiSummary || null,
     knowledgeGraph: memory.knowledgeGraph || null,
+    viewCount: memory.viewCount,
   };
 }
 
@@ -208,6 +209,11 @@ export class MemoryController {
     const data = await this.memories.create(input);
     context.res.statusCode = 201;
     return { success: true, data: memoryDto(data, includePrivate) };
+  }
+
+  async view(context: RequestContext) {
+    const data = await this.memories.view(context.params.id);
+    return { success: true, data: memoryDto(data) };
   }
 
   async update(context: RequestContext) {

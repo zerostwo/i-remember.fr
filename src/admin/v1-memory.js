@@ -41,7 +41,7 @@ function memoryMetadata(memory = {}) {
     ...custom,
     language: memory.language,
     source: memory.source || "admin",
-    isLongForm: Boolean(memory.isLongForm || memory.is_long_form),
+    isLongForm: String(memory.bodyMarkdown || memory.body_markdown || memory.content || memory.text || "").length > 220,
     imageKey: memory.imageKey,
   };
 }
@@ -53,8 +53,8 @@ export function v1MemoryPayload(memory = {}) {
   );
   return {
     ...(publicId ? { publicId } : {}),
-    title: String(memory.title || memory.author || "Untitled memory"),
-    content: content || "Untitled memory",
+    title: String(memory.title || "").trim(),
+    content: content.trim(),
     authorName: String(memory.authorName || memory.author || memory.name || "I Remember"),
     visibility: "PUBLIC",
     status: v1Status(memory.dbStatus || memory.status),

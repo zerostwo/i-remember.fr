@@ -11,6 +11,7 @@ const v1SubmittedId = "m22222222222222222222";
 const v1MenuId = "menu-v1-about";
 const v1CreateBodies = [];
 const v1CreatedMemories = [];
+let v1ViewCount = 0;
 async function freePort() {
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -50,7 +51,11 @@ const upstream = createServer(async (req, res) => {
     );
     return;
   }
-  if (req.method === "GET" && req.url === `/api/v1/memories/${v1PublicId}`) {
+  if (
+    (req.method === "GET" && req.url === `/api/v1/memories/${v1PublicId}`) ||
+    (req.method === "POST" && req.url === `/api/v1/memories/${v1PublicId}/view`)
+  ) {
+    if (req.method === "POST") v1ViewCount += 1;
     res.end(
       JSON.stringify({
         success: true,
@@ -67,6 +72,7 @@ const upstream = createServer(async (req, res) => {
           attachments: [],
           createdAt: "2026-07-09T00:00:00.000Z",
           updatedAt: "2026-07-09T00:00:00.000Z",
+          viewCount: v1ViewCount,
         },
       }),
     );
@@ -261,6 +267,7 @@ try {
   const chineseV1PublicMemoryHtml = await chineseV1PublicMemoryResponse.text();
   assert.match(chineseV1PublicMemoryHtml, /var LANG = 'zh';/);
   assert.match(chineseV1PublicMemoryHtml, new RegExp(`"public_id":"${v1PublicId}"`));
+  assert.equal(v1ViewCount, 3);
 
   const publicSubmissionResponse = await fetch(`${baseUrl}/api/post`, {
     method: "POST",

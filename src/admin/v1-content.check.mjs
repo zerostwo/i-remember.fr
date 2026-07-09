@@ -24,12 +24,15 @@ assert.equal(v1PageMemory({
   metadataJson: "{\"footer\":true}",
 }).metadata.footer, true);
 assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "PUBLISHED" }).publicId, "m00000000000000009002");
+assert.equal(v1PageMemory({ linkedMemoryId: "m00000000000000009003", status: "PUBLISHED" }).publicId, "m00000000000000009003");
 assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "PUBLISHED" }).legacyId, undefined);
 assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "PUBLISHED" }).dbStatus, "NORMAL");
 assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "DRAFT" }).dbStatus, "ARCHIVED");
 assert.equal(v1PageMemory({}), null);
 
 assert.equal(v1MenuItemPayload({ id: 2, label: "About", type: "PAGE" }).uid, "menu-2");
+assert.equal(v1MenuItemPayload({ id: 3, label: "More", type: "GROUP" }).type, "GROUP");
+assert.equal(v1MenuItemPayload({ id: 4, label: "About", parentId: "group-1" }).metadata.parentId, "group-1");
 assert.equal(v1SettingsPayload({ defaultLanguage: "zh", tracking: { enabled: true } }).defaultLanguage, "zh");
 
 const calls = [];

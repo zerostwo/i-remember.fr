@@ -45,22 +45,30 @@ import type {
 } from "./repositories.js";
 import { ApiError } from "./errors.js";
 
+function isRealPublicMemory(memory: MemoryRecord | null) {
+  if (!memory || memory.status !== "NORMAL" || memory.visibility !== "PUBLIC") return false;
+  const content = memory.content.trim();
+  return Boolean(content) && !/^#?\s*untitled memor(?:y|oy)\b/i.test(content) && !/^untitled memor(?:y|oy)$/i.test(memory.title.trim());
+}
+
 export class MemoryService {
   constructor(private readonly memories: MemoryRepository) {}
 
-  list(principal: Principal, query: MemoryListQuery) {
+  async list(principal: Principal, query: MemoryListQuery) {
     if (
       (query.status && query.status !== "NORMAL") ||
       (query.visibility && query.visibility !== "PUBLIC")
     ) {
       requireRole(principal, ["ADMIN"]);
     }
-    return this.memories.list(query);
+    const memories = await this.memories.list(query);
+    return principal.role === "ANONYMOUS" ? memories.filter(isRealPublicMemory) : memories;
   }
 
   async get(principal: Principal, id: string) {
     const memory = await this.memories.get(id);
     if (!memory) return null;
+    if (principal.role === "ANONYMOUS" && !isRealPublicMemory(memory)) return null;
     if (memory.status !== "NORMAL" || memory.visibility !== "PUBLIC") {
       requireRole(principal, ["ADMIN"]);
     }
@@ -69,6 +77,13 @@ export class MemoryService {
 
   create(input: MemoryInput) {
     return this.memories.create(input);
+  }
+
+  async view(id: string) {
+    if (!isRealPublicMemory(await this.memories.get(id))) {
+      throw new ApiError(404, "Memory not found", "not_found");
+    }
+    return this.memories.incrementView(id);
   }
 
   update(principal: Principal, id: string, input: MemoryUpdateInput) {

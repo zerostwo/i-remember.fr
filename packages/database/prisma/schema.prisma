@@ -43,9 +43,13 @@ enum MenuItemType {
   MEMORY
   SEARCH
   EXTERNAL
+  GROUP
   TERMS
   CREDITS
   LANGUAGE
+  SOUND
+  SHARE
+  LOGO
 }
 
 model User {
@@ -80,6 +84,7 @@ model Memory {
   embedding      Json?
   aiSummary      String?      @map("ai_summary")
   knowledgeGraph Json?        @map("knowledge_graph")
+  viewCount      Int          @default(0) @map("view_count")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   author         User?        @relation("MemoryAuthor", fields: [authorId], references: [id])

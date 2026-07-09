@@ -54,7 +54,7 @@ import {
   TabsTrigger,
   Textarea,
 } from "@i-remember/ui";
-import { MemoryGalaxy } from "@i-remember/memory-engine";
+import { MemoryGalaxy, memoryFadePercent } from "@i-remember/memory-engine";
 import { cn } from "@/lib/utils";
 import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload } from "./v1-assets.js";
 import { deleteV1MenuItem, syncV1MenuItem, syncV1Page, syncV1Settings, v1PageMemory } from "./v1-content.js";
@@ -65,6 +65,7 @@ const MarkdownEditor = lazy(() => import("./MarkdownEditor.jsx"));
 const routes = [
   { id: "dashboard", label: "Dashboard", title: "Today in the archive", group: "Overview", icon: Home },
   { id: "memory", label: "Memory", title: "Memory", group: "Content management", icon: Archive },
+  { id: "memory-editor", label: "Memory editor", title: "Memory editor", group: "Content management", icon: Archive, hidden: true },
   { id: "pages", label: "Pages", title: "Pages", group: "Content management", icon: FileText },
   { id: "comments", label: "Comments", title: "Comments", group: "Content management", icon: MessageSquare },
   { id: "attachments", label: "Attachments", title: "Attachments", group: "Content management", icon: ImageIcon },
@@ -76,12 +77,13 @@ const routes = [
 
 const routeMap = new Map(routes.map((route) => [route.id, route]));
 const groupedRoutes = routes.reduce((groups, route) => {
+  if (route.hidden) return groups;
   if (!groups.has(route.group)) groups.set(route.group, []);
   groups.get(route.group).push(route);
   return groups;
 }, new Map());
 
-const menuTypes = ["PAGE", "MEMORY", "SEARCH", "EXTERNAL"];
+const menuTypes = ["PAGE", "MEMORY", "SEARCH", "EXTERNAL", "GROUP", "TERMS", "CREDITS", "LANGUAGE", "SOUND", "SHARE", "LOGO"];
 const pageStatuses = ["PUBLISHED", "DRAFT", "ARCHIVED"];
 const memoryStatuses = ["published", "pending", "archived"];
 const v1TokenKey = "i-remember:v1-admin-token";
@@ -96,6 +98,7 @@ function normalizeRouteId(value = "") {
 function routeFromPathname(pathname = window.location.pathname) {
   const normalized = pathname.replace(/\/+$/g, "") || "/admin";
   if (normalized === "/admin" || normalized === "/admin/index.html") return "dashboard";
+  if (normalized === "/admin/memory/editor") return "memory-editor";
   if (!normalized.startsWith("/admin/")) return "dashboard";
   return normalizeRouteId(normalized.slice("/admin/".length));
 }
@@ -106,6 +109,10 @@ function routeFromLocation() {
 
 function pathForRoute(routeId) {
   return `/admin/${normalizeRouteId(routeId)}`;
+}
+
+function memoryIdFromLocation() {
+  return new URLSearchParams(window.location.search).get("id") || null;
 }
 
 async function api(path, options = {}) {
@@ -188,10 +195,13 @@ function v1MemoryAdmin(memory = {}) {
     source: metadata.source || "v1",
     imageKey,
     imageUrl,
-    isLongForm: Boolean(metadata.isLongForm),
+    isLongForm: String(memory.content || "").length > 220,
     metadata: metadata,
     metadataJson: metadataJson(metadata),
     publicUrl: `/memory/${memory.id}`,
+    viewCount: Number(memory.viewCount || 0),
+    createdAt: memory.createdAt || "",
+    updatedAt: memory.updatedAt || "",
   };
 }
 
@@ -205,6 +215,7 @@ function v1PageAdmin(page = {}) {
 function v1MenuAdmin(item = {}) {
   return {
     ...item,
+    parentId: String(item.metadata?.parentId || ""),
     metadataJson: metadataJson(item.metadata),
   };
 }
@@ -495,7 +506,7 @@ export function AdminApp() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [memoryFilter, setMemoryFilter] = useState("all");
-  const [selectedMemoryId, setSelectedMemoryId] = useState(null);
+  const [selectedMemoryId, setSelectedMemoryId] = useState(memoryIdFromLocation);
   const [selectedPageSlug, setSelectedPageSlug] = useState("");
   const [selectedMenuId, setSelectedMenuId] = useState(null);
 
@@ -528,9 +539,11 @@ export function AdminApp() {
     try {
       const payload = await v1Bootstrap();
       setData(payload);
-      setSelectedMemoryId((current) => (
-        payload.memories.some((memory) => memory.id === current) ? current : payload.memories[0]?.id || null
-      ));
+      setSelectedMemoryId((current) => {
+        const requested = memoryIdFromLocation();
+        if (requested && payload.memories.some((memory) => memory.id === requested)) return requested;
+        return payload.memories.some((memory) => memory.id === current) ? current : null;
+      });
       setSelectedPageSlug((current) => (
         payload.pages.some((page) => page.slug === current) ? current : payload.pages[0]?.slug || ""
       ));
@@ -628,23 +641,22 @@ export function AdminApp() {
     await runAction("Memory saved", async () => {
       const saved = await syncV1Memory(v1Api, payload);
       setSelectedMemoryId(saved?.id || id);
+      window.history.replaceState({ route: "memory-editor" }, "", `/admin/memory/editor?id=${encodeURIComponent(saved?.id || id)}`);
+      setRoute("memory-editor");
       await refreshData();
     });
   }
 
-  async function createMemory() {
-    await runAction("Memory created", async () => {
-      const saved = await syncV1Memory(v1Api, {
-        title: "Untitled memory",
-        author: "I Remember",
-        excerpt: "A new editable memory.",
-        status: "published",
-        isLongForm: true,
-        bodyMarkdown: "# Untitled memory\n\nWrite this memory in Markdown.",
-      });
-      setSelectedMemoryId(saved?.id || null);
-      await refreshData();
-    });
+  function createMemory() {
+    setSelectedMemoryId(null);
+    window.history.pushState({ route: "memory-editor" }, "", "/admin/memory/editor?new=1");
+    setRoute("memory-editor");
+  }
+
+  function editMemory(id, section = "content") {
+    setSelectedMemoryId(id);
+    window.history.pushState({ route: "memory-editor" }, "", `/admin/memory/editor?id=${encodeURIComponent(id)}&section=${encodeURIComponent(section)}`);
+    setRoute("memory-editor");
   }
 
   async function deleteMemory(id) {
@@ -682,9 +694,23 @@ export function AdminApp() {
 
   async function savePage(slug, payload) {
     await runAction("Page saved", async () => {
-      const saved = await syncV1Page(v1Api, { ...payload, originalSlug: slug });
-      const pageMemory = v1PageMemory(saved);
-      if (pageMemory) await syncV1Memory(v1Api, pageMemory).catch(() => null);
+      let saved = await syncV1Page(v1Api, { ...payload, originalSlug: slug });
+      let pageMemory = v1PageMemory(saved);
+      if (!pageMemory && saved.status === "PUBLISHED") {
+        const memory = await syncV1Memory(v1Api, {
+          language: saved.language,
+          source: "page",
+          title: saved.title,
+          author: "I Remember",
+          excerpt: saved.excerpt,
+          bodyMarkdown: saved.bodyMarkdown,
+          status: "published",
+          tags: [saved.slug, "page", "memory"],
+        });
+        saved = await syncV1Page(v1Api, { ...saved, originalSlug: saved.slug, linkedMemoryId: memory.id });
+        pageMemory = v1PageMemory(saved);
+      }
+      if (pageMemory) await syncV1Memory(v1Api, pageMemory);
       setSelectedPageSlug(saved.slug);
       await refreshData();
     });
@@ -866,7 +892,7 @@ export function AdminApp() {
   return (
     <main className="i-remember-admin dark min-h-screen bg-background text-foreground">
       <div className="grid min-h-screen lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <AdminSidebar route={route} navigate={navigate} />
+        <AdminSidebar route={route} navigate={navigate} fadePercent={memoryFadePercent(data?.memories || [])} />
         <section className="min-w-0">
           <header className="sticky top-0 z-20 border-b bg-background/90 px-4 py-3 backdrop-blur md:px-6">
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -912,6 +938,7 @@ export function AdminApp() {
                 selectedMenuId={selectedMenuId}
                 setSelectedMenuId={setSelectedMenuId}
                 createMemory={createMemory}
+                editMemory={editMemory}
                 saveMemory={saveMemory}
                 deleteMemory={deleteMemory}
                 uploadAttachment={uploadAttachment}
@@ -969,8 +996,8 @@ function LoginScreen({ loading, onLogin }) {
           </div>
           <div className="grid gap-4">
             <div className="fade-ring">
-              <strong>13%</strong>
-              <span>fade from memories</span>
+              <strong>--</strong>
+              <span>calculated after login</span>
             </div>
             <p className="max-w-md text-sm leading-6 text-muted-foreground">
               Manage memories, pages, footer menus, tracking, backups, and the anonymous public submission flow.
@@ -1069,7 +1096,7 @@ function SetupScreen({ loading, onSetup }) {
   );
 }
 
-function AdminSidebar({ route, navigate }) {
+function AdminSidebar({ route, navigate, fadePercent }) {
   return (
     <aside className="hidden border-r bg-card/55 px-5 py-6 lg:block">
       <div className="sticky top-6">
@@ -1078,7 +1105,7 @@ function AdminSidebar({ route, navigate }) {
           <span className="mt-1 block text-xs text-muted-foreground">admin archive</span>
         </button>
         <div className="fade-ring mb-7">
-          <strong>13%</strong>
+          <strong>{fadePercent}%</strong>
           <span>fade from memories</span>
         </div>
         <nav className="grid gap-5" aria-label="Admin sections">
@@ -1149,6 +1176,8 @@ function AdminRoute(props) {
   switch (props.route) {
     case "memory":
       return <MemoryView {...props} />;
+    case "memory-editor":
+      return <MemoryEditorView {...props} />;
     case "pages":
       return <PagesView {...props} />;
     case "comments":
@@ -1283,11 +1312,8 @@ function MemoryView({
   search,
   memoryFilter,
   setMemoryFilter,
-  selectedMemoryId,
-  setSelectedMemoryId,
   createMemory,
-  saveMemory,
-  deleteMemory,
+  editMemory,
 }) {
   const [page, setPage] = useState(1);
   const memories = data.memories || [];
@@ -1302,14 +1328,13 @@ function MemoryView({
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const selected = memories.find((memory) => memory.id === selectedMemoryId) || pageItems[0] || filtered[0];
 
   useEffect(() => {
     setPage(1);
   }, [search, memoryFilter]);
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(360px,0.75fr)_minmax(560px,1.25fr)]">
+    <div className="grid gap-5">
       <Card className="rounded-lg">
         <CardHeader>
           <CardTitle>Memory</CardTitle>
@@ -1335,23 +1360,35 @@ function MemoryView({
               <TableRow>
                 <TableHead>Memory</TableHead>
                 <TableHead>Author</TableHead>
+                <TableHead>Views</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Type</TableHead>
+                <TableHead>Published</TableHead>
+                <TableHead className="text-right">More</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pageItems.map((memory) => (
                 <TableRow
                   key={memory.id}
-                  className={cn("cursor-pointer", selected?.id === memory.id && "bg-muted/60")}
-                  onClick={() => setSelectedMemoryId(memory.id)}
                 >
                   <TableCell className="min-w-72">
                     <MemoryListItem memory={memory} compact />
                   </TableCell>
                   <TableCell>{memory.author}</TableCell>
+                  <TableCell>{memory.viewCount || 0}</TableCell>
                   <TableCell><StatusBadge value={memory.status} /></TableCell>
-                  <TableCell className="text-right text-muted-foreground">{memory.isLongForm ? "Long" : "Short"}</TableCell>
+                  <TableCell className="text-muted-foreground">{memory.createdAt ? new Date(memory.createdAt).toLocaleDateString() : "--"}</TableCell>
+                  <TableCell className="text-right">
+                    <details className="relative inline-block text-left">
+                      <summary className="cursor-pointer list-none rounded-md border px-3 py-1.5 text-xs">More</summary>
+                      <div className="absolute right-0 z-10 mt-1 grid min-w-36 gap-1 rounded-md border bg-popover p-1 shadow-lg">
+                        <button className="rounded px-2 py-1.5 text-left text-sm hover:bg-muted" type="button" onClick={() => editMemory(memory.id)}>Edit</button>
+                        <button className="rounded px-2 py-1.5 text-left text-sm hover:bg-muted" type="button" onClick={() => editMemory(memory.id, "settings")}>Settings</button>
+                        <button className="rounded px-2 py-1.5 text-left text-sm hover:bg-muted" type="button" onClick={() => navigator.clipboard?.writeText(`${window.location.origin}${memory.publicUrl}`)}>Copy share link</button>
+                        <a className="rounded px-2 py-1.5 text-sm hover:bg-muted" href={memory.publicUrl} target="_blank" rel="noreferrer">Open public</a>
+                      </div>
+                    </details>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1371,9 +1408,25 @@ function MemoryView({
           </div>
         </CardContent>
       </Card>
-      <MemoryEditor memory={selected} onSave={saveMemory} onDelete={deleteMemory} />
     </div>
   );
+}
+
+function MemoryEditorView({ data, selectedMemoryId, saveMemory, deleteMemory, navigate }) {
+  const memory = (data.memories || []).find((item) => item.id === selectedMemoryId);
+  const isNew = !selectedMemoryId;
+  const draft = memory || (isNew ? {
+    id: null,
+    title: "",
+    author: "I Remember",
+    excerpt: "",
+    bodyMarkdown: "",
+    status: "published",
+    imageKey: "",
+    metadataJson: "{}",
+    publicUrl: "",
+  } : null);
+  return <MemoryEditor memory={draft} isNew={isNew} onSave={saveMemory} onDelete={deleteMemory} navigate={navigate} />;
 }
 
 function MemoryListItem({ memory, compact = false }) {
@@ -1394,7 +1447,7 @@ function MemoryListItem({ memory, compact = false }) {
   );
 }
 
-function MemoryEditor({ memory, onSave, onDelete }) {
+function MemoryEditor({ memory, isNew = false, onSave, onDelete, navigate }) {
   const [draft, setDraft] = useState(null);
 
   useEffect(() => {
@@ -1414,8 +1467,8 @@ function MemoryEditor({ memory, onSave, onDelete }) {
   return (
     <Card className="rounded-lg">
       <CardHeader>
-        <CardTitle>Edit Memory</CardTitle>
-        <CardDescription>Long entries will expose Read more on public cards.</CardDescription>
+        <CardTitle>{isNew ? "New Memory" : "Edit Memory"}</CardTitle>
+        <CardDescription>Content beyond the public card preview automatically exposes “Explore this memory”.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="grid gap-5" onSubmit={(event) => {
@@ -1436,12 +1489,6 @@ function MemoryEditor({ memory, onSave, onDelete }) {
               </Field>
               <TextField label="Image key" value={draft.imageKey} onChange={(value) => update("imageKey", value)} />
             </div>
-            <ToggleField
-              label="Long-form Memory"
-              description="Show a short card first and allow Read more on public cards."
-              checked={Boolean(draft.isLongForm)}
-              onCheckedChange={(value) => update("isLongForm", value)}
-            />
             <TextareaField
               label="Metadata JSON"
               value={draft.metadataJson}
@@ -1453,7 +1500,7 @@ function MemoryEditor({ memory, onSave, onDelete }) {
               description="Use source mode for raw Markdown when writing long-form memories."
               value={draft.bodyMarkdown}
               onChange={(value) => update("bodyMarkdown", value)}
-              editorKey={memory.id}
+              editorKey={memory.id || "new-memory"}
             />
             <MarkdownPreview value={draft.bodyMarkdown} />
           </FieldGroup>
@@ -1462,10 +1509,11 @@ function MemoryEditor({ memory, onSave, onDelete }) {
               <Save data-icon="inline-start" />
               Save memory
             </Button>
-            <Button type="button" variant="outline" onClick={() => onDelete(memory.id)} disabled={draft.status === "archived"}>
+            <Button type="button" variant="outline" onClick={() => navigate("memory")}>Back to list</Button>
+            {!isNew ? <Button type="button" variant="outline" onClick={() => onDelete(memory.id)} disabled={draft.status === "archived"}>
               <Trash2 data-icon="inline-start" />
               Archive memory
-            </Button>
+            </Button> : null}
             {draft.publicUrl ? (
               <Button variant="outline" asChild>
                 <a href={draft.publicUrl} target="_blank" rel="noreferrer">
@@ -1621,12 +1669,12 @@ function MenusView({ data, search, selectedMenuId, setSelectedMenuId, createMenu
           ))}
         </CardContent>
       </Card>
-      <MenuEditor item={selected} pages={data.pages || []} onSave={saveMenuItem} onDelete={deleteMenuItem} />
+      <MenuEditor item={selected} pages={data.pages || []} menu={menu} onSave={saveMenuItem} onDelete={deleteMenuItem} />
     </div>
   );
 }
 
-function MenuEditor({ item, pages, onSave, onDelete }) {
+function MenuEditor({ item, pages, menu, onSave, onDelete }) {
   const [draft, setDraft] = useState(null);
 
   useEffect(() => {
@@ -1655,6 +1703,13 @@ function MenuEditor({ item, pages, onSave, onDelete }) {
     value: page.slug,
     label: `${page.title || page.slug} /${page.slug}`,
   }));
+  const groupOptions = [
+    { value: "none", label: "Top level" },
+    ...menu.filter((candidate) => candidate.type === "GROUP" && candidate.id !== item.id).map((candidate) => ({
+      value: candidate.id,
+      label: candidate.label,
+    })),
+  ];
 
   return (
     <Card className="rounded-lg">
@@ -1699,6 +1754,17 @@ function MenuEditor({ item, pages, onSave, onDelete }) {
               )}
             </div>
             <TextField label="External URL" value={draft.url} onChange={(value) => update("url", value)} placeholder="https://..." />
+            {draft.type !== "GROUP" ? (
+              <Field>
+                <FieldLabel>Parent group</FieldLabel>
+                <AdminSelect
+                  value={draft.parentId || "none"}
+                  onValueChange={(value) => update("parentId", value === "none" ? "" : value)}
+                  options={groupOptions}
+                />
+                <FieldDescription>One submenu level only. Groups cannot be nested.</FieldDescription>
+              </Field>
+            ) : null}
             <ToggleField label="Visible" description="Show in the public lower-right footer." checked={Boolean(draft.isVisible)} onCheckedChange={(value) => update("isVisible", value)} />
             <ToggleField label="Open in new tab" description="Applies to external links." checked={Boolean(draft.opensNewTab)} onCheckedChange={(value) => update("opensNewTab", value)} />
           </FieldGroup>
@@ -1904,6 +1970,8 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [disableCode, setDisableCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState([]);
+  const [settingsTab, setSettingsTab] = useState("site");
+  const [securityPassword, setSecurityPassword] = useState("");
 
   useEffect(() => {
     setSiteDraft({
@@ -1926,8 +1994,15 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
   const updateAccount = (key, value) => setAccountDraft((current) => ({ ...current, [key]: value }));
 
   return (
-    <div className="grid gap-5 xl:grid-cols-2">
-      <Card className="rounded-lg">
+    <div className="grid gap-5">
+      <Tabs value={settingsTab} onValueChange={setSettingsTab}>
+        <TabsList>
+          <TabsTrigger value="site">Site</TabsTrigger>
+          <TabsTrigger value="account">Account</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {settingsTab === "site" ? <Card className="rounded-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Languages className="size-4 text-muted-foreground" />
@@ -1975,9 +2050,9 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
             </Button>
           </form>
         </CardContent>
-      </Card>
+      </Card> : null}
 
-      <Card className="rounded-lg">
+      {settingsTab === "account" ? <Card className="rounded-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-muted-foreground" />
@@ -2004,9 +2079,9 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
             </Button>
           </form>
         </CardContent>
-      </Card>
+      </Card> : null}
 
-      <Card className="rounded-lg xl:col-span-2">
+      {settingsTab === "security" ? <Card className="rounded-lg">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-muted-foreground" />
@@ -2035,11 +2110,20 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
             </form>
           ) : (
             <div className="grid gap-4">
+              <TextField
+                label="Current password"
+                description="Confirm your identity for this security change."
+                value={securityPassword}
+                onChange={setSecurityPassword}
+                type="password"
+                autoComplete="current-password"
+              />
               <Button className="w-fit" variant="outline" type="button" onClick={async () => {
-                const setup = await setupTwoFactor({ currentPassword: accountDraft.currentPassword });
+                const setup = await setupTwoFactor({ currentPassword: securityPassword });
                 if (setup) {
                   setTwoFactor(setup);
                   setRecoveryCodes([]);
+                  setSecurityPassword("");
                 }
               }}>
                 Start 2FA setup
@@ -2097,7 +2181,7 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
             </div>
           ) : null}
         </CardContent>
-      </Card>
+      </Card> : null}
     </div>
   );
 }

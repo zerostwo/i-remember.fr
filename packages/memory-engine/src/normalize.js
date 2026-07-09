@@ -46,7 +46,7 @@ function runtimePostId(index = 0) {
 
 export function normalizeGalaxyMemory(memory = {}) {
   const id = firstText(memory.publicId, memory.public_id, memory.uid, memory.id);
-  const title = firstText(memory.title, memory.name, "Untitled memory");
+  const title = firstText(memory.title, memory.name);
   const content = firstText(memory.content, memory.bodyMarkdown, memory.body_markdown, memory.text);
   const excerpt = firstText(memory.excerpt, content.slice(0, 220));
   const imageUrl = firstText(
@@ -69,6 +69,8 @@ export function normalizeGalaxyMemory(memory = {}) {
     latitude: optionalNumber(memory.latitude ?? memory.lat),
     longitude: optionalNumber(memory.longitude ?? memory.lng ?? memory.lon),
     createdAt: firstText(memory.createdAt, memory.created_at),
+    status: firstText(memory.status, memory.dbStatus).toUpperCase(),
+    visibility: firstText(memory.visibility).toUpperCase(),
     metadata:
       memory.metadata && typeof memory.metadata === "object" && !Array.isArray(memory.metadata)
         ? memory.metadata
@@ -83,7 +85,11 @@ export function normalizeGalaxyMemories(memories = []) {
   for (const memory of memories || []) {
     const next = normalizeGalaxyMemory(memory);
     const identity = firstText(next.publicId, next.id);
-    if (!identity || seen.has(identity)) continue;
+    const hasContent = Boolean(firstText(next.content, next.excerpt));
+    const isPlaceholder = /^#?\s*untitled memor(?:y|oy)\b/i.test(next.content) || /^untitled memor(?:y|oy)$/i.test(next.title);
+    const isPublished = !next.status || ["NORMAL", "PUBLISHED"].includes(next.status);
+    const isPublic = !next.visibility || next.visibility === "PUBLIC";
+    if (!identity || !hasContent || isPlaceholder || !isPublished || !isPublic || seen.has(identity)) continue;
     seen.add(identity);
     normalized.push(next);
   }
@@ -95,6 +101,7 @@ export function normalizeGalaxyPost(memory = {}, index = 0) {
   const next = normalizeGalaxyMemory(memory);
   const postId = runtimePostId(index);
   const image = imageKey(next.imageUrl);
+  const isLongForm = next.content.length > 220;
 
   return {
     id: String(postId),
@@ -105,11 +112,11 @@ export function normalizeGalaxyPost(memory = {}, index = 0) {
     img: image,
     img_offset_x: "0",
     img_offset_y: "0",
-    text: htmlText(next.content || next.excerpt || ""),
+    text: htmlText(isLongForm ? next.excerpt || next.content.slice(0, 220) : next.content || next.excerpt || ""),
     excerpt: htmlText(next.excerpt || next.content || ""),
     body_markdown: next.content || "",
     body_html: `<p>${htmlText(next.content || next.excerpt || "")}</p>`,
-    is_long_form: next.content && next.content.length > next.excerpt.length ? "1" : "0",
+    is_long_form: isLongForm ? "1" : "0",
     resized_img_width: "600",
     resized_img_height: "600",
     latitude: next.latitude,
@@ -123,4 +130,19 @@ export function normalizeGalaxyPost(memory = {}, index = 0) {
 
 export function normalizeGalaxyPosts(memories = []) {
   return normalizeGalaxyMemories(memories).map(normalizeGalaxyPost);
+}
+
+export function memoryFadePercent(memories = [], now = Date.now()) {
+  const published = normalizeGalaxyMemories(memories);
+  if (!published.length) return 100;
+
+  const month = 30 * 24 * 60 * 60 * 1000;
+  const timestamps = published
+    .map((memory) => new Date(memory.createdAt).getTime())
+    .filter(Number.isFinite);
+  const recentCount = timestamps.filter((timestamp) => now - timestamp <= month).length;
+  const latest = timestamps.length ? Math.max(...timestamps) : 0;
+  const freshness = latest ? Math.max(0, 1 - (now - latest) / month) : 0;
+  const activity = Math.min(1, recentCount / 30);
+  return Math.round(75 * (1 - activity * 0.65 - freshness * 0.35));
 }

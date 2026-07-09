@@ -37,6 +37,7 @@ export interface MemoryRepository {
   list(query: MemoryListQuery): Promise<MemoryRecord[]>;
   count(query: MemoryListQuery): Promise<number>;
   get(id: string): Promise<MemoryRecord | null>;
+  incrementView(id: string): Promise<MemoryRecord>;
   create(input: MemoryInput): Promise<MemoryRecord>;
   update(id: string, input: MemoryUpdateInput): Promise<MemoryRecord>;
   archive(id: string): Promise<MemoryRecord>;

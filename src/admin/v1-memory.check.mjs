@@ -18,8 +18,12 @@ assert.equal(payload.legacyId, undefined);
 assert.equal(payload.status, "NORMAL");
 assert.equal(payload.metadata.mood, "quiet");
 assert.equal(payload.metadata.imageKey, "photo-1");
+assert.equal(payload.metadata.isLongForm, false);
 assert.deepEqual(payload.tags, ["Paris", "Archive"]);
 assert.equal(payload.attachments[0].url, "/uploads/posts/photo-1/resized.jpg");
+assert.equal(v1MemoryPayload({}).title, "");
+assert.equal(v1MemoryPayload({}).content, "");
+assert.equal(v1MemoryPayload({ title: "Long", bodyMarkdown: "x".repeat(221) }).metadata.isLongForm, true);
 
 const patchedCalls = [];
 const patched = await syncV1Memory(async (path, options = {}) => {

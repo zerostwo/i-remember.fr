@@ -1,5 +1,6 @@
 export { MemoryGalaxy } from "./MemoryGalaxy.js";
 export {
+  memoryFadePercent,
   normalizeGalaxyMemory,
   normalizeGalaxyMemories,
   normalizeGalaxyPost,

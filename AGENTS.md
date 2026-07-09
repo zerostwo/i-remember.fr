@@ -30,5 +30,10 @@ Current backend/product decisions:
 - Anonymous and admin-created memories publish immediately by default; do not require moderation unless an admin explicitly sets a non-published status.
 - Public memory particles/search results must come only from real current memories. Empty memory datasets must not fall back to bundled legacy sample posts or interactive phantom points.
 - Public search, add-memory, navigation ball, and opened memory-card layout must preserve the archive original positions and dimensions unless the user explicitly approves a visual change.
+- Treat a memory as map-interactive only when it has a real identity and non-empty content and is currently public and published; never create or render Untitled placeholder memories.
+- Compute the public fade percentage from recent real published-memory activity rather than keeping the archive's static 13% value.
+- Keep `/admin/memory` as a list-only route and use `/admin/memory/editor?id=<public-id>` for editing; determine long-form behavior automatically from content exceeding the public card preview length.
+- Footer Menu owns all public lower-right items, including built-ins; it supports one configurable `GROUP` level whose children can target pages, memories, searches, or external URLs, but children cannot contain another group.
+- Settings uses separate Site, Account, and Security tabs; 2FA identity confirmation belongs to Security and must not reuse hidden state from the Account form.
 - Do not commit generated QA artifacts, imported data snapshots, runtime database directories, SQLite files, or `db/`; SQLite runtime and migration paths are removed and must not be reintroduced.
 - After modifying this repository, create a clean ccc-style Conventional Commit before handing work back.

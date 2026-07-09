@@ -72,6 +72,7 @@ class MemoryRepo implements MemoryRepository {
       visibility: "PUBLIC",
       status: "NORMAL",
       metadata: {},
+      viewCount: 0,
       createdAt: new Date("2026-01-01T00:00:00Z"),
       updatedAt: new Date("2026-01-01T00:00:00Z"),
     },
@@ -118,6 +119,7 @@ class MemoryRepo implements MemoryRepository {
       embedding: input.embedding,
       aiSummary: input.aiSummary,
       knowledgeGraph: input.knowledgeGraph,
+      viewCount: 0,
       attachments: attachments(input.attachments, `internal-${this.memories.length + 1}`),
       tags: (input.tags || []).map(tag),
       createdAt: new Date("2026-01-02T00:00:00Z"),
@@ -131,6 +133,13 @@ class MemoryRepo implements MemoryRepository {
     const memory = await this.get(id);
     assert.ok(memory);
     Object.assign(memory, input, { updatedAt: new Date("2026-01-03T00:00:00Z") });
+    return memory;
+  }
+
+  async incrementView(id: string) {
+    const memory = await this.get(id);
+    assert.ok(memory);
+    memory.viewCount += 1;
     return memory;
   }
 

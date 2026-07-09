@@ -88,7 +88,8 @@
       tutorialMoveMouse: '<span class="font-italic">Use your mouse</span><br/><span>to move</span>',
       tutorialMoveTouch: '<span class="font-italic">Touch and drag</span><br/><span>to move</span>',
       tutorialZoomTouch: '<span class="font-italic">Pinch or double tap</span><br/><span>to zoom in</span>',
-      tutorialWatchTouch: '<span class="font-italic">Tap to watch</span><br/><span>a memory</span>'
+      tutorialWatchTouch: '<span class="font-italic">Tap to watch</span><br/><span>a memory</span>',
+      exploreMemory: "Explore this memory"
     },
     fr: {
       htmlLang: "fr-FR",
@@ -105,7 +106,8 @@
       tutorialMoveMouse: '<span class="font-italic">Utilisez votre souris</span><br/>pour vous <span class="font-italic">deplacer</span>',
       tutorialMoveTouch: '<span class="font-italic">Touchez et glissez</span><br/>pour vous <span class="font-italic">deplacer</span>',
       tutorialZoomTouch: '<span class="font-italic">Pincez ou touchez deux fois</span><br/><span class="font-italic">pour zoomer</span>',
-      tutorialWatchTouch: '<span class="font-italic">Touchez</span> un souvenir<br/>pour <span class="font-italic">le voir</span>'
+      tutorialWatchTouch: '<span class="font-italic">Touchez</span> un souvenir<br/>pour <span class="font-italic">le voir</span>',
+      exploreMemory: "Explorer ce souvenir"
     },
     zh: {
       htmlLang: "zh-CN",
@@ -122,7 +124,8 @@
       tutorialMoveMouse: '<span class="font-italic">移动鼠标</span><br/><span>探索回忆</span>',
       tutorialMoveTouch: '<span class="font-italic">触摸并拖动</span><br/><span>探索回忆</span>',
       tutorialZoomTouch: '<span class="font-italic">双指缩放或双击</span><br/><span>放大</span>',
-      tutorialWatchTouch: '<span class="font-italic">轻点查看</span><br/><span>一段回忆</span>'
+      tutorialWatchTouch: '<span class="font-italic">轻点查看</span><br/><span>一段回忆</span>',
+      exploreMemory: "继续探索这段回忆"
     }
   };
 
@@ -514,6 +517,7 @@
     var patched = source;
     if (patched.indexOf(marker) !== -1) patched = patched.replace(marker, replacement);
     return patched
+      .replace(/fading:87/g, "fading:(window.REVIVAL_FADING == null ? 87 : window.REVIVAL_FADING)")
       .replace(
         'e.SITE_URL=e.BASE_URL+(LANG=="fr"?"":"/"+LANG),',
         'e.SITE_URL=e.BASE_URL,'
@@ -1216,6 +1220,9 @@
     style.textContent = [
       ".footer-content[data-managed-menu='true']>.footer-link-donate:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-link-terms:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-link-credits:not(.footer-managed-item){display:none!important}",
       ".footer-content[data-managed-menu='true']>.footer-managed-item{display:block!important;float:right!important;white-space:nowrap}",
+      ".footer-content[data-managed-menu='true']>.footer-sound-btn:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-share:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-logo-wrapper:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-link-lang:not(.footer-managed-item){display:none!important}",
+      ".footer-menu-group{position:relative;cursor:pointer}.footer-menu-group-list{display:none;position:absolute;bottom:18px;right:0;min-width:150px;padding:8px 0;text-align:right}.footer-menu-group.is-open .footer-menu-group-list,.footer-menu-group:hover .footer-menu-group-list{display:grid;gap:6px}.footer-menu-group-list .footer-managed-item{display:block!important}",
+      ".revival-memory-explore{display:block;margin:18px 0 4px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:transparent;color:#fff;cursor:pointer;font:11px Helvetica,Arial,sans-serif;letter-spacing:.04em;padding:9px 14px;text-transform:uppercase}",
       ".footer[data-managed-menu='true']>.footer-link-donate:not(.footer-managed-item),.footer[data-managed-menu='true']>.footer-link-terms:not(.footer-managed-item),.footer[data-managed-menu='true']>.footer-link-credits:not(.footer-managed-item){display:none!important}",
       ".footer[data-managed-menu='true']>.footer-managed-item{display:block!important}",
       ".revival-menu-memory{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.36);pointer-events:auto}",
@@ -1275,7 +1282,18 @@
     element.setAttribute("data-menu-id", item.id);
     element.setAttribute("data-menu-type", item.type);
     element.setAttribute("data-menu-label", item.label);
+    element.setAttribute("data-managed-generated", "true");
     return element;
+  }
+
+  function footerGroupElement(item, children) {
+    var group = footerItemElement(item);
+    var list = document.createElement("div");
+    group.className += " footer-menu-group";
+    list.className = "footer-menu-group-list";
+    children.forEach(function (child) { list.appendChild(footerItemElement(child)); });
+    group.appendChild(list);
+    return group;
   }
 
   function renderManagedFooter(items) {
@@ -1283,14 +1301,22 @@
     var footer = document.querySelector(".footer-content");
     var footerShell = document.querySelector(".footer");
     var language = document.querySelector(".footer-link-lang");
-    if (!footer || !language || !items || !items.length) return;
+    if (!footer || !language || !items) return;
     footer.setAttribute("data-managed-menu", "true");
     if (footerShell) footerShell.setAttribute("data-managed-menu", "true");
 
     Array.prototype.forEach.call(
-      footer.querySelectorAll(".footer-managed-item"),
+      footer.querySelectorAll("[data-managed-generated='true']"),
       function (node) {
         node.parentNode.removeChild(node);
+      }
+    );
+
+    Array.prototype.forEach.call(
+      footer.querySelectorAll(".footer-sound-btn,.footer-share,.footer-logo-wrapper,.footer-link-lang"),
+      function (node) {
+        node.classList.remove("footer-managed-item");
+        node.style.display = "none";
       }
     );
 
@@ -1306,18 +1332,29 @@
     })[0];
     if (languageItem) {
       language.style.display = "";
+      language.classList.add("footer-managed-item");
       var text = language.querySelector(".footer-link-lang-text");
       if (text) text.textContent = languageItem.label;
     } else {
       language.style.display = "none";
     }
 
+    var fixedTypes = { SOUND: ".footer-sound-btn", SHARE: ".footer-share", LOGO: ".footer-logo-wrapper" };
+    Object.keys(fixedTypes).forEach(function (type) {
+      if (!items.some(function (item) { return item.type === type && !item.parentId; })) return;
+      Array.prototype.forEach.call(footer.querySelectorAll(fixedTypes[type]), function (node) {
+        node.style.display = "";
+        node.classList.add("footer-managed-item");
+      });
+    });
+
     var managed = items.filter(function (item) {
-      return item.type !== "LANGUAGE";
+      return ["LANGUAGE", "SOUND", "SHARE", "LOGO"].indexOf(item.type) === -1 && !item.parentId;
     });
     var anchor = language;
     for (var i = managed.length - 1; i >= 0; i -= 1) {
-      var element = footerItemElement(managed[i]);
+      var children = items.filter(function (item) { return item.parentId === managed[i].id || item.parentId === managed[i].uid; });
+      var element = managed[i].type === "GROUP" ? footerGroupElement(managed[i], children) : footerItemElement(managed[i]);
       footer.insertBefore(element, anchor.nextSibling);
       anchor = element;
     }
@@ -1839,6 +1876,76 @@
     document.documentElement.classList.add("revival-empty-memory");
   }
 
+  var activeLongMemory = null;
+  var initialMemoryMatch = String(window.location.pathname).match(/^\/memory\/([^/?#]+)/);
+  var lastViewedMemory = initialMemoryMatch ? initialMemoryMatch[1] : "";
+
+  function memoryIdFromPath(path) {
+    var parsed;
+    var match;
+    try { parsed = new URL(String(path || ""), window.location.href); } catch (error) { return ""; }
+    match = parsed.pathname.match(/^\/memory\/([^/?#]+)/);
+    return match ? match[1] : "";
+  }
+
+  function setMemoryExplore(memory) {
+    var wrapper = document.querySelector(".post-2d-message-wrapper");
+    var existing = document.querySelector(".revival-memory-explore");
+    var button;
+    if (existing) existing.parentNode.removeChild(existing);
+    activeLongMemory = null;
+    if (!wrapper || !memory || String(memory.content || "").length <= 220) return;
+    button = document.createElement("button");
+    button.type = "button";
+    button.className = "revival-memory-explore";
+    button.textContent = (uiCopy[currentLanguage()] || uiCopy.en).exploreMemory;
+    wrapper.appendChild(button);
+    activeLongMemory = {
+      title: memory.title,
+      excerpt: memory.excerpt || String(memory.content || "").slice(0, 220),
+      bodyHtml: String(memory.content || "").split(/\n{2,}/).map(function (part) {
+        return "<p>" + part.replace(/</g, "&lt;").replace(/>/g, "&gt;") + "</p>";
+      }).join(""),
+      imageUrl: memory.attachments && memory.attachments[0]
+        ? memory.attachments[0].url
+        : "/uploads/posts/revival-upload/resized.jpg",
+      publicUrl: "/memory/" + encodeURIComponent(memory.id)
+    };
+  }
+
+  function refreshMemoryRoute(path, initial) {
+    var id = memoryIdFromPath(path);
+    if (!id) {
+      lastViewedMemory = "";
+      setMemoryExplore(null);
+      return;
+    }
+    if (!initial && id !== lastViewedMemory) {
+      window.fetch("/api/v1/memories/" + encodeURIComponent(id) + "/view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        keepalive: true
+      }).catch(function () {});
+    }
+    lastViewedMemory = id;
+    fetchJson("/api/v1/memories/" + encodeURIComponent(id))
+      .then(setMemoryExplore)
+      .catch(function () {});
+  }
+
+  function installMemoryRouteObserver() {
+    ["pushState", "replaceState"].forEach(function (name) {
+      var original = window.history[name];
+      window.history[name] = function () {
+        var result = original.apply(this, arguments);
+        refreshMemoryRoute(arguments[2] || window.location.pathname, false);
+        return result;
+      };
+    });
+    refreshMemoryRoute(window.location.pathname, true);
+  }
+
   function loadManagedFooter() {
     fetchJson("/api/public/menu")
       .then(function (data) {
@@ -1852,6 +1959,7 @@
   loadManagedFooter();
   installPanelResizers();
   installTouchInteraction();
+  installMemoryRouteObserver();
   applyEmptyMemoryState();
   document.addEventListener("DOMContentLoaded", function () {
     applyLanguagePreference();
@@ -1886,6 +1994,10 @@
         event.stopPropagation();
 
         if (type === "LANGUAGE") return;
+        if (type === "GROUP") {
+          managedItem.classList.toggle("is-open");
+          return;
+        }
         if (type === "TERMS") {
           setTermsVisible(true);
           return;
@@ -1922,6 +2034,15 @@
         event.stopPropagation();
         var overlay = document.querySelector(".revival-menu-memory");
         if (overlay) overlay.classList.toggle("is-expanded");
+        return;
+      }
+
+      if (closest(event.target, ".revival-memory-explore") && activeLongMemory) {
+        event.preventDefault();
+        event.stopPropagation();
+        renderMenuMemory({ memory: activeLongMemory });
+        var longOverlay = document.querySelector(".revival-menu-memory");
+        if (longOverlay) longOverlay.classList.add("is-expanded");
         return;
       }
 

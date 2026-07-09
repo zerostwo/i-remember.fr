@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import sharp from "sharp";
+import { memoryFadePercent } from "../../packages/memory-engine/src/normalize.js";
 
 const rootUrl = new URL("../../", import.meta.url);
 const postIdOffset = 1248;
@@ -760,6 +761,7 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
   const content = String(memory?.content || "");
   const excerpt = String(memory?.excerpt || content.slice(0, 220));
   const imageKey = v1ImageKey(memory);
+  const isLongForm = content.length > 220;
   return {
     id: String(900000 - index),
     uid: String(memory?.id || memory?.publicId || `v1_memory_${index}`),
@@ -769,11 +771,12 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     img: imageKey,
     img_offset_x: "0",
     img_offset_y: "0",
-    text: htmlText(content || excerpt),
+    text: htmlText(isLongForm ? excerpt || content.slice(0, 220) : content || excerpt),
     excerpt: htmlText(excerpt || content),
     body_markdown: content,
     body_html: markdownToHtml(content || excerpt),
-    is_long_form: content.length > excerpt.length ? "1" : "0",
+    is_long_form: isLongForm ? "1" : "0",
+    view_count: Number(memory?.viewCount || 0),
     resized_img_width: "600",
     resized_img_height: "600",
     latitude: memory?.latitude ?? null,
@@ -799,6 +802,7 @@ function v1MenuItemToPublic(item = {}) {
     url: item.url || "",
     position: item.position || 0,
     opensNewTab: Boolean(item.opensNewTab),
+    parentId: String(item.metadata?.parentId || ""),
   };
 }
 
@@ -846,6 +850,7 @@ function v1MemoryToAdminMemory(memory = {}, language = "en") {
     publicUrl: publicMemoryUrl(post),
     createdAt: memory.createdAt,
     updatedAt: memory.updatedAt,
+    viewCount: Number(memory.viewCount || 0),
   };
 }
 
@@ -959,8 +964,11 @@ class RevivalBackend {
       .map((memory, index) => v1MemoryToPost(memory, index, language));
   }
 
-  async v1PublicMemory(publicId, language) {
-    const data = await this.v1Data(`/api/v1/memories/${encodeURIComponent(publicId)}`);
+  async v1PublicMemory(publicId, language, trackView = false) {
+    const path = trackView
+      ? `/api/v1/memories/${encodeURIComponent(publicId)}/view`
+      : `/api/v1/memories/${encodeURIComponent(publicId)}`;
+    const data = await this.v1Data(path, trackView ? { method: "POST", body: "{}" } : {});
     return data?.id || data?.publicId ? v1MemoryToPost(data, 0, language) : null;
   }
 
@@ -1009,7 +1017,7 @@ class RevivalBackend {
   }
 
   async directPost(publicId, language = "en") {
-    const v1Post = await this.v1PublicMemory(publicId, language);
+    const v1Post = await this.v1PublicMemory(publicId, language, true);
     if (v1Post) return v1Post;
     return null;
   }
@@ -1330,7 +1338,7 @@ async function renderAppHtml(
       posts: defaultPosts,
     },
     input: { ln: normalized },
-  });
+  }, memoryFadePercent(defaultPosts));
 
   if (!directPayload) return html;
 
@@ -1355,10 +1363,12 @@ function injectTracking(html, settings) {
   return html.includes("</head>") ? html.replace("</head>", `    ${script}\n</head>`) : `${script}\n${html}`;
 }
 
-function replaceDefaultPosts(html, payload) {
-  return html.replace(
+function replaceDefaultPosts(html, payload, fadePercent = 100) {
+  return html
+    .replace(/<span class="header-fade-percent-num">\d+<\/span>/, `<span class="header-fade-percent-num">${fadePercent}</span>`)
+    .replace(
     /var DEFAULT_POSTS = [\s\S]*?\n\s*var DEFAULT_POST =/,
-    `var DEFAULT_POSTS = ${safeScriptJson(payload)};\n    var DEFAULT_POST =`,
+    `var REVIVAL_FADING = ${100 - fadePercent};\n    var DEFAULT_POSTS = ${safeScriptJson(payload)};\n    var DEFAULT_POST =`,
   );
 }
 

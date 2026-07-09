@@ -24,6 +24,7 @@ export function normalizeGalaxyPost(
 export function normalizeGalaxyPosts(
   memories?: Array<Record<string, unknown>>,
 ): Array<Record<string, string>>;
+export function memoryFadePercent(memories?: Array<Record<string, unknown>>, now?: number): number;
 
 export function MemoryGalaxy(props: {
   memories?: Array<Record<string, unknown>>;

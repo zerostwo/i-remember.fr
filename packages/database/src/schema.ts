@@ -8,9 +8,13 @@ export const menuItemTypes = [
   "MEMORY",
   "SEARCH",
   "EXTERNAL",
+  "GROUP",
   "TERMS",
   "CREDITS",
   "LANGUAGE",
+  "SOUND",
+  "SHARE",
+  "LOGO",
 ] as const;
 
 export type Role = (typeof roles)[number];

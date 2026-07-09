@@ -4,7 +4,7 @@ export type MemoryStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
 export type CommentStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
 export type PageStatus = "PUBLISHED" | "DRAFT" | "ARCHIVED";
 export type MenuItemType =
-  "PAGE" | "MEMORY" | "SEARCH" | "EXTERNAL" | "TERMS" | "CREDITS" | "LANGUAGE";
+  "PAGE" | "MEMORY" | "SEARCH" | "EXTERNAL" | "GROUP" | "TERMS" | "CREDITS" | "LANGUAGE" | "SOUND" | "SHARE" | "LOGO";
 
 export interface Tag {
   id: string;
@@ -68,6 +68,7 @@ export interface Memory {
   embedding?: number[] | null;
   aiSummary?: string | null;
   knowledgeGraph?: Record<string, unknown> | null;
+  viewCount: number;
   attachments: Attachment[];
   tags: Tag[];
   createdAt: string;
