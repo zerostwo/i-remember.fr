@@ -14,7 +14,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./legacy": "./src/index.js"
+    }
   }
 }

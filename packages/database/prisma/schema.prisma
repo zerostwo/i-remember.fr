@@ -63,7 +63,6 @@ model User {
 model Memory {
   id             String       @id @default(cuid())
   publicId       String       @unique @map("public_id")
-  legacyId       Int?         @map("legacy_id")
   title          String
   content        String
   excerpt        String?
@@ -86,7 +85,6 @@ model Memory {
   comments       Comment[]
 
   @@index([visibility, status, createdAt])
-  @@index([legacyId])
   @@map("memories")
 }
 

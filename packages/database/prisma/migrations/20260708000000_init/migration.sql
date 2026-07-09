@@ -26,7 +26,6 @@ CREATE TABLE "users" (
 CREATE TABLE "memories" (
     "id" TEXT NOT NULL,
     "public_id" TEXT NOT NULL,
-    "legacy_id" INTEGER,
     "title" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "excerpt" TEXT,
@@ -86,9 +85,6 @@ CREATE UNIQUE INDEX "memories_public_id_key" ON "memories"("public_id");
 
 -- CreateIndex
 CREATE INDEX "memories_visibility_status_created_at_idx" ON "memories"("visibility", "status", "created_at");
-
--- CreateIndex
-CREATE INDEX "memories_legacy_id_idx" ON "memories"("legacy_id");
 
 -- CreateIndex
 CREATE INDEX "attachments_memory_id_idx" ON "attachments"("memory_id");
