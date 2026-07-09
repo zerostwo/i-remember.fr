@@ -145,16 +145,13 @@ async function v1Api(path, options = {}) {
   });
 }
 
-async function rememberV1Token(credentials) {
-  try {
-    const session = await api("/api/v1/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email: credentials.email, password: credentials.password }),
-    });
-    adminToken(session.token);
-  } catch (_error) {
-    adminToken("");
-  }
+async function rememberV1Token(credentials, options = {}) {
+  const path = options.setup ? "/api/v1/auth/setup" : "/api/v1/auth/login";
+  const session = await api(path, {
+    method: "POST",
+    body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+  });
+  adminToken(session.token);
 }
 
 function readFileAsDataUrl(file) {
@@ -447,7 +444,7 @@ export function AdminApp() {
         method: "POST",
         body: JSON.stringify(credentials),
       });
-      await rememberV1Token(credentials);
+      await rememberV1Token(credentials, { setup: true });
       setNeedsSetup(false);
       setAuthenticated(true);
       window.history.replaceState({ route: "dashboard" }, "", "/admin");

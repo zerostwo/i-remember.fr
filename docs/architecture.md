@@ -33,5 +33,6 @@ Do not redesign or rewrite these files during backend migration:
 - `public/audio/*`
 - `public/fonts/*`
 
-The legacy SQLite server path stays only to keep that archive surface working
-while the Prisma API grows behind it.
+The SQLite-backed archive runtime remains only as temporary migration plumbing
+for the unchanged public visual surface. Legacy compatibility is not a product
+requirement for this early prototype.

@@ -17,6 +17,7 @@ import type {
   PageRecord,
   PageUpdateInput,
   SettingRecord,
+  UserCreateInput,
   UserRecord,
 } from "./domain.js";
 import { ApiError } from "./errors.js";
@@ -418,6 +419,18 @@ export class PrismaUserRepository implements UserRepository {
       where: { email: { equals: email, mode: "insensitive" } } as any,
     });
     return row ? user(row) : null;
+  }
+
+  async create(input: UserCreateInput) {
+    return user(
+      await this.db.user.create({
+        data: {
+          email: input.email,
+          passwordHash: input.passwordHash,
+          role: input.role,
+        },
+      }),
+    );
   }
 }
 

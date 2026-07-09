@@ -1,6 +1,6 @@
 # I Remember Backend
 
-The backend is currently a two-layer bridge:
+The backend is currently a two-layer migration path:
 
 - The restored public archive still runs through `server.mjs`,
   `src/server/revival.js`, and SQLite so the memory galaxy visual experience
@@ -9,16 +9,17 @@ The backend is currently a two-layer bridge:
   shared packages under `packages/*`.
 
 This keeps the archive usable while the engineering foundation moves toward the
-refactor document's monorepo architecture.
+refactor document's monorepo architecture. Legacy compatibility is not a
+product requirement for this early prototype.
 
 ## Runtime Layers
 
-- Public compatibility server: `server.mjs` serves the built archive/admin app,
+- Public archive server: `server.mjs` serves the built archive/admin app,
   applies the revival middleware, proxies `/api/v1/*` to `API_BASE_URL`, and
   proxies non-legacy v1 upload URLs such as `/uploads/admin/file.jpg`.
-- Legacy compatibility backend: `src/server/revival.js` owns public archive
-  routes, admin cookie auth, SQLite migrations, image uploads, starter pages,
-  footer menu seeding, and backup export.
+- Temporary archive backend: `src/server/revival.js` owns public archive routes,
+  admin cookie auth, SQLite migrations, image uploads, starter pages, footer
+  menu seeding, and backup export until those paths move to v1.
 - Production API: `apps/api` exposes `/api/v1/*` through controller, service,
   repository, validation, auth, and storage boundaries.
 - Production database: `packages/database` owns the PostgreSQL Prisma schema,
@@ -43,15 +44,16 @@ Production state is modeled in Prisma:
 - `MenuItem`
 - `AppSetting`
 
-Legacy SQLite remains only for the restored public archive compatibility layer.
-Its migration source lives in `src/server/migrations/sqlite`.
+SQLite remains only for temporary archive runtime and import source material.
+Its migration source lives in `src/server/migrations/sqlite`; legacy URL
+compatibility should not be preserved.
 
 ## Public Safety Defaults
 
 - Anonymous public memory submission can be disabled through settings or
   `I_REMEMBER_ANONYMOUS_SUBMISSIONS=false`.
-- Legacy public submissions default to the site moderation policy controlled by
-  `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`.
+- Public archive submissions default to the site moderation policy controlled
+  by `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`.
 - v1 anonymous memory creates are accepted, but pending/private management views
   require an admin bearer token.
 - Uploads are capped by `I_REMEMBER_MAX_UPLOAD_BYTES` or

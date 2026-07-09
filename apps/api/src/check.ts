@@ -24,6 +24,7 @@ import type {
 } from "./domain.js";
 import { createApiV1Middleware } from "./index.js";
 import { serveLocalAsset } from "./static-assets.js";
+import { AuthService } from "./services.js";
 import type {
   AssetRepository,
   CommentListQuery,
@@ -168,6 +169,22 @@ class UserRepo implements UserRepository {
 
   async findByEmail(email: string) {
     return this.users.find((user) => user.email.toLowerCase() === email.toLowerCase()) || null;
+  }
+
+  async create(input: {
+    email: string;
+    passwordHash: string;
+    role: "ADMIN" | "USER" | "ANONYMOUS";
+  }) {
+    const user = {
+      id: `u${this.users.length + 1}`,
+      email: input.email,
+      passwordHash: input.passwordHash,
+      role: input.role,
+      createdAt: new Date(),
+    } satisfies UserRecord;
+    this.users.unshift(user);
+    return user;
   }
 }
 
@@ -600,6 +617,24 @@ const failedLogin = await json("/api/v1/auth/login", {
   body: JSON.stringify({ email: "admin@example.com", password: "wrong-password" }),
 });
 assert.equal(failedLogin.response.status, 401);
+
+const setupConflict = await json("/api/v1/auth/setup", {
+  method: "POST",
+  body: JSON.stringify({ email: "new-admin@example.com", password: "password123456" }),
+});
+assert.equal(setupConflict.response.status, 409);
+assert.equal(setupConflict.body.error.code, "admin_exists");
+
+const emptyUsers = new UserRepo();
+emptyUsers.users = [];
+const firstAdmin = await new AuthService(emptyUsers).setup({
+  email: "First-Admin@Example.com",
+  password: "correct horse battery staple",
+});
+assert.equal(firstAdmin.user.email, "first-admin@example.com");
+assert.equal(firstAdmin.user.role, "ADMIN");
+assert.equal(emptyUsers.users.length, 1);
+assert.equal(emptyUsers.users[0].passwordHash.startsWith("pbkdf2$210000$"), true);
 
 const userLogin = await json("/api/v1/auth/login", {
   method: "POST",

@@ -134,10 +134,7 @@ try {
   assert.match(chineseMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
 
   const numericMemoryResponse = await fetch(`${baseUrl}/memory/123456789`);
-  assert.equal(numericMemoryResponse.status, 200);
-  const numericMemoryHtml = await numericMemoryResponse.text();
-  assert.match(numericMemoryHtml, /var DEFAULT_POST = \(function \(\)/);
-  assert.doesNotMatch(numericMemoryHtml, /var DEFAULT_POST = \{"success":1/);
+  assert.equal(numericMemoryResponse.status, 404);
 
   const response = await fetch(`${baseUrl}/api/v1/memories?status=PENDING`, {
     headers: { Authorization: "Bearer proxy-test" },

@@ -11,6 +11,7 @@ export const apiRoutes = {
   menuItems: "/api/v1/menu-items",
   settings: "/api/v1/settings",
   assets: "/api/v1/assets",
+  authSetup: "/api/v1/auth/setup",
   authLogin: "/api/v1/auth/login",
 };
 

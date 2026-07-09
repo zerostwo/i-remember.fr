@@ -81,6 +81,12 @@ export type UserRecord = {
   createdAt: Date;
 };
 
+export type UserCreateInput = {
+  email: string;
+  passwordHash: string;
+  role: Role;
+};
+
 export type AssetRecord = {
   id: string;
   memoryId: string;

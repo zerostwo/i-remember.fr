@@ -2186,6 +2186,10 @@ function directPostPublicId(pathname) {
   return pathname.match(/\/memory\/([^/?#]+)/)?.[1] || "";
 }
 
+function validPublicMemoryId(value) {
+  return /^m[a-f0-9]{20}$/i.test(String(value || ""));
+}
+
 function shouldLogRequest(pathname) {
   return (
     pathname === "/healthz" ||
@@ -2720,20 +2724,26 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
     const directId = directPostPublicId(pathname);
     if (directId) {
-      const language = languageFromRequest(url, pathname, defaultLanguage);
-      const post = await backend.directPost(directId, memoryLanguage);
-      if (post) {
-        const payload = {
-          success: 1,
-          data: post,
-          input: { ln: language, id: String(numericPostId(post)) },
-        };
-        sendHtml(res, await renderAppHtml(backend, language, payload, pathname, memoryLanguage));
+      if (!validPublicMemoryId(directId)) {
+        sendStatus(res, 404, "Not found");
         return;
       }
+      const language = languageFromRequest(url, pathname, defaultLanguage);
+      const post = await backend.directPost(directId, memoryLanguage);
+      if (!post) {
+        sendStatus(res, 404, "Not found");
+        return;
+      }
+      const payload = {
+        success: 1,
+        data: post,
+        input: { ln: language, id: String(numericPostId(post)) },
+      };
+      sendHtml(res, await renderAppHtml(backend, language, payload, pathname, memoryLanguage));
+      return;
     }
 
-    if (appShellRequested(pathname) || memoryShellRequested(pathname)) {
+    if (appShellRequested(pathname)) {
       const language = languageFromRequest(url, pathname, defaultLanguage);
       sendHtml(res, await renderAppHtml(backend, language, null, pathname, memoryLanguage));
       return;

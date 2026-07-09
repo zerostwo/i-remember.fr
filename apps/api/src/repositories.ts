@@ -14,6 +14,7 @@ import type {
   PageRecord,
   PageUpdateInput,
   SettingRecord,
+  UserCreateInput,
   UserRecord,
 } from "./domain.js";
 
@@ -44,6 +45,7 @@ export interface UserRepository {
   list(): Promise<UserRecord[]>;
   count(): Promise<number>;
   findByEmail(email: string): Promise<UserRecord | null>;
+  create(input: UserCreateInput): Promise<UserRecord>;
 }
 
 export interface PageRepository {

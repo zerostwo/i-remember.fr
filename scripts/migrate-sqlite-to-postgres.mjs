@@ -33,7 +33,7 @@ function slug(value) {
 
 function publicId(value) {
   const next = String(value || "").trim();
-  return /^[A-Za-z][A-Za-z0-9]*$/.test(next) ? next : `m${randomBytes(10).toString("hex")}`;
+  return /^m[a-f0-9]{20}$/.test(next) ? next : `m${randomBytes(10).toString("hex")}`;
 }
 
 function memoryData(row) {
@@ -291,7 +291,7 @@ function summarize(rows) {
 function selfCheck() {
   const row = {
     uid: "mem_en_1",
-    public_id: "abc123",
+    public_id: "m00000000000000000001",
     legacy_id: 1,
     language_code: "en",
     name: "Ada",
@@ -304,8 +304,8 @@ function selfCheck() {
   };
   const memory = memoryData(row);
   assert.equal(memory.id, "mem_en_1");
-  assert.equal(memory.publicId, "abc123");
-  assert.match(memoryData({ ...row, public_id: "12345" }).publicId, /^m[a-f0-9]{20}$/);
+  assert.equal(memory.publicId, "m00000000000000000001");
+  assert.match(memoryData({ ...row, public_id: "abc123" }).publicId, /^m[a-f0-9]{20}$/);
   assert.equal(memory.metadata.languageCode, "en");
   assert.equal(memory.metadata.mood, "quiet");
   assert.equal(tagRowsFromMemory(row)[0].slug, "test");

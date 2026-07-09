@@ -16,7 +16,7 @@ import type {
   Principal,
   UserRecord,
 } from "./domain.js";
-import { login, loginUser, requireRole } from "./auth.js";
+import { hashPassword, login, loginUser, requireRole } from "./auth.js";
 import type {
   AssetRepository,
   CommentListQuery,
@@ -85,6 +85,28 @@ export class AuthService {
       .toLowerCase();
     const user: UserRecord | null = email ? await this.users.findByEmail(email) : null;
     return user ? loginUser(input, user) : login(input);
+  }
+
+  async setup(input: Record<string, unknown>) {
+    if ((await this.users.count()) > 0) {
+      throw new ApiError(409, "Admin user already exists", "admin_exists");
+    }
+    const email = String(input.email || "")
+      .trim()
+      .toLowerCase();
+    const password = String(input.password || "");
+    if (!email || !email.includes("@")) {
+      throw new ApiError(400, "Valid email is required", "invalid_email");
+    }
+    if (password.length < 12) {
+      throw new ApiError(400, "Password must be at least 12 characters", "weak_password");
+    }
+    const user = await this.users.create({
+      email,
+      passwordHash: hashPassword(password),
+      role: "ADMIN",
+    });
+    return loginUser({ password }, user);
   }
 }
 

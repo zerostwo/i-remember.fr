@@ -4,6 +4,7 @@ import { apiRoutes, roles, supportedLanguages } from "./index.js";
 assert.deepEqual(supportedLanguages, ["en", "fr", "zh"]);
 assert.equal(apiRoutes.memories, "/api/v1/memories");
 assert.equal(apiRoutes.assets, "/api/v1/assets");
+assert.equal(apiRoutes.authSetup, "/api/v1/auth/setup");
 assert.equal(apiRoutes.authLogin, "/api/v1/auth/login");
 assert.equal(apiRoutes.agent, "/api/v1/agent");
 assert.equal(apiRoutes.comments, "/api/v1/comments");

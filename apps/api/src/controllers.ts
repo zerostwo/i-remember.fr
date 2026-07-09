@@ -428,4 +428,9 @@ export class AuthController {
   async login(context: RequestContext) {
     return { success: true, data: await this.auth.login(await readJson(context.req)) };
   }
+
+  async setup(context: RequestContext) {
+    context.res.statusCode = 201;
+    return { success: true, data: await this.auth.setup(await readJson(context.req)) };
+  }
 }

@@ -1,4 +1,4 @@
-import { createHash, createHmac, pbkdf2Sync, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Principal, Role, UserRecord } from "./domain.js";
 import { ApiError } from "./errors.js";
@@ -101,6 +101,15 @@ export function verifyPasswordHash(password: string, stored: string) {
     "sha256",
   );
   return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+export function hashPassword(password: string) {
+  const iterations = 210000;
+  const salt = randomBytes(18).toString("base64url");
+  const hash = pbkdf2Sync(String(password || ""), salt, iterations, 32, "sha256").toString(
+    "base64url",
+  );
+  return `pbkdf2$${iterations}$${salt}$${hash}`;
 }
 
 export function loginUser(input: Record<string, unknown>, user: UserRecord) {

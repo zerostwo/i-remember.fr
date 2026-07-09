@@ -32,6 +32,7 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 - `POST /api/v1/assets`
 - `GET /api/v1/assets/:key*`
 - `DELETE /api/v1/assets/:key*`
+- `POST /api/v1/auth/setup`
 - `POST /api/v1/auth/login`
 
 `POST /api/v1/assets` accepts an admin-authenticated JSON body:
@@ -59,6 +60,10 @@ anonymous or authenticated JSON body like `{"query":"Paris","limit":5}` and
 returns a deterministic answer plus `/memory/:id` citations from public,
 published memories. It does not expose MCP or call an external model yet.
 
+`POST /api/v1/auth/setup` creates the first Prisma `ADMIN` user only when the
+user table is empty. The admin shell calls this during first setup so later
+admin writes authenticate against the v1 API directly.
+
 `POST /api/v1/auth/login` checks Prisma users first using the stored
 `pbkdf2$iterations$salt$hash` password format and issues a signed bearer token
 with the user's role. The raw `AUTH_SECRET` bearer token remains accepted for
@@ -75,8 +80,9 @@ views.
 
 Memory create and patch bodies may include `tags` and `attachments`; memory
 responses include both relation lists. Admin-authenticated import/sync clients
-may set `publicId` to preserve a language-free `/memory/:id` URL. Legacy
-numeric IDs are rejected by the v1 memory API.
+may set `publicId` only when it matches the current `m` plus 20 lowercase hex
+contract used by language-free `/memory/:id` URLs. Legacy numeric IDs are
+rejected by the v1 memory API.
 
 `GET /api/v1/dashboard` is admin-only and returns total memories, moderation
 counts, total users, and recent memory activity.
@@ -103,8 +109,9 @@ The API app is split into:
 - validation: JSON input parsing and shape checks.
 - auth: signed bearer-token auth, bootstrap admin access, and role guards.
 
-Archive runtime endpoints remain in `src/server/revival.js` until each path is
-replaced by the v1 API:
+Archive runtime endpoints remain in `src/server/revival.js` only until each
+path is replaced by the v1 API; they are not a compatibility contract for old
+URLs or storage:
 
 - `GET /api/search-posts`
 - `GET /api/auto-complete-tags/:fragment`
