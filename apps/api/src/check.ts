@@ -670,6 +670,11 @@ const assetUrl = await json("/api/v1/assets/asset-test.txt", {
 });
 assert.equal(assetUrl.body.data.url, "/uploads/asset-test.txt");
 
+const nestedAssetUrl = await json("/api/v1/assets/memory/nested-test.txt", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(nestedAssetUrl.body.data.url, "/uploads/memory/nested-test.txt");
+
 const deleted = await json("/api/v1/assets/asset-test.txt", {
   method: "DELETE",
   headers: { Authorization: "Bearer test-secret" },

@@ -30,10 +30,15 @@ export class Router {
   add(method: string, path: string, handler: RouteHandler) {
     const keys: string[] = [];
     const pattern = new RegExp(
-      `^${path.replace(/:[^/]+/g, (part) => {
-        keys.push(part.slice(1));
-        return "([^/]+)";
-      })}$`,
+      `^${path
+        .replace(/:([A-Za-z0-9_]+)\*/g, (_part, key: string) => {
+          keys.push(key);
+          return "(.+)";
+        })
+        .replace(/:([A-Za-z0-9_]+)/g, (_part, key: string) => {
+          keys.push(key);
+          return "([^/]+)";
+        })}$`,
     );
     this.routes.push({ method, pattern, keys, handler });
   }
