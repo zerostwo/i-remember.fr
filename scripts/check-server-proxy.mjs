@@ -66,6 +66,25 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   assert.equal(ready, true, output || "server did not start");
+
+  const setupResponse = await fetch(`${baseUrl}/api/admin/setup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: "admin@example.com", password: "correct horse battery staple" }),
+  });
+  assert.equal(setupResponse.status, 200);
+  const adminCookie = setupResponse.headers.get("set-cookie")?.split(";")[0] || "";
+  assert.match(adminCookie, /^i_remember_admin_session=/);
+
+  const exportResponse = await fetch(`${baseUrl}/api/admin/export`, {
+    headers: { Cookie: adminCookie },
+  });
+  assert.equal(exportResponse.status, 200);
+  const exportBody = await exportResponse.json();
+  assert.equal(exportBody.success, true);
+  assert.equal(exportBody.data.format, "i-remember-admin-export-v1");
+  assert.equal(exportBody.data.data.settings.account.email, "admin@example.com");
+
   const response = await fetch(`${baseUrl}/api/v1/memories?status=PENDING`, {
     headers: { Authorization: "Bearer proxy-test" },
   });

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   DatabaseBackup,
+  Download,
   ExternalLink,
   FileText,
   Home,
@@ -165,6 +166,18 @@ function readFileAsDataUrl(file) {
     reader.addEventListener("error", () => reject(reader.error || new Error("File read failed")));
     reader.readAsDataURL(file);
   });
+}
+
+function downloadJson(filename, value) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function escapeHtml(value = "") {
@@ -641,6 +654,14 @@ export function AdminApp() {
     });
   }
 
+  async function exportBackup() {
+    await runAction("Backup exported", async () => {
+      const bundle = await api("/api/admin/export");
+      const stamp = String(bundle.generatedAt || new Date().toISOString()).slice(0, 10);
+      downloadJson(`i-remember-backup-${stamp}.json`, bundle);
+    });
+  }
+
   async function setupTwoFactor() {
     return runAction("Two-factor setup created", () => api("/api/admin/2fa/setup", { method: "POST" }));
   }
@@ -749,6 +770,7 @@ export function AdminApp() {
                 setupTwoFactor={setupTwoFactor}
                 enableTwoFactor={enableTwoFactor}
                 disableTwoFactor={disableTwoFactor}
+                exportBackup={exportBackup}
                 navigate={navigate}
               />
             ) : null}
@@ -999,7 +1021,7 @@ function AdminRoute(props) {
         />
       );
     case "backups":
-      return <BackupsView />;
+      return <BackupsView exportBackup={props.exportBackup} />;
     default:
       return <DashboardView data={props.data} navigate={() => props.navigate("memory")} />;
   }
@@ -1796,24 +1818,32 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
   );
 }
 
-function BackupsView() {
+function BackupsView({ exportBackup }) {
   const rows = [
-    ["SQLite database", "Stored in the app-local data directory"],
-    ["Uploaded images", "Local filesystem image storage"],
-    ["Export bundle", "memories, pages, menu, comments, attachments"],
+    ["Application data", "memories, pages, menu, comments, settings"],
+    ["Uploaded images", "local filesystem and v1 asset references"],
     ["Restore point", "Snapshot policy can be wired to the deployment target"],
   ];
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      <Card className="rounded-lg md:col-span-2">
+        <CardHeader>
+          <CardTitle>Export bundle</CardTitle>
+          <CardDescription>Download the current admin archive data as JSON.</CardDescription>
+          <CardAction>
+            <Button onClick={exportBackup}>
+              <Download data-icon="inline-start" />
+              Download JSON
+            </Button>
+          </CardAction>
+        </CardHeader>
+      </Card>
       {rows.map(([title, copy]) => (
         <Card key={title} className="rounded-lg">
           <CardHeader>
             <CardTitle>{title}</CardTitle>
             <CardDescription>{copy}</CardDescription>
-            <CardAction>
-              <Button variant="outline">Open</Button>
-            </CardAction>
           </CardHeader>
         </Card>
       ))}

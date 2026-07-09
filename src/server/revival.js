@@ -1728,6 +1728,16 @@ class RevivalBackend {
     };
   }
 
+  adminExport(language = "en") {
+    const data = this.adminBootstrap(language);
+    return {
+      generatedAt: new Date().toISOString(),
+      defaultLanguage: this.siteSettings().defaultLanguage,
+      format: "i-remember-admin-export-v1",
+      data,
+    };
+  }
+
   saveMemory(input = {}) {
     const language = normalizeLanguage(
       input.language || input.language_code || this.siteSettings().defaultLanguage,
@@ -2523,6 +2533,15 @@ async function handleRequest(backend, req, res, next, options = {}) {
     sendJson(req, res, {
       success: true,
       data: backend.adminBootstrap(memoryLanguage),
+    });
+    return;
+  }
+
+  if (pathname === "/api/admin/export" && req.method === "GET") {
+    requireAdmin(req);
+    sendJson(req, res, {
+      success: true,
+      data: backend.adminExport(memoryLanguage),
     });
     return;
   }
