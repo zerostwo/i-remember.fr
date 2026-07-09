@@ -161,7 +161,13 @@ export class MemoryController {
 
   async create(context: RequestContext) {
     const input = memoryInput(await readJson(context.req));
-    if (input.authorId) requireRole(authenticate(context.req), ["ADMIN", "USER"]);
+    if (input.authorId) {
+      const principal = authenticate(context.req);
+      requireRole(principal, ["ADMIN", "USER"]);
+      if (principal.role !== "ADMIN" && principal.id !== input.authorId) {
+        throw new ApiError(403, "Permission denied", "forbidden");
+      }
+    }
     const data = await this.memories.create(input);
     context.res.statusCode = 201;
     return { success: true, data: memoryDto(data) };

@@ -21,13 +21,14 @@ function isRole(value: unknown): value is Role {
   return value === "ADMIN" || value === "USER" || value === "ANONYMOUS";
 }
 
-function signedToken(principal: { email: string; role: Role }) {
+function signedToken(principal: { email: string; role: Role; id?: string }) {
   const secret = authSecret();
   if (!secret) throw new ApiError(503, "Admin login is not configured", "auth_not_configured");
   const payload = Buffer.from(
     JSON.stringify({
       email: principal.email,
       role: principal.role,
+      id: principal.id,
       iat: Math.floor(Date.now() / 1000),
     }),
   ).toString("base64url");
@@ -43,12 +44,14 @@ function verifySignedToken(token: string, secret: string): Principal | null {
     const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as {
       email?: unknown;
       role?: unknown;
+      id?: unknown;
     };
     const email = String(payload.email || "")
       .trim()
       .toLowerCase();
     if (!email || !isRole(payload.role) || payload.role === "ANONYMOUS") return null;
-    return { email, role: payload.role };
+    const id = String(payload.id || "").trim();
+    return { email, role: payload.role, ...(id ? { id } : {}) };
   } catch (_error) {
     return null;
   }
@@ -111,8 +114,9 @@ export function loginUser(input: Record<string, unknown>, user: UserRecord) {
   }
 
   return {
-    token: signedToken({ email: user.email, role: user.role }),
+    token: signedToken({ email: user.email, role: user.role, id: user.id }),
     user: {
+      id: user.id,
       email: user.email,
       role: user.role,
     },

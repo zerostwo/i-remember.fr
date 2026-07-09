@@ -147,6 +147,7 @@ export interface AppSettings {
 export interface AuthSession {
   token: string;
   user: {
+    id?: string;
     role: Role;
     email: string;
   };

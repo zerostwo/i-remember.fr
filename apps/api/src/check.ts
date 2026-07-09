@@ -559,11 +559,19 @@ const userLogin = await json("/api/v1/auth/login", {
 });
 assert.equal(userLogin.response.status, 200);
 assert.equal(userLogin.body.data.user.role, "USER");
+assert.equal(userLogin.body.data.user.id, "u2");
 
 const userBlockedFromAdmin = await json("/api/v1/users", {
   headers: { Authorization: `Bearer ${userLogin.body.data.token}` },
 });
 assert.equal(userBlockedFromAdmin.response.status, 403);
+
+const userSpoofedAuthor = await json("/api/v1/memories", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${userLogin.body.data.token}` },
+  body: JSON.stringify({ title: "Spoofed", content: "Nope", authorId: "u1" }),
+});
+assert.equal(userSpoofedAuthor.response.status, 403);
 
 const unauthorizedPages = await json("/api/v1/pages");
 assert.equal(unauthorizedPages.response.status, 401);
@@ -715,6 +723,14 @@ assert.equal(dashboard.body.data.totalUsers, 2);
 assert.equal(dashboard.body.data.totalMemories, 2);
 assert.equal(dashboard.body.data.pendingMemories, 0);
 assert.equal(dashboard.body.data.publishedMemories, 2);
+
+const userAuthoredMemory = await json("/api/v1/memories", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${userLogin.body.data.token}` },
+  body: JSON.stringify({ title: "Reader", content: "Own memory", authorId: "u2" }),
+});
+assert.equal(userAuthoredMemory.response.status, 201);
+assert.equal(userAuthoredMemory.body.data.authorId, "u2");
 
 const uploaded = await json("/api/v1/assets", {
   method: "POST",

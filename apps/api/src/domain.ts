@@ -19,6 +19,7 @@ export type {
 export type Principal = {
   role: Role;
   email?: string;
+  id?: string;
 };
 
 export type MemoryRecord = {
