@@ -25,8 +25,8 @@
     "web:build": "vite build",
     "db:generate": "pnpm --filter @i-remember/database generate",
     "db:migrate": "pnpm --filter @i-remember/database migrate",
-    "docker:build": "docker compose build",
-    "docker:push": "docker compose push"
+    "docker:build": "docker build -t ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:-latest} .",
+    "docker:push": "docker push ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:-latest}"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

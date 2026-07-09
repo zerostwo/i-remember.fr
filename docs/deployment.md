@@ -31,19 +31,17 @@ pnpm build
 docker compose build
 ```
 
-The published image names use:
+The published image name uses:
 
 - `DOCKERHUB_IMAGE`
 - `TAG`
 
-The single-image runtime uses `DOCKERHUB_IMAGE` directly. Compose appends
-`-web`, `-admin`, and `-api` to the configured image base.
-`web` and `admin` can share the archive runtime data volume during migration;
-the admin service runs in admin-only mode, and production API state lives in
-PostgreSQL.
+The single-image runtime uses `DOCKERHUB_IMAGE` directly. The compose file
+still supports local multi-service builds, but GitHub publishes only
+`zerostwo/i-remember.fr`.
 
-The GitHub workflow builds and pushes both the single root image and the compose
-images.
+Pushes to `main` publish `latest` and `sha-<commit>`. Pushing a `vX.Y.Z` Git tag
+publishes `X.Y.Z`, `latest`, and `sha-<commit>`.
 
 ## Runtime Environment
 

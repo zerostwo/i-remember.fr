@@ -27,21 +27,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="$(node -p "require('./package.json').version")"
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             version="${GITHUB_REF_NAME#v}"
-          fi
-          tags=("${version}" "latest" "sha-${GITHUB_SHA::12}")
-          if [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            tags+=("${version%.*}")
+            primary="${version}"
+            tags=("${version}" "latest" "sha-${GITHUB_SHA::12}")
+          else
+            primary="latest"
+            tags=("latest" "sha-${GITHUB_SHA::12}")
           fi
           {
-            echo "primary=${version}"
+            echo "primary=${primary}"
             echo "tags<<EOF"
             printf "%s\n" "${tags[@]}"
             echo "EOF"
           } >> "${GITHUB_OUTPUT}"
-          echo "TAG=${version}" >> "${GITHUB_ENV}"
+          echo "TAG=${primary}" >> "${GITHUB_ENV}"
 
       - name: Login to DockerHub
         uses: docker/login-action@v4
@@ -52,26 +52,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build single image
+      - name: Build image
         run: docker build --tag "${DOCKERHUB_IMAGE}:${TAG}" .
 
-      - name: Build compose images
-        run: docker compose build web admin api
-
-      - name: Push Docker images
+      - name: Push image
         shell: bash
         env:
           PRIMARY_TAG: ${{ steps.version.outputs.primary }}
           TAGS: ${{ steps.version.outputs.tags }}
         run: |
           set -euo pipefail
-          images=("${DOCKERHUB_IMAGE}" "${DOCKERHUB_IMAGE}-web" "${DOCKERHUB_IMAGE}-admin" "${DOCKERHUB_IMAGE}-api")
           while IFS= read -r tag; do
             [[ -n "${tag}" ]] || continue
-            for image in "${images[@]}"; do
-              if [[ "${tag}" != "${PRIMARY_TAG}" ]]; then
-                docker tag "${image}:${PRIMARY_TAG}" "${image}:${tag}"
-              fi
-              docker push "${image}:${tag}"
-            done
+            if [[ "${tag}" != "${PRIMARY_TAG}" ]]; then
+              docker tag "${DOCKERHUB_IMAGE}:${PRIMARY_TAG}" "${DOCKERHUB_IMAGE}:${tag}"
+            fi
+            docker push "${DOCKERHUB_IMAGE}:${tag}"
           done <<< "${TAGS}"
