@@ -164,6 +164,53 @@ export class MenuItemService {
   }
 }
 
+export class PublicContentService {
+  constructor(
+    private readonly menuItems: MenuItemRepository,
+    private readonly pages: PageRepository,
+    private readonly memories: MemoryRepository,
+  ) {}
+
+  async menu(language = "en") {
+    return (await this.menuItems.list(language)).filter((item) => item.isVisible);
+  }
+
+  async target(id: string, language = "en") {
+    const item = (await this.menu(language)).find(
+      (candidate) => candidate.id === id || candidate.uid === id,
+    );
+    if (!item) throw new ApiError(404, "Menu item not found", "not_found");
+
+    if (item.type === "PAGE") {
+      const page = await this.pages.get(item.targetValue || item.label, language);
+      if (!page || page.status !== "PUBLISHED") {
+        throw new ApiError(404, "Page not found", "not_found");
+      }
+      return { item, page };
+    }
+
+    if (item.type === "MEMORY") {
+      const memory = item.targetValue ? await this.memories.get(item.targetValue) : null;
+      if (!memory || memory.status !== "NORMAL" || memory.visibility !== "PUBLIC") {
+        throw new ApiError(404, "Memory not found", "not_found");
+      }
+      return { item, memory };
+    }
+
+    if (item.type === "SEARCH") {
+      const results = await this.memories.list({
+        q: item.targetValue || item.label,
+        status: "NORMAL",
+        visibility: "PUBLIC",
+        limit: 100,
+      });
+      return { item, results };
+    }
+
+    return { item };
+  }
+}
+
 export class SettingService {
   constructor(private readonly settings: SettingRepository) {}
 

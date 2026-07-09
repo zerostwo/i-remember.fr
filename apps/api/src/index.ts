@@ -8,6 +8,7 @@ import {
   MenuItemController,
   MemoryController,
   PageController,
+  PublicContentController,
   SearchController,
   SettingController,
   UserController,
@@ -40,6 +41,7 @@ import {
   MenuItemService,
   MemoryService,
   PageService,
+  PublicContentService,
   SettingService,
   UserService,
 } from "./services.js";
@@ -70,6 +72,11 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   const commentService = new CommentService(commentRepository);
   const pageService = new PageService(pageRepository);
   const menuItemService = new MenuItemService(menuItemRepository);
+  const publicContentService = new PublicContentService(
+    menuItemRepository,
+    pageRepository,
+    memoryRepository,
+  );
   const settingService = new SettingService(settingRepository);
   const dashboardService = new DashboardService(memoryRepository, userRepository);
   const agentService = new AgentService(memoryService);
@@ -83,6 +90,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   const comments = new CommentController(commentService);
   const pages = new PageController(pageService);
   const menuItems = new MenuItemController(menuItemService);
+  const publicContent = new PublicContentController(publicContentService);
   const settings = new SettingController(settingService);
   const auth = new AuthController(authService);
   const router = new Router();
@@ -109,6 +117,10 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   router.add("POST", "/api/v1/menu-items", (context) => menuItems.create(context));
   router.add("PATCH", "/api/v1/menu-items/:id", (context) => menuItems.update(context));
   router.add("DELETE", "/api/v1/menu-items/:id", (context) => menuItems.delete(context));
+  router.add("GET", "/api/v1/public/menu", (context) => publicContent.menu(context));
+  router.add("GET", "/api/v1/public/menu-target/:id", (context) =>
+    publicContent.menuTarget(context),
+  );
   router.add("GET", "/api/v1/settings", (context) => settings.list(context));
   router.add("PUT", "/api/v1/settings", (context) => settings.update(context));
   router.add("GET", "/api/v1/assets", (context) => assets.list(context));

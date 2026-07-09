@@ -781,6 +781,17 @@ const updatedMenuItem = await json(`/api/v1/menu-items/${createdMenuItem.body.da
 assert.equal(updatedMenuItem.body.data.label, "About us");
 assert.equal(updatedMenuItem.body.data.opensNewTab, true);
 
+const publicMenu = await json("/api/v1/public/menu?language=en");
+assert.equal(publicMenu.response.status, 200);
+assert.equal(publicMenu.body.data.items[0].label, "About us");
+
+const publicMenuTarget = await json(
+  `/api/v1/public/menu-target/${createdMenuItem.body.data.id}?language=en`,
+);
+assert.equal(publicMenuTarget.response.status, 200);
+assert.equal(publicMenuTarget.body.data.page.title, "About");
+assert.equal(publicMenuTarget.body.data.page.status, "PUBLISHED");
+
 const savedSettings = await json("/api/v1/settings", {
   method: "PUT",
   headers: { Authorization: "Bearer test-secret" },

@@ -26,6 +26,8 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 - `POST /api/v1/menu-items`
 - `PATCH /api/v1/menu-items/:id`
 - `DELETE /api/v1/menu-items/:id`
+- `GET /api/v1/public/menu`
+- `GET /api/v1/public/menu-target/:id`
 - `GET /api/v1/settings`
 - `PUT /api/v1/settings`
 - `GET /api/v1/assets`
@@ -94,6 +96,10 @@ targets (`PAGE`, `MEMORY`, `SEARCH`, `EXTERNAL`, `TERMS`, `CREDITS`,
 `LANGUAGE`); settings stores deployment-level JSON values such as default
 language and Umami tracking config.
 
+`/api/v1/public/menu` and `/api/v1/public/menu-target/:id` expose only visible
+footer menu items plus published page/public memory targets for the public
+archive runtime. They do not grant access to admin menu/page management.
+
 `/api/v1/comments` is admin-authenticated and stores the admin moderation queue
 for comments. `PATCH` accepts `status` changes to `NORMAL`, `PENDING`,
 `ARCHIVED`, or `REJECTED`; `DELETE` archives the comment.
@@ -121,9 +127,10 @@ URLs or storage:
 - `GET /api/public/menu`
 - `GET /api/public/menu-target/:id`
 
-When `API_BASE_URL` is configured, the public archive runtime now prefers v1
-Prisma data for public memory list/detail rendering and anonymous memory
-submission, while keeping the archived visual shell unchanged.
+When `API_BASE_URL` is configured, the public archive runtime uses v1 Prisma
+data for public memory list/detail rendering, footer menu/page targets, and
+anonymous memory submission. It does not fall back to SQLite archive content or
+legacy numeric memory URLs, while keeping the archived visual shell unchanged.
 
 - `GET /api/admin/export`
 - `POST /api/admin/*`

@@ -18,6 +18,7 @@ import {
   MenuItemService,
   MemoryService,
   PageService,
+  PublicContentService,
   SettingService,
   UserService,
 } from "./services.js";
@@ -325,6 +326,32 @@ export class MenuItemController {
   async delete(context: RequestContext) {
     const data = await this.menuItems.delete(authenticate(context.req), context.params.id);
     return { success: true, data };
+  }
+}
+
+export class PublicContentController {
+  constructor(private readonly content: PublicContentService) {}
+
+  async menu(context: RequestContext) {
+    const language = languageQuery(context.url.searchParams);
+    const items = await this.content.menu(language);
+    return { success: true, data: { language, items: items.map(menuItemDto) } };
+  }
+
+  async menuTarget(context: RequestContext) {
+    const data = await this.content.target(
+      context.params.id,
+      languageQuery(context.url.searchParams),
+    );
+    return {
+      success: true,
+      data: {
+        item: menuItemDto(data.item),
+        ...(data.page ? { page: pageDto(data.page) } : {}),
+        ...(data.memory ? { memory: memoryDto(data.memory) } : {}),
+        ...(data.results ? { results: data.results.map((memory) => memoryDto(memory)) } : {}),
+      },
+    };
   }
 }
 

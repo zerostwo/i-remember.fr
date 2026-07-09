@@ -8,6 +8,7 @@ import { join } from "node:path";
 const dataDir = await mkdtemp(join(tmpdir(), "i-remember-proxy-"));
 const v1PublicId = "m11111111111111111111";
 const v1SubmittedId = "m22222222222222222222";
+const v1MenuId = "menu-v1-about";
 const v1CreateBodies = [];
 async function freePort() {
   const server = createServer();
@@ -89,6 +90,70 @@ const upstream = createServer(async (req, res) => {
           attachments: input.attachments || [],
           createdAt: "2026-07-09T00:00:00.000Z",
           updatedAt: "2026-07-09T00:00:00.000Z",
+        },
+      }),
+    );
+    return;
+  }
+  if (req.method === "GET" && req.url === "/api/v1/public/menu?language=zh") {
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: {
+          language: "zh",
+          items: [
+            {
+              id: v1MenuId,
+              uid: "footer_v1_about",
+              label: "V1 About",
+              type: "PAGE",
+              targetValue: "about",
+              url: "",
+              position: 10,
+              isVisible: true,
+              opensNewTab: false,
+              metadata: {},
+              createdAt: "2026-07-09T00:00:00.000Z",
+              updatedAt: "2026-07-09T00:00:00.000Z",
+            },
+          ],
+        },
+      }),
+    );
+    return;
+  }
+  if (req.method === "GET" && req.url === `/api/v1/public/menu-target/${v1MenuId}?language=zh`) {
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: {
+          item: {
+            id: v1MenuId,
+            uid: "footer_v1_about",
+            label: "V1 About",
+            type: "PAGE",
+            targetValue: "about",
+            url: "",
+            position: 10,
+            isVisible: true,
+            opensNewTab: false,
+            metadata: {},
+            createdAt: "2026-07-09T00:00:00.000Z",
+            updatedAt: "2026-07-09T00:00:00.000Z",
+          },
+          page: {
+            id: "page-v1-about",
+            slug: "about",
+            language: "zh",
+            title: "V1 About Page",
+            excerpt: "Footer page from v1.",
+            bodyMarkdown: "# V1 About Page\n\nFooter page from v1.",
+            status: "PUBLISHED",
+            linkedMemoryId: "",
+            metadata: {},
+            createdAt: "2026-07-09T00:00:00.000Z",
+            updatedAt: "2026-07-09T00:00:00.000Z",
+          },
         },
       }),
     );
@@ -179,11 +244,37 @@ try {
   });
   assert.equal(settingsResponse.status, 200);
 
+  const menuResponse = await fetch(`${baseUrl}/api/public/menu`);
+  assert.equal(menuResponse.status, 200);
+  const menuBody = await menuResponse.json();
+  assert.equal(menuBody.data.items[0].id, v1MenuId);
+  assert.equal(menuBody.data.items[0].label, "V1 About");
+
+  const menuTargetResponse = await fetch(`${baseUrl}/api/public/menu-target/${v1MenuId}`);
+  assert.equal(menuTargetResponse.status, 200);
+  const menuTargetBody = await menuTargetResponse.json();
+  assert.equal(menuTargetBody.data.item.id, v1MenuId);
+  assert.equal(menuTargetBody.data.page.title, "V1 About Page");
+  assert.match(menuTargetBody.data.page.bodyHtml, /<h1>V1 About Page<\/h1>/);
+
   const v1PublicMemoryResponse = await fetch(`${baseUrl}/memory/${v1PublicId}`);
   assert.equal(v1PublicMemoryResponse.status, 200);
   const v1PublicMemoryHtml = await v1PublicMemoryResponse.text();
+  assert.match(v1PublicMemoryHtml, /var LANG = 'zh';/);
   assert.match(v1PublicMemoryHtml, /Rendered from the v1 direct memory API/);
   assert.match(v1PublicMemoryHtml, new RegExp(`"public_id":"${v1PublicId}"`));
+
+  const frenchV1PublicMemoryResponse = await fetch(`${baseUrl}/fr/memory/${v1PublicId}`);
+  assert.equal(frenchV1PublicMemoryResponse.status, 200);
+  const frenchV1PublicMemoryHtml = await frenchV1PublicMemoryResponse.text();
+  assert.match(frenchV1PublicMemoryHtml, /var LANG = 'fr';/);
+  assert.match(frenchV1PublicMemoryHtml, new RegExp(`"public_id":"${v1PublicId}"`));
+
+  const chineseV1PublicMemoryResponse = await fetch(`${baseUrl}/zh/memory/${v1PublicId}`);
+  assert.equal(chineseV1PublicMemoryResponse.status, 200);
+  const chineseV1PublicMemoryHtml = await chineseV1PublicMemoryResponse.text();
+  assert.match(chineseV1PublicMemoryHtml, /var LANG = 'zh';/);
+  assert.match(chineseV1PublicMemoryHtml, new RegExp(`"public_id":"${v1PublicId}"`));
 
   const publicSubmissionResponse = await fetch(`${baseUrl}/api/post`, {
     method: "POST",
@@ -216,23 +307,8 @@ try {
   const memoryBody = await memoryResponse.json();
   const memory = memoryBody.data;
 
-  const publicMemoryResponse = await fetch(`${baseUrl}/memory/${memory.publicId}`);
-  assert.equal(publicMemoryResponse.status, 200);
-  const publicMemoryHtml = await publicMemoryResponse.text();
-  assert.match(publicMemoryHtml, /var LANG = 'zh';/);
-  assert.match(publicMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
-
-  const frenchMemoryResponse = await fetch(`${baseUrl}/fr/memory/${memory.publicId}`);
-  assert.equal(frenchMemoryResponse.status, 200);
-  const frenchMemoryHtml = await frenchMemoryResponse.text();
-  assert.match(frenchMemoryHtml, /var LANG = 'fr';/);
-  assert.match(frenchMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
-
-  const chineseMemoryResponse = await fetch(`${baseUrl}/zh/memory/${memory.publicId}`);
-  assert.equal(chineseMemoryResponse.status, 200);
-  const chineseMemoryHtml = await chineseMemoryResponse.text();
-  assert.match(chineseMemoryHtml, /var LANG = 'zh';/);
-  assert.match(chineseMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
+  const localOnlyMemoryResponse = await fetch(`${baseUrl}/memory/${memory.publicId}`);
+  assert.equal(localOnlyMemoryResponse.status, 404);
 
   const numericMemoryResponse = await fetch(`${baseUrl}/memory/123456789`);
   assert.equal(numericMemoryResponse.status, 404);

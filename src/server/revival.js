@@ -1347,6 +1347,77 @@ function publicMenuItem(row) {
     : null;
 }
 
+function v1MenuItemToPublic(item = {}) {
+  return {
+    id: item.id,
+    label: item.label,
+    type: item.type,
+    targetValue: item.targetValue || "",
+    url: item.url || "",
+    position: item.position || 0,
+    opensNewTab: Boolean(item.opensNewTab),
+  };
+}
+
+function v1PageToPublic(page = {}) {
+  const bodyMarkdown = String(page.bodyMarkdown || "");
+  return {
+    id: page.id,
+    slug: page.slug,
+    language: normalizeLanguage(page.language),
+    title: page.title,
+    excerpt: page.excerpt || excerptFromMarkdown(bodyMarkdown),
+    bodyMarkdown,
+    bodyHtml: markdownToHtml(bodyMarkdown),
+    metadataJson: JSON.stringify(page.metadata || {}),
+    status: page.status,
+    linkedMemoryPublicId: page.linkedMemoryId || "",
+    createdAt: page.createdAt,
+    updatedAt: page.updatedAt,
+  };
+}
+
+function v1MemoryToAdminMemory(memory = {}, language = "en") {
+  const post = v1MemoryToPost(memory, 0, language);
+  const bodyMarkdown = String(memory.content || "");
+  const imageKey = v1ImageKey(memory);
+  return {
+    rowId: memory.id,
+    id: memory.id,
+    publicId: post.public_id,
+    uid: post.uid,
+    title: memory.title || "I Remember",
+    author: memory.authorName || "I Remember",
+    language: v1Language(memory),
+    status: memory.status === "NORMAL" ? "published" : String(memory.status || "").toLowerCase(),
+    dbStatus: memory.status,
+    source: memory.metadata?.source || "v1",
+    excerpt: memory.excerpt || excerptFromMarkdown(bodyMarkdown),
+    text: bodyMarkdown,
+    bodyMarkdown,
+    metadataJson: JSON.stringify(memory.metadata || {}),
+    bodyHtml: markdownToHtml(bodyMarkdown),
+    isLongForm: bodyMarkdown.length > String(memory.excerpt || "").length,
+    imageKey,
+    imageUrl: legacyImageUrl(imageKey, "thumb"),
+    publicUrl: publicMemoryUrl(post),
+    createdAt: memory.createdAt,
+    updatedAt: memory.updatedAt,
+  };
+}
+
+function v1MenuTargetToPublic(data = {}, language = "en") {
+  const memory = data.memory ? v1MemoryToAdminMemory(data.memory, language) : null;
+  return {
+    item: data.item ? v1MenuItemToPublic(data.item) : null,
+    ...(data.page ? { page: v1PageToPublic(data.page) } : {}),
+    ...(memory ? { memory, post: v1MemoryToPost(data.memory, 0, language) } : {}),
+    ...(Array.isArray(data.results)
+      ? { results: data.results.map((memory, index) => v1MemoryToPost(memory, index, language)) }
+      : {}),
+  };
+}
+
 function safeScriptJson(payload) {
   return JSON.stringify(payload).replace(/[<>&\u2028\u2029]/g, (char) => {
     switch (char) {
@@ -1448,7 +1519,11 @@ class RevivalBackend {
   }
 
   get mode() {
-    return this.apiBaseUrl ? "v1+sqlite" : "sqlite";
+    return this.apiBaseUrl ? "v1" : "sqlite";
+  }
+
+  get hasApiBackend() {
+    return Boolean(this.apiBaseUrl);
   }
 
   async v1Data(path, options = {}) {
@@ -1485,7 +1560,23 @@ class RevivalBackend {
 
   async v1PublicMemory(publicId, language) {
     const data = await this.v1Data(`/api/v1/memories/${encodeURIComponent(publicId)}`);
-    return data ? v1MemoryToPost(data, 0, language) : null;
+    return data?.id || data?.publicId ? v1MemoryToPost(data, 0, language) : null;
+  }
+
+  async v1PublicMenu(language) {
+    const data = await this.v1Data(
+      `/api/v1/public/menu?language=${encodeURIComponent(normalizeLanguage(language))}`,
+    );
+    return Array.isArray(data?.items) ? data.items.map(v1MenuItemToPublic) : null;
+  }
+
+  async v1PublicMenuTarget(id, language) {
+    const data = await this.v1Data(
+      `/api/v1/public/menu-target/${encodeURIComponent(id)}?language=${encodeURIComponent(
+        normalizeLanguage(language),
+      )}`,
+    );
+    return data?.item ? v1MenuTargetToPublic(data, language) : null;
   }
 
   ensureAdminAccount() {
@@ -1731,6 +1822,7 @@ class RevivalBackend {
   async allPosts(language) {
     const v1Posts = await this.v1PublicMemories(language);
     if (v1Posts) return uniquePosts(v1Posts);
+    if (this.hasApiBackend) return [];
     return uniquePosts(this.store.listMemories(normalizeLanguage(language)).map(memoryToPost));
   }
 
@@ -1741,6 +1833,7 @@ class RevivalBackend {
   async directPost(publicId, language = "en") {
     const v1Post = await this.v1PublicMemory(publicId, language);
     if (v1Post) return v1Post;
+    if (this.hasApiBackend) return null;
     const row = this.memoryByPublicId(publicId);
     return row ? memoryToPost(row) : null;
   }
@@ -1962,7 +2055,10 @@ class RevivalBackend {
     this.store.deleteMenuItem(id);
   }
 
-  publicMenu(language = "en") {
+  async publicMenu(language = "en") {
+    const v1Menu = await this.v1PublicMenu(language);
+    if (v1Menu) return v1Menu;
+    if (this.hasApiBackend) return [];
     return this.store
       .listMenuItems(normalizeLanguage(language), { visibleOnly: true })
       .map(publicMenuItem)
@@ -1970,6 +2066,9 @@ class RevivalBackend {
   }
 
   async publicMenuTarget(id, language = "en") {
+    const v1Target = await this.v1PublicMenuTarget(id, language);
+    if (v1Target) return v1Target;
+    if (this.hasApiBackend) throw new HttpError(404, "Menu item not found", "not_found");
     const normalized = normalizeLanguage(language);
     const item = this.store.getMenuItem(id);
     if (!item || normalizeLanguage(item.language_code) !== normalized || !item.is_visible) {
@@ -2160,6 +2259,9 @@ class RevivalBackend {
         ...v1MemoryToPost(v1Memory, 0, language),
         status: v1Memory.status || "PENDING",
       };
+    }
+    if (this.hasApiBackend) {
+      throw new HttpError(502, "API memory creation failed", "api_unavailable");
     }
     const legacyId = await this.nextSubmittedPostId(language);
     const post = {
@@ -2556,15 +2658,15 @@ async function handleRequest(backend, req, res, next, options = {}) {
       success: true,
       data: {
         language: memoryLanguage,
-        items: backend.publicMenu(memoryLanguage),
+        items: await backend.publicMenu(memoryLanguage),
       },
     });
     return;
   }
 
   if (pathname.startsWith("/api/public/menu-target/") && req.method === "GET") {
-    const id = Number.parseInt(pathname.split("/").pop() || "", 10);
-    if (!Number.isFinite(id)) throw new HttpError(400, "Invalid menu item", "invalid_menu_item");
+    const id = pathname.split("/").pop() || "";
+    if (!id) throw new HttpError(400, "Invalid menu item", "invalid_menu_item");
     sendJson(req, res, {
       success: true,
       data: await backend.publicMenuTarget(id, memoryLanguage),
