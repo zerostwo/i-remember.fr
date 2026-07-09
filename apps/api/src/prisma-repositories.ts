@@ -183,7 +183,6 @@ function memoryWhere(query: MemoryListQuery) {
   return {
     ...(query.status === "all" ? {} : { status: query.status || "NORMAL" }),
     ...(query.visibility === "all" ? {} : { visibility: query.visibility || "PUBLIC" }),
-    ...(query.legacyId === undefined ? {} : { legacyId: query.legacyId }),
     ...(q
       ? {
           OR: [
@@ -264,9 +263,8 @@ export class PrismaMemoryRepository implements MemoryRepository {
     return memory(
       await this.db.memory.create({
         data: {
-          publicId: createPublicMemoryId(),
+          publicId: input.publicId || createPublicMemoryId(),
           title: input.title,
-          legacyId: input.legacyId,
           content: input.content,
           excerpt: input.content.slice(0, 220),
           authorId: input.authorId,
@@ -295,7 +293,6 @@ export class PrismaMemoryRepository implements MemoryRepository {
     if (!existing) throw new ApiError(404, "Memory not found", "not_found");
     const data: any = {
       title: input.title,
-      legacyId: input.legacyId,
       content: input.content,
       excerpt: input.content ? input.content.slice(0, 220) : undefined,
       authorId: input.authorId,

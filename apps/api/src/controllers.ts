@@ -174,10 +174,10 @@ export class MemoryController {
       input.aiSummary !== undefined ||
       input.knowledgeGraph !== undefined;
     let includePrivate = false;
-    if (input.authorId || input.legacyId !== undefined || hasAiFields) {
+    if (input.authorId || input.publicId !== undefined || hasAiFields) {
       const principal = authenticate(context.req);
       includePrivate = principal.role === "ADMIN";
-      if (input.legacyId !== undefined) {
+      if (input.publicId !== undefined) {
         requireRole(principal, ["ADMIN"]);
       }
       if (hasAiFields) {

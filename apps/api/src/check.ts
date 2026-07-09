@@ -104,8 +104,7 @@ class MemoryRepo implements MemoryRepository {
   async create(input: MemoryInput) {
     const memory = {
       id: `internal-${this.memories.length + 1}`,
-      publicId: `pub_${this.memories.length + 1}`,
-      legacyId: input.legacyId,
+      publicId: input.publicId || `pub_${this.memories.length + 1}`,
       title: input.title,
       content: input.content,
       excerpt: input.content.slice(0, 220),
@@ -465,7 +464,8 @@ const anonymousLegacyId = await json("/api/v1/memories", {
   method: "POST",
   body: JSON.stringify({ title: "Legacy", content: "Nope", legacyId: 9002 }),
 });
-assert.equal(anonymousLegacyId.response.status, 401);
+assert.equal(anonymousLegacyId.response.status, 400);
+assert.equal(anonymousLegacyId.body.error.code, "unsupported_legacy_id");
 
 const anonymousAiFields = await json("/api/v1/memories", {
   method: "POST",
@@ -498,7 +498,7 @@ const created = await json("/api/v1/memories", {
   body: JSON.stringify({
     title: "New",
     content: memoryMarkdown,
-    legacyId: 9001,
+    publicId: "m00000000000000000001",
     authorId: "u1",
     embedding: [0.1, 0.2],
     aiSummary: "API-created memory summary",
@@ -508,6 +508,7 @@ const created = await json("/api/v1/memories", {
   }),
 });
 assert.equal(created.response.status, 201);
+assert.equal(created.body.data.id, "m00000000000000000001");
 assert.equal(created.body.data.status, "PENDING");
 assert.equal(created.body.data.legacyId, undefined);
 assert.equal(created.body.data.authorId, "u1");
@@ -551,6 +552,12 @@ const adminPending = await json("/api/v1/memories?status=PENDING", {
 });
 assert.equal(adminPending.response.status, 200);
 assert.equal(adminPending.body.data[0].id, created.body.data.id);
+
+const legacyQuery = await json("/api/v1/memories?legacyId=9001", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(legacyQuery.response.status, 400);
+assert.equal(legacyQuery.body.error.code, "unsupported_legacy_id");
 
 const moderated = await json(`/api/v1/memories/${created.body.data.id}`, {
   method: "PATCH",
@@ -619,7 +626,8 @@ const userLegacyId = await json("/api/v1/memories", {
   headers: { Authorization: `Bearer ${userLogin.body.data.token}` },
   body: JSON.stringify({ title: "Legacy", content: "Nope", legacyId: 9002 }),
 });
-assert.equal(userLegacyId.response.status, 403);
+assert.equal(userLegacyId.response.status, 400);
+assert.equal(userLegacyId.body.error.code, "unsupported_legacy_id");
 
 const unauthorizedPages = await json("/api/v1/pages");
 assert.equal(unauthorizedPages.response.status, 401);

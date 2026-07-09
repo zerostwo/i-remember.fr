@@ -90,6 +90,15 @@ function language(value: unknown, fallback = "en") {
   return next;
 }
 
+function publicMemoryId(value: unknown) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const next = text(value, "", 80);
+  if (!/^m[a-f0-9]{20}$/.test(next)) {
+    throw new ApiError(400, "Invalid public memory id", "invalid_public_id");
+  }
+  return next;
+}
+
 function metadata(value: unknown) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -177,6 +186,9 @@ export function pageSlugInput(value: unknown, missingCode = "invalid_page_slug")
 }
 
 export function memoryInput(value: Record<string, unknown>): MemoryInput {
+  if (has(value, "legacyId") || has(value, "legacy_id")) {
+    throw new ApiError(400, "Legacy memory ids are not supported", "unsupported_legacy_id");
+  }
   const title = text(value.title, "", 180);
   const content = bodyText(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
   const visibility = text(value.visibility, "PUBLIC", 20).toUpperCase();
@@ -190,7 +202,7 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
   return {
     title,
     content,
-    legacyId: optionalNumber(value.legacyId ?? value.legacy_id),
+    publicId: publicMemoryId(value.publicId ?? value.public_id),
     authorId:
       value.authorId || value.author_id
         ? text(value.authorId ?? value.author_id, "", 240)
@@ -216,10 +228,12 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
 }
 
 export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery {
+  if (searchParams.has("legacyId") || searchParams.has("legacy_id")) {
+    throw new ApiError(400, "Legacy memory ids are not supported", "unsupported_legacy_id");
+  }
   const status = text(searchParams.get("status"), "NORMAL", 20).toUpperCase();
   const visibility = text(searchParams.get("visibility"), "PUBLIC", 20).toUpperCase();
   const limit = limitParam(searchParams);
-  const legacyId = optionalNumber(searchParams.get("legacyId") ?? searchParams.get("legacy_id"));
 
   if (status !== "ALL" && !memoryStatusValues.has(status)) {
     throw new ApiError(400, "Invalid status", "invalid_status");
@@ -230,7 +244,6 @@ export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery 
 
   return {
     q: searchParams.get("q") || searchParams.get("tag") || undefined,
-    legacyId,
     limit,
     status: status === "ALL" ? "all" : (status as MemoryStatus),
     visibility: visibility === "ALL" ? "all" : (visibility as Visibility),
@@ -245,7 +258,10 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
     if (!input.title) throw new ApiError(400, "Title is required", "missing_title");
   }
   if (has(value, "legacyId") || has(value, "legacy_id")) {
-    input.legacyId = optionalNumber(value.legacyId ?? value.legacy_id);
+    throw new ApiError(400, "Legacy memory ids are not supported", "unsupported_legacy_id");
+  }
+  if (has(value, "publicId") || has(value, "public_id")) {
+    throw new ApiError(400, "Public memory ids cannot be changed", "unsupported_public_id_patch");
   }
 
   if (has(value, "content") || has(value, "bodyMarkdown") || has(value, "text")) {

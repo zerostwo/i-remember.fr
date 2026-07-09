@@ -55,7 +55,7 @@ export type AttachmentInput = {
 export type MemoryInput = {
   title: string;
   content: string;
-  legacyId?: number;
+  publicId?: string;
   authorId?: string;
   authorName?: string;
   visibility?: Visibility;

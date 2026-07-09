@@ -74,7 +74,9 @@ pass `status=PENDING`, `status=REJECTED`, `status=ARCHIVED`, `status=all`,
 views.
 
 Memory create and patch bodies may include `tags` and `attachments`; memory
-responses include both relation lists.
+responses include both relation lists. Admin-authenticated import/sync clients
+may set `publicId` to preserve a language-free `/memory/:id` URL. Legacy
+numeric IDs are rejected by the v1 memory API.
 
 `GET /api/v1/dashboard` is admin-only and returns total memories, moderation
 counts, total users, and recent memory activity.
