@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-09
+
 ### Added
 
+- Added official one-image, one-volume Docker deployment for
+  `zerostwo/i-remember.fr` with an internal PostgreSQL runtime.
 - Added durable admin Page metadata editing and v1 page metadata sync.
 - Added local v1 asset serving from the API service and web/admin proxying for
   non-legacy upload URLs.

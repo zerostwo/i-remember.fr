@@ -28,5 +28,5 @@ Current backend/product decisions:
 - Public memory URLs must be language-free `/memory/:id` routes using non-sequential random alphanumeric public IDs; legacy numeric memory URLs must not resolve memory content.
 - Each memory may occupy only one map coordinate; deduplicate memory identity before passing posts into the legacy map/search rendering flow.
 - Public search, add-memory, navigation ball, and opened memory-card layout must preserve the archive original positions and dimensions unless the user explicitly approves a visual change.
-- Do not commit generated QA artifacts, imported data snapshots, runtime database directories, SQLite files, or `db/`; keep migration source under `src/server/migrations/sqlite`.
+- Do not commit generated QA artifacts, imported data snapshots, runtime database directories, SQLite files, or `db/`; SQLite runtime and migration paths are removed and must not be reintroduced.
 - After modifying this repository, create a clean ccc-style Conventional Commit before handing work back.

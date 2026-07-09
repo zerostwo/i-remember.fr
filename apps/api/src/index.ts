@@ -127,6 +127,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   router.add("POST", "/api/v1/assets", (context) => assets.upload(context));
   router.add("GET", "/api/v1/assets/:key*", (context) => assets.getUrl(context));
   router.add("DELETE", "/api/v1/assets/:key*", (context) => assets.delete(context));
+  router.add("GET", "/api/v1/auth/status", (context) => auth.status(context));
   router.add("POST", "/api/v1/auth/setup", (context) => auth.setup(context));
   router.add("POST", "/api/v1/auth/login", (context) => auth.login(context));
 

@@ -1,11 +1,4 @@
-import {
-  createHash,
-  createHmac,
-  pbkdf2Sync,
-  randomBytes,
-  randomUUID,
-  timingSafeEqual,
-} from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -13,9 +6,8 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { join, resolve } from "node:path";
 import sharp from "sharp";
-import { RevivalSQLiteStore } from "./sqlite-store.js";
 
 const rootUrl = new URL("../../", import.meta.url);
 const postIdOffset = 1248;
@@ -32,14 +24,6 @@ const maxImagePixels = Number.parseInt(
   process.env.I_REMEMBER_MAX_IMAGE_PIXELS || `${30_000_000}`,
   10,
 );
-const autoApproveSubmissions =
-  process.env.I_REMEMBER_AUTO_APPROVE_SUBMISSIONS !== "false";
-const seedArchiveData = process.env.I_REMEMBER_SEED_ARCHIVE_DATA === "true";
-const seedStarterContent = process.env.I_REMEMBER_SEED_STARTER_CONTENT === "true";
-const sessionCookieName = "i_remember_admin_session";
-const sessionMaxAgeSeconds = 60 * 60 * 12;
-const adminSessions = new Map();
-
 const htmlUrls = {
   en: new URL("./index.html", rootUrl),
   fr: new URL("./fr.html", rootUrl),
@@ -53,13 +37,6 @@ const instagramTokenCallbackHtmlUrl = new URL(
   "./public/api/instagram-token-callback",
   rootUrl,
 );
-const storageDirUrl = new URL("./.revival-storage/", rootUrl);
-const uploadsDirUrl = new URL("./.revival-storage/uploads/", rootUrl);
-const submittedPostsUrl = new URL(
-  "./.revival-storage/submitted-posts.json",
-  rootUrl,
-);
-
 const fallbackPostImages = {
   resized: {
     data: readFileSync(
@@ -76,14 +53,11 @@ const fallbackPostImages = {
 };
 
 const uploadedImages = new Map();
-const runtimeSubmittedPosts = loadSubmittedPosts();
-const defaultPostsByLanguage = {
-  en: loadPostsFromHtml(htmlUrls.en, "en"),
-  fr: loadPostsFromHtml(htmlUrls.fr, "fr"),
-  zh: loadPostsFromHtml(htmlUrls.en, "zh"),
-};
-
 const rateLimitBuckets = new Map();
+
+function runtimeDataDir() {
+  return resolve(process.env.I_REMEMBER_DATA_DIR || ".revival-storage");
+}
 
 class HttpError extends Error {
   constructor(statusCode, message, errorMsg = "unexpected") {
@@ -94,13 +68,6 @@ class HttpError extends Error {
   }
 }
 
-const base32Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-
-function boolSetting(value, fallback = false) {
-  if (value === null || value === undefined || value === "") return fallback;
-  return ["1", "true", "yes", "on"].includes(String(value).toLowerCase());
-}
-
 function logInfo(event, fields = {}) {
   console.log(JSON.stringify({
     ts: new Date().toISOString(),
@@ -108,136 +75,6 @@ function logInfo(event, fields = {}) {
     event,
     ...fields,
   }));
-}
-
-function hashPassword(password) {
-  const iterations = 210000;
-  const salt = randomBytes(16).toString("base64url");
-  const hash = pbkdf2Sync(String(password || ""), salt, iterations, 32, "sha256").toString("base64url");
-  return `pbkdf2$${iterations}$${salt}$${hash}`;
-}
-
-function verifyPassword(password, stored) {
-  const parts = String(stored || "").split("$");
-  if (parts.length !== 4 || parts[0] !== "pbkdf2") return false;
-  const iterations = Number.parseInt(parts[1], 10);
-  if (!Number.isFinite(iterations) || iterations < 100000) return false;
-  const expected = Buffer.from(parts[3], "base64url");
-  const actual = pbkdf2Sync(String(password || ""), parts[2], iterations, expected.length, "sha256");
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
-}
-
-function base32Encode(buffer) {
-  let bits = 0;
-  let value = 0;
-  let output = "";
-  for (const byte of buffer) {
-    value = (value << 8) | byte;
-    bits += 8;
-    while (bits >= 5) {
-      output += base32Alphabet[(value >>> (bits - 5)) & 31];
-      bits -= 5;
-    }
-  }
-  if (bits > 0) output += base32Alphabet[(value << (5 - bits)) & 31];
-  return output;
-}
-
-function base32Decode(value) {
-  let bits = 0;
-  let buffer = 0;
-  const bytes = [];
-  for (const char of String(value || "").replace(/=+$/g, "").toUpperCase()) {
-    const index = base32Alphabet.indexOf(char);
-    if (index === -1) continue;
-    buffer = (buffer << 5) | index;
-    bits += 5;
-    if (bits >= 8) {
-      bytes.push((buffer >>> (bits - 8)) & 255);
-      bits -= 8;
-    }
-  }
-  return Buffer.from(bytes);
-}
-
-function totp(secret, step = Math.floor(Date.now() / 30000)) {
-  const key = base32Decode(secret);
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(step));
-  const digest = createHmac("sha1", key).update(counter).digest();
-  const offset = digest[digest.length - 1] & 15;
-  const code = (
-    ((digest[offset] & 127) << 24) |
-    ((digest[offset + 1] & 255) << 16) |
-    ((digest[offset + 2] & 255) << 8) |
-    (digest[offset + 3] & 255)
-  ) % 1000000;
-  return String(code).padStart(6, "0");
-}
-
-function verifyTotp(secret, code) {
-  const value = String(code || "").replace(/\s+/g, "");
-  if (!/^\d{6}$/.test(value)) return false;
-  const step = Math.floor(Date.now() / 30000);
-  for (let offset = -1; offset <= 1; offset += 1) {
-    if (totp(secret, step + offset) === value) return true;
-  }
-  return false;
-}
-
-function parseCookies(req) {
-  return Object.fromEntries(
-    String(req.headers.cookie || "")
-      .split(";")
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => {
-        const index = part.indexOf("=");
-        return index === -1
-          ? [part, ""]
-          : [part.slice(0, index), decodeURIComponent(part.slice(index + 1))];
-      }),
-  );
-}
-
-function createAdminSession(email) {
-  const token = randomBytes(32).toString("base64url");
-  adminSessions.set(token, {
-    email,
-    expiresAt: Date.now() + sessionMaxAgeSeconds * 1000,
-  });
-  return token;
-}
-
-function adminSessionFromRequest(req) {
-  const token = parseCookies(req)[sessionCookieName];
-  const session = token ? adminSessions.get(token) : null;
-  if (!session) return null;
-  if (Date.now() > session.expiresAt) {
-    adminSessions.delete(token);
-    return null;
-  }
-  session.expiresAt = Date.now() + sessionMaxAgeSeconds * 1000;
-  return session;
-}
-
-function requireAdmin(req) {
-  const session = adminSessionFromRequest(req);
-  if (!session) throw new HttpError(401, "Admin login required", "unauthorized");
-  return session;
-}
-
-function setAdminCookie(res, token) {
-  res.setHeader(
-    "Set-Cookie",
-    `${sessionCookieName}=${encodeURIComponent(token)}; Path=/; Max-Age=${sessionMaxAgeSeconds}; HttpOnly; SameSite=Strict`,
-  );
-}
-
-function clearAdminCookie(res, req) {
-  const token = parseCookies(req)[sessionCookieName];
-  if (token) adminSessions.delete(token);
-  res.setHeader("Set-Cookie", `${sessionCookieName}=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict`);
 }
 
 const curatedTagsByLanguage = {
@@ -360,171 +197,6 @@ const relatedTagStopWords = {
   zh: new Set(["一个", "一些", "这个", "那个", "我们", "你们", "他们", "自己"]),
 };
 
-const defaultPageContent = {
-  en: [
-    {
-      slug: "about",
-      title: "About this archive",
-      excerpt: "A living memory archive that can also become a personal blog.",
-      body_markdown:
-        "# About this archive\n\nI Remember began as a public memory field: a quiet place where each photograph can hold a short recollection.\n\nThis restored version keeps that public memory flow, but the same object can now grow into a longer essay. When an entry is longer, the public card shows a short excerpt first and offers **Read more** for the full text.",
-      legacy_id: 12001,
-    },
-    {
-      slug: "terms",
-      title: "Terms and Conditions",
-      excerpt: "Submission, moderation, deletion, and ownership notes for this archive.",
-      body_markdown:
-        "# Terms and Conditions\n\nUse this page to publish the current terms for submissions, moderation, privacy, and deletion requests.\n\nBecause this site accepts public memories without requiring an account, the owner should keep this page clear and easy to review.",
-      legacy_id: 12002,
-    },
-    {
-      slug: "credits",
-      title: "Credits",
-      excerpt: "A place to credit the original project and the people maintaining this version.",
-      body_markdown:
-        "# Credits\n\nThis archive preserves the visual language of the original I Remember experience while making the backend self-hosted and editable.\n\nAdd project, design, music, hosting, and maintenance credits here.",
-      legacy_id: 12003,
-    },
-  ],
-  fr: [
-    {
-      slug: "about",
-      title: "A propos de cette archive",
-      excerpt: "Une archive vivante de souvenirs, prete a devenir un blog personnel.",
-      body_markdown:
-        "# A propos de cette archive\n\nI Remember est un champ de souvenirs public, calme, ou chaque photographie peut porter une histoire.\n\nCette version conserve le geste public du souvenir et permet aussi aux entrees longues de devenir des textes complets avec **Read more**.",
-      legacy_id: 12001,
-    },
-    {
-      slug: "terms",
-      title: "Mentions legales",
-      excerpt: "Notes de publication, moderation, suppression et confidentialite.",
-      body_markdown:
-        "# Mentions legales\n\nUtilisez cette page pour publier les regles de contribution, de moderation, de confidentialite et de suppression.\n\nComme le site accepte des souvenirs publics sans compte, cette page doit rester claire.",
-      legacy_id: 12002,
-    },
-    {
-      slug: "credits",
-      title: "Credits",
-      excerpt: "Un espace pour remercier le projet original et les personnes qui maintiennent cette version.",
-      body_markdown:
-        "# Credits\n\nCette archive conserve le langage visuel de I Remember tout en rendant le backend auto-heberge et editable.\n\nAjoutez ici les credits du projet, du design, de la musique, de l'hebergement et de la maintenance.",
-      legacy_id: 12003,
-    },
-  ],
-  zh: [
-    {
-      slug: "about",
-      title: "关于这个记忆档案",
-      excerpt: "一个可以继续收集回忆，也可以作为个人博客使用的档案。",
-      body_markdown:
-        "# 关于这个记忆档案\n\nI Remember 原本是一个公共记忆场：每张照片都可以承载一段短短的回忆。\n\n这个恢复版本保留不用登录也能留下记忆的入口，同时允许同一个 Memory 承载更长的文章。长文会先显示摘要，再通过 **Read more** 阅读全文。",
-      legacy_id: 12001,
-    },
-    {
-      slug: "terms",
-      title: "条款",
-      excerpt: "用于说明投稿、审核、删除和数据使用规则。",
-      body_markdown:
-        "# 条款\n\n你可以在这里编辑公开投稿、审核、隐私、删除请求等规则。\n\n因为网站保留了不用登录也可以留下记忆的功能，这个页面应该保持清晰、易读。",
-      legacy_id: 12002,
-    },
-    {
-      slug: "credits",
-      title: "鸣谢",
-      excerpt: "用于记录原项目和当前维护者的说明。",
-      body_markdown:
-        "# 鸣谢\n\n这个版本保留 I Remember 的视觉语言，同时让后台变成可自托管、可编辑的系统。\n\n你可以在这里添加项目、设计、音乐、部署和维护相关的鸣谢。",
-      legacy_id: 12003,
-    },
-  ],
-};
-
-const defaultMenuItems = {
-  en: [
-    { uid: "footer_about", label: "About", item_type: "PAGE", target_value: "about", position: 10 },
-    { uid: "footer_donate", label: "Donate", item_type: "EXTERNAL", url: "https://don.frm.org/Iremember/", position: 20, opens_new_tab: true },
-    { uid: "footer_terms", label: "Terms and Conditions", item_type: "PAGE", target_value: "terms", position: 30 },
-    { uid: "footer_credits", label: "Credits", item_type: "PAGE", target_value: "credits", position: 40 },
-    { uid: "footer_language", label: "langue_en", item_type: "LANGUAGE", position: 50 },
-  ],
-  fr: [
-    { uid: "footer_about", label: "A propos", item_type: "PAGE", target_value: "about", position: 10 },
-    { uid: "footer_donate", label: "Faire un don", item_type: "EXTERNAL", url: "https://don.frm.org/jemesouviens/", position: 20, opens_new_tab: true },
-    { uid: "footer_terms", label: "Mentions legales", item_type: "PAGE", target_value: "terms", position: 30 },
-    { uid: "footer_credits", label: "Credits", item_type: "PAGE", target_value: "credits", position: 40 },
-    { uid: "footer_language", label: "langue_fr", item_type: "LANGUAGE", position: 50 },
-  ],
-  zh: [
-    { uid: "footer_about", label: "关于", item_type: "PAGE", target_value: "about", position: 10 },
-    { uid: "footer_donate", label: "捐赠", item_type: "EXTERNAL", url: "https://don.frm.org/Iremember/", position: 20, opens_new_tab: true },
-    { uid: "footer_terms", label: "条款", item_type: "PAGE", target_value: "terms", position: 30 },
-    { uid: "footer_credits", label: "鸣谢", item_type: "PAGE", target_value: "credits", position: 40 },
-    { uid: "footer_language", label: "语言", item_type: "LANGUAGE", position: 50 },
-  ],
-};
-
-const defaultFooterMenuItems = {
-  en: [
-    { uid: "footer_donate", label: "Donate", item_type: "EXTERNAL", url: "https://don.frm.org/Iremember/", position: 20, opens_new_tab: true },
-    { uid: "footer_terms", label: "Terms and Conditions", item_type: "TERMS", position: 30 },
-    { uid: "footer_credits", label: "Credits", item_type: "CREDITS", position: 40 },
-    { uid: "footer_language", label: "language", item_type: "LANGUAGE", position: 50 },
-  ],
-  fr: [
-    { uid: "footer_donate", label: "Faire un don", item_type: "EXTERNAL", url: "https://don.frm.org/jemesouviens/", position: 20, opens_new_tab: true },
-    { uid: "footer_terms", label: "Mentions legales", item_type: "TERMS", position: 30 },
-    { uid: "footer_credits", label: "Credits", item_type: "CREDITS", position: 40 },
-    { uid: "footer_language", label: "langue", item_type: "LANGUAGE", position: 50 },
-  ],
-  zh: [
-    { uid: "footer_donate", label: "捐赠", item_type: "EXTERNAL", url: "https://don.frm.org/Iremember/", position: 20, opens_new_tab: true },
-    { uid: "footer_terms", label: "条款", item_type: "TERMS", position: 30 },
-    { uid: "footer_credits", label: "鸣谢", item_type: "CREDITS", position: 40 },
-    { uid: "footer_language", label: "语言", item_type: "LANGUAGE", position: 50 },
-  ],
-};
-
-function loadPostsFromHtml(htmlUrl, language) {
-  try {
-    const html = readFileSync(htmlUrl, "utf8");
-    const match = html.match(/var DEFAULT_POSTS = ([\s\S]*?);\n\s*var DEFAULT_POST =/);
-    if (!match) return [];
-    const parsed = JSON.parse(match[1]);
-    const language_id = languageId(language);
-    return Array.isArray(parsed?.data?.posts)
-      ? parsed.data.posts.map((post) => ({ ...post, language_id }))
-      : [];
-  } catch (error) {
-    return [];
-  }
-}
-
-function ensureStorage() {
-  mkdirSync(storageDirUrl, { recursive: true });
-  mkdirSync(uploadsDirUrl, { recursive: true });
-}
-
-function loadSubmittedPosts() {
-  if (!existsSync(submittedPostsUrl)) return [];
-
-  try {
-    const parsed = JSON.parse(readFileSync(submittedPostsUrl, "utf8"));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    return [];
-  }
-}
-
-function persistRuntimeSubmittedPosts() {
-  ensureStorage();
-  writeFileSync(
-    submittedPostsUrl,
-    `${JSON.stringify(runtimeSubmittedPosts, null, 2)}\n`,
-  );
-}
-
 export function normalizeLanguage(value = "") {
   const language = String(value || "").toLowerCase();
   if (language === "fr" || language === "zh") return language;
@@ -535,12 +207,6 @@ function languageId(language) {
   if (normalizeLanguage(language) === "fr") return "1";
   if (normalizeLanguage(language) === "zh") return "3";
   return "2";
-}
-
-function languageFromLegacyId(languageIdValue) {
-  if (String(languageIdValue) === "1") return "fr";
-  if (String(languageIdValue) === "3") return "zh";
-  return "en";
 }
 
 export function languageFromPath(pathname, defaultLanguage = "en") {
@@ -556,19 +222,6 @@ function languageFromRequest(url, pathname, defaultLanguage = "en") {
 
 function contentLanguage(defaultLanguage = "en") {
   return normalizeLanguage(defaultLanguage);
-}
-
-function postsForLanguage(language) {
-  return defaultPostsByLanguage[normalizeLanguage(language)] || [];
-}
-
-function submittedPostsForLanguage(language) {
-  const id = languageId(language);
-  return runtimeSubmittedPosts.filter((post) => post.language_id === id);
-}
-
-function fallbackAvailablePosts(language) {
-  return [...submittedPostsForLanguage(language), ...postsForLanguage(language)];
 }
 
 export function normalizeTag(value = "") {
@@ -1032,73 +685,10 @@ function excerptFromMarkdown(value = "", maxLength = 220) {
   return plain.length > maxLength ? `${plain.slice(0, maxLength - 1).trim()}...` : plain;
 }
 
-function memoryToPost(row) {
-  const bodyMarkdown = row.body_markdown || row.text || "";
-  const title = row.title || row.name || "I Remember";
-  const excerpt = row.excerpt || excerptFromMarkdown(bodyMarkdown || row.text || "");
-  return {
-    id: String(row.legacy_id ?? row.id),
-    uid: row.uid,
-    public_id: String(row.public_id || ""),
-    name: htmlText(row.name || "I Remember"),
-    title: htmlText(title),
-    img: row.image_key || "revival-upload",
-    img_offset_x: String(row.img_offset_x ?? "0"),
-    img_offset_y: String(row.img_offset_y ?? "0"),
-    text: htmlText(row.text || excerpt || ""),
-    excerpt: htmlText(excerpt || ""),
-    body_markdown: bodyMarkdown,
-    body_html: markdownToHtml(bodyMarkdown || row.text || ""),
-    is_long_form: row.is_long_form ? "1" : "0",
-    resized_img_width: String(row.resized_img_width ?? "600"),
-    resized_img_height: String(row.resized_img_height ?? "600"),
-    has_created_tags: row.has_created_tags === false ? "0" : "1",
-    is_stared: row.is_stared ? "1" : "0",
-    created_at: normalizeLegacyDate(row.created_at),
-    language_id: languageId(row.language_code),
-    ...(row.tags ? { tags: row.tags } : {}),
-  };
-}
-
-function legacyPostToMemoryRow(post, source = "archive") {
-  const language = languageFromLegacyId(post.language_id);
-  const legacyId = Number.parseInt(post.id, 10);
-  return {
-    uid: post.uid || `mem_${language}_${Number.isFinite(legacyId) ? legacyId : randomUUID()}`,
-    legacy_id: Number.isFinite(legacyId) ? legacyId : null,
-    public_id: post.public_id || post.publicId || null,
-    language_code: language,
-    name: post.name || "I Remember",
-    text: post.text || "",
-    image_key: post.img || "revival-upload",
-    img_offset_x: Number.parseFloat(post.img_offset_x || "0") || 0,
-    img_offset_y: Number.parseFloat(post.img_offset_y || "0") || 0,
-    resized_img_width: Number.parseInt(post.resized_img_width || "600", 10) || 600,
-    resized_img_height: Number.parseInt(post.resized_img_height || "600", 10) || 600,
-    has_created_tags: post.has_created_tags !== "0",
-    is_stared: post.is_stared === "1",
-    created_at: legacyDateToIso(post.created_at),
-    tags: post.tags || null,
-    title: post.title || post.name || "I Remember",
-    excerpt: post.excerpt || post.text || "",
-    body_markdown: post.body_markdown || post.text || "",
-    content_format: post.content_format || "plain",
-    is_long_form: Boolean(post.is_long_form),
-    source,
-    status: post.status || "NORMAL",
-  };
-}
-
 function normalizeLegacyDate(value) {
   if (!value) return sqlTimestamp(new Date());
   if (String(value).includes("T")) return sqlTimestamp(new Date(value));
   return String(value).replace("T", " ").replace(/\.\d+Z$/, "");
-}
-
-function legacyDateToIso(value) {
-  if (!value) return new Date().toISOString();
-  if (String(value).includes("T")) return new Date(value).toISOString();
-  return new Date(`${String(value).replace(" ", "T")}Z`).toISOString();
 }
 
 function sqlTimestamp(date) {
@@ -1136,53 +726,13 @@ function safeUploadedFileId(fileId) {
   return /^revival-[a-z0-9-]+$/i.test(value) ? value : null;
 }
 
-function uploadedImageUrls(fileId) {
-  const safeId = safeUploadedFileId(fileId);
-  if (!safeId) return null;
-
-  return {
-    data: new URL(`./${safeId}.bin`, uploadsDirUrl),
-    meta: new URL(`./${safeId}.json`, uploadsDirUrl),
-  };
-}
-
-function runtimeUploadedImageForFileId(fileId, variant = "resized") {
-  const safeId = safeUploadedFileId(fileId);
-  if (!safeId) return null;
-
-  const cached = uploadedImages.get(safeId);
-  if (cached) return cached[variant] || cached.resized || cached.original;
-
-  const urls = uploadedImageUrls(safeId);
-  if (!urls || !existsSync(urls.data) || !existsSync(urls.meta)) return null;
-
-  try {
-    const meta = JSON.parse(readFileSync(urls.meta, "utf8"));
-    const stored = {
-      resized: {
-        data: readFileSync(urls.data),
-        mimeType: meta.mimeType || "image/jpeg",
-      },
-    };
-    uploadedImages.set(safeId, stored);
-    return stored.resized;
-  } catch (error) {
-    return null;
-  }
-}
-
 function runtimeUploadedImageForPath(pathname) {
   const match = pathname.match(
     /^\/uploads\/(?:tmp|posts)\/([^/]+)\/(resized|thumb)\.(?:jpg|jpeg|png|gif|webp)$/i,
   );
   if (!match) return null;
-  return runtimeUploadedImageForFileId(match[1], match[2]);
-}
-
-function imagePathForVariant(row, variant) {
-  if (variant === "thumb") return row.thumb_path;
-  if (variant === "original") return row.original_path;
-  return row.resized_path || row.original_path;
+  const cached = uploadedImages.get(match[1]);
+  return cached?.[match[2]] || cached?.resized || cached?.original || null;
 }
 
 function legacyImagePath(imageKey, variant = "resized") {
@@ -1236,115 +786,6 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
 
 function legacyImageUrl(imageKey, variant = "thumb") {
   return legacyImagePath(imageKey || "revival-upload", variant);
-}
-
-function adminStatus(row) {
-  if (row.status === "NORMAL") return "published";
-  if (row.status === "PENDING") return "pending";
-  if (row.status === "REJECTED") return "rejected";
-  return "archived";
-}
-
-function dbStatus(value) {
-  const normalized = String(value || "").toUpperCase();
-  if (["NORMAL", "PENDING", "ARCHIVED", "REJECTED"].includes(normalized)) {
-    return normalized;
-  }
-  if (value === "published") return "NORMAL";
-  if (value === "pending") return "PENDING";
-  if (value === "rejected") return "REJECTED";
-  return "ARCHIVED";
-}
-
-function metadataJson(value, fallback = null) {
-  if (value === undefined) return fallback;
-  if (value && typeof value === "object" && !Array.isArray(value)) return JSON.stringify(value);
-  const text = String(value || "").trim();
-  if (!text) return null;
-  try {
-    return JSON.stringify(JSON.parse(text));
-  } catch (_error) {
-    throw new HttpError(400, "Metadata must be valid JSON", "invalid_metadata");
-  }
-}
-
-function adminMemory(row, language = row?.language_code || "en") {
-  if (!row) return null;
-  const post = memoryToPost(row);
-  const bodyMarkdown = row.body_markdown || row.text || "";
-  return {
-    rowId: row.id,
-    id: row.id,
-    publicId: row.public_id,
-    uid: row.uid,
-    title: row.title || row.name || "I Remember",
-    author: row.name || "I Remember",
-    language: normalizeLanguage(row.language_code),
-    status: adminStatus(row),
-    dbStatus: row.status,
-    source: row.source,
-    excerpt: row.excerpt || excerptFromMarkdown(bodyMarkdown || row.text || ""),
-    text: row.text || "",
-    bodyMarkdown,
-    metadataJson: row.metadata_json || "",
-    bodyHtml: markdownToHtml(bodyMarkdown || row.text || ""),
-    isLongForm: Boolean(row.is_long_form),
-    imageKey: row.image_key || "revival-upload",
-    imageUrl: legacyImageUrl(row.image_key, "thumb"),
-    publicUrl: publicMemoryUrl(post),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function adminPage(row, linkedMemory = null) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    slug: row.slug,
-    language: normalizeLanguage(row.language_code),
-    title: row.title,
-    excerpt: row.excerpt || excerptFromMarkdown(row.body_markdown || ""),
-    bodyMarkdown: row.body_markdown || "",
-    bodyHtml: markdownToHtml(row.body_markdown || ""),
-    metadataJson: row.metadata_json || "",
-    status: row.status,
-    linkedMemoryUid: row.linked_memory_uid || "",
-    linkedMemoryPublicId: linkedMemory?.public_id || "",
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function adminMenuItem(row) {
-  if (!row) return null;
-  return {
-    id: row.id,
-    uid: row.uid,
-    language: normalizeLanguage(row.language_code),
-    label: row.label,
-    type: row.item_type,
-    targetValue: row.target_value || "",
-    url: row.url || "",
-    position: row.position,
-    isVisible: Boolean(row.is_visible),
-    opensNewTab: Boolean(row.opens_new_tab),
-  };
-}
-
-function publicMenuItem(row) {
-  const item = adminMenuItem(row);
-  return item
-    ? {
-        id: item.id,
-        label: item.label,
-        type: item.type,
-        targetValue: item.targetValue,
-        url: item.url,
-        position: item.position,
-        opensNewTab: item.opensNewTab,
-      }
-    : null;
 }
 
 function v1MenuItemToPublic(item = {}) {
@@ -1463,63 +904,13 @@ function validatedPostFields(fields = {}, defaultLanguage = "en") {
   };
 }
 
-function localUploadRelativePath(fileId, filename) {
-  return `uploads/${fileId}/${filename}`;
-}
-
-function resolveStoredDataPath(store, storedPath) {
-  if (!storedPath) return null;
-
-  const resolved = resolve(store.dataDir, storedPath);
-  if (resolved !== store.dataDir && !resolved.startsWith(`${store.dataDir}${sep}`)) {
-    return null;
-  }
-  return resolved;
-}
-
-function storedImageForRow(store, row, variant = "resized") {
-  if (!row || row.storage_type !== "LOCAL") return null;
-
-  const storedPath = imagePathForVariant(row, variant);
-  const filePath = resolveStoredDataPath(store, storedPath);
-  if (!filePath || !existsSync(filePath) || !statSync(filePath).isFile()) return null;
-
-  return {
-    data: readFileSync(filePath),
-    filename: filePath.split(/[\\/]/).pop() || "image.jpg",
-    mimeType: mimeTypeForPath(filePath),
-  };
-}
-
-function archiveImageRowForKey(imageKey) {
-  const resized = publicUploadImageForPath(legacyImagePath(imageKey, "resized"));
-  const thumb = publicUploadImageForPath(legacyImagePath(imageKey, "thumb"));
-  const available = resized || thumb;
-  return {
-    image_key: imageKey,
-    storage_type: available ? "ARCHIVE" : "FALLBACK",
-    original_path: available ? legacyImagePath(imageKey, "resized") : null,
-    resized_path: resized ? legacyImagePath(imageKey, "resized") : null,
-    thumb_path: thumb ? legacyImagePath(imageKey, "thumb") : null,
-    mime_type: "image/jpeg",
-    sha256: available ? createHash("sha256").update(available.data).digest("hex") : null,
-    fallback: !available,
-  };
-}
-
 class RevivalBackend {
   constructor(options = {}) {
     this.apiBaseUrl = String(options.apiBaseUrl || "").replace(/\/+$/g, "");
-    this.store = new RevivalSQLiteStore();
-    this.ensureAdminAccount();
-    this.ensureSiteSettings();
-    this.ensureDefaultFooterMenu();
-    if (seedArchiveData) this.seedArchiveData();
-    if (seedStarterContent) this.seedAdminContent();
   }
 
   get mode() {
-    return this.apiBaseUrl ? "v1" : "sqlite";
+    return "v1";
   }
 
   get hasApiBackend() {
@@ -1579,263 +970,37 @@ class RevivalBackend {
     return data?.item ? v1MenuTargetToPublic(data, language) : null;
   }
 
-  ensureAdminAccount() {
-    if (this.store.getSetting("admin.two_factor_enabled", null) === null) {
-      this.store.setSetting("admin.two_factor_enabled", "false");
-    }
-  }
-
-  ensureSiteSettings() {
-    const defaults = {
-      "site.default_language": normalizeLanguage(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en"),
-      "site.anonymous_submissions": String(process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS !== "false"),
-      "site.tracking_enabled": String(Boolean(process.env.UMAMI_SRC && process.env.UMAMI_WEBSITE_ID)),
-      "site.umami_src": process.env.UMAMI_SRC || "",
-      "site.umami_website_id": process.env.UMAMI_WEBSITE_ID || "",
-    };
-    const updates = {};
-    for (const [key, value] of Object.entries(defaults)) {
-      if (this.store.getSetting(key, null) === null) updates[key] = value;
-    }
-    if (Object.keys(updates).length) this.store.setSettings(updates);
-  }
-
-  ensureDefaultFooterMenu() {
-    for (const language of ["en", "fr", "zh"]) {
-      const settingKey = `site.footer_menu_initialized.${language}`;
-      if (this.store.getSetting(settingKey, "") === "true") continue;
-
-      const existing = this.store.listMenuItems(language);
-      if (existing.length === 0) {
-        for (const item of defaultFooterMenuItems[language] || []) {
-          this.store.upsertMenuItem({
-            ...item,
-            language_code: language,
-            is_visible: true,
-            opens_new_tab: Boolean(item.opens_new_tab),
-          });
-        }
-        logInfo("footer_menu_seeded", {
-          language,
-          count: (defaultFooterMenuItems[language] || []).length,
-        });
-      }
-      this.store.setSetting(settingKey, "true");
-    }
-  }
-
   siteSettings() {
     return {
-      defaultLanguage: normalizeLanguage(this.store.getSetting("site.default_language", "en")),
-      anonymousSubmissions: boolSetting(this.store.getSetting("site.anonymous_submissions", "true"), true),
+      defaultLanguage: normalizeLanguage(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en"),
+      anonymousSubmissions: process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS !== "false",
       tracking: {
-        enabled: boolSetting(this.store.getSetting("site.tracking_enabled", "false"), false),
-        umamiSrc: this.store.getSetting("site.umami_src", ""),
-        umamiWebsiteId: this.store.getSetting("site.umami_website_id", ""),
+        enabled: Boolean(process.env.UMAMI_SRC && process.env.UMAMI_WEBSITE_ID),
+        umamiSrc: process.env.UMAMI_SRC || "",
+        umamiWebsiteId: process.env.UMAMI_WEBSITE_ID || "",
       },
-    };
-  }
-
-  adminAccount() {
-    return {
-      email: this.store.getSetting("admin.email", ""),
-      twoFactorEnabled: boolSetting(this.store.getSetting("admin.two_factor_enabled", "false"), false),
     };
   }
 
   needsAdminSetup() {
-    return !this.store.getSetting("admin.password_hash", "");
-  }
-
-  publicAdminProfile() {
-    return {
-      ...this.adminAccount(),
-      hasPassword: Boolean(this.store.getSetting("admin.password_hash", "")),
-    };
-  }
-
-  loginAdmin(input = {}) {
-    if (this.needsAdminSetup()) {
-      throw new HttpError(409, "Admin setup is required", "admin_setup_required");
-    }
-    const account = this.adminAccount();
-    const email = String(input.email || input.username || "").trim().toLowerCase();
-    const expectedEmail = String(account.email || "").trim().toLowerCase();
-    const passwordHash = this.store.getSetting("admin.password_hash", "");
-    if (!email || email !== expectedEmail || !verifyPassword(input.password, passwordHash)) {
-      throw new HttpError(401, "Invalid admin credentials", "invalid_credentials");
-    }
-
-    const secret = this.store.getSetting("admin.two_factor_secret", "");
-    if (account.twoFactorEnabled) {
-      if (!input.totp) return { requiresTwoFactor: true, email: account.email };
-      if (!secret || !verifyTotp(secret, input.totp)) {
-        throw new HttpError(401, "Invalid two-factor code", "invalid_two_factor_code");
-      }
-    }
-
-    return {
-      requiresTwoFactor: false,
-      account: this.publicAdminProfile(),
-    };
-  }
-
-  setupAdmin(input = {}) {
-    if (!this.needsAdminSetup()) {
-      throw new HttpError(409, "Admin account already exists", "admin_exists");
-    }
-    const email = cleanText(input.email || input.username, "", 180);
-    const password = String(input.password || "");
-    if (!email) throw new HttpError(400, "Username or email is required", "missing_email");
-    if (password.length < 10) {
-      throw new HttpError(400, "Password must be at least 10 characters", "weak_password");
-    }
-    this.store.setSettings({
-      "admin.email": email,
-      "admin.password_hash": hashPassword(password),
-      "admin.two_factor_enabled": "false",
-    });
-    return this.publicAdminProfile();
-  }
-
-  updateSiteSettings(input = {}) {
-    const current = this.siteSettings();
-    const tracking = input.tracking || {};
-    const next = {
-      defaultLanguage: normalizeLanguage(input.defaultLanguage || current.defaultLanguage),
-      anonymousSubmissions: Boolean(input.anonymousSubmissions),
-      tracking: {
-        enabled: Boolean(tracking.enabled),
-        umamiSrc: cleanText(tracking.umamiSrc ?? current.tracking.umamiSrc, "", 500),
-        umamiWebsiteId: cleanText(tracking.umamiWebsiteId ?? current.tracking.umamiWebsiteId, "", 160),
-      },
-    };
-    this.store.setSettings({
-      "site.default_language": next.defaultLanguage,
-      "site.anonymous_submissions": String(next.anonymousSubmissions),
-      "site.tracking_enabled": String(next.tracking.enabled),
-      "site.umami_src": next.tracking.umamiSrc,
-      "site.umami_website_id": next.tracking.umamiWebsiteId,
-    });
-    return this.siteSettings();
-  }
-
-  updateAdminAccount(input = {}) {
-    const passwordHash = this.store.getSetting("admin.password_hash", "");
-    if (!verifyPassword(input.currentPassword, passwordHash)) {
-      throw new HttpError(401, "Current password is incorrect", "invalid_credentials");
-    }
-    const updates = {};
-    if (input.email) updates["admin.email"] = cleanText(input.email, "admin@i-remember.fr", 180);
-    if (input.newPassword) {
-      if (String(input.newPassword).length < 10) {
-        throw new HttpError(400, "New password must be at least 10 characters", "weak_password");
-      }
-      updates["admin.password_hash"] = hashPassword(input.newPassword);
-    }
-    if (Object.keys(updates).length) this.store.setSettings(updates);
-    return this.publicAdminProfile();
-  }
-
-  setupTwoFactor() {
-    const secret = base32Encode(randomBytes(20));
-    this.store.setSetting("admin.two_factor_pending_secret", secret);
-    const email = this.adminAccount().email;
-    return {
-      secret,
-      otpauthUrl: `otpauth://totp/I%20Remember:${encodeURIComponent(email)}?secret=${secret}&issuer=I%20Remember`,
-    };
-  }
-
-  enableTwoFactor(input = {}) {
-    const secret = this.store.getSetting("admin.two_factor_pending_secret", "");
-    if (!secret || !verifyTotp(secret, input.totp)) {
-      throw new HttpError(400, "Invalid two-factor code", "invalid_two_factor_code");
-    }
-    this.store.setSettings({
-      "admin.two_factor_secret": secret,
-      "admin.two_factor_pending_secret": "",
-      "admin.two_factor_enabled": "true",
-    });
-    return this.publicAdminProfile();
-  }
-
-  disableTwoFactor(input = {}) {
-    const secret = this.store.getSetting("admin.two_factor_secret", "");
-    if (this.adminAccount().twoFactorEnabled && (!secret || !verifyTotp(secret, input.totp))) {
-      throw new HttpError(400, "Invalid two-factor code", "invalid_two_factor_code");
-    }
-    this.store.setSettings({
-      "admin.two_factor_secret": "",
-      "admin.two_factor_pending_secret": "",
-      "admin.two_factor_enabled": "false",
-    });
-    return this.publicAdminProfile();
-  }
-
-  seedArchiveData() {
-    const imported = new Set();
-    for (const language of ["en", "fr", "zh"]) {
-      for (const post of postsForLanguage(language)) {
-        const row = legacyPostToMemoryRow(post, "archive");
-        row.status = "NORMAL";
-        this.store.upsertMemory(row, "NORMAL");
-        if (post.img && !imported.has(post.img)) {
-          this.store.upsertImage(archiveImageRowForKey(post.img));
-          imported.add(post.img);
-        }
-      }
-    }
-
-    for (const post of runtimeSubmittedPosts) {
-      const row = legacyPostToMemoryRow(post, "legacy-submission");
-      row.status = "NORMAL";
-      this.store.upsertMemory(row, "NORMAL");
-      if (post.img && !imported.has(post.img)) {
-        this.store.upsertImage(archiveImageRowForKey(post.img));
-        imported.add(post.img);
-      }
-    }
-  }
-
-  seedAdminContent() {
-    for (const language of ["en", "fr", "zh"]) {
-      for (const page of defaultPageContent[language] || []) {
-        this.savePage({
-          ...page,
-          language,
-          status: "PUBLISHED",
-        });
-      }
-
-      for (const item of defaultMenuItems[language] || []) {
-        this.store.upsertMenuItem({
-          ...item,
-          language_code: language,
-          is_visible: true,
-          opens_new_tab: Boolean(item.opens_new_tab),
-        });
-      }
-    }
+    return false;
   }
 
   async allPosts(language) {
     const v1Posts = await this.v1PublicMemories(language);
     if (v1Posts) return uniquePosts(v1Posts);
-    if (this.hasApiBackend) return [];
-    return uniquePosts(this.store.listMemories(normalizeLanguage(language)).map(memoryToPost));
+    return [];
   }
 
   memoryByPublicId(publicId) {
-    return this.store.getMemoryByPublicId(publicId);
+    void publicId;
+    return null;
   }
 
   async directPost(publicId, language = "en") {
     const v1Post = await this.v1PublicMemory(publicId, language);
     if (v1Post) return v1Post;
-    if (this.hasApiBackend) return null;
-    const row = this.memoryByPublicId(publicId);
-    return row ? memoryToPost(row) : null;
+    return null;
   }
 
   async searchPosts(language, tag, url) {
@@ -1854,272 +1019,19 @@ class RevivalBackend {
     return autocompleteList(posts, fragment, language);
   }
 
-  adminBootstrap(language = "en") {
-    const normalized = normalizeLanguage(language);
-    const memories = this.store
-      .listAllMemories(normalized, 500)
-      .map((row) => adminMemory(row, normalized));
-    const pages = this.store.listPages(normalized).map((row) =>
-      adminPage(row, row.linked_memory_uid ? this.store.getMemoryByUid(row.linked_memory_uid) : null),
-    );
-    const menu = this.store.listMenuItems(normalized).map(adminMenuItem);
-    const attachments = this.store.listImages(80).map((row) => {
-      return {
-        imageKey: row.image_key,
-        storageType: row.storage_type,
-        thumbUrl: legacyImageUrl(row.image_key, "thumb"),
-        resizedUrl: legacyImageUrl(row.image_key, "resized"),
-        mimeType: row.mime_type,
-        updatedAt: row.updated_at,
-      };
-    });
-    const counts = {
-      pendingMemory: memories.filter((memory) => memory.dbStatus === "PENDING").length,
-      publishedMemory: memories.filter((memory) => memory.dbStatus === "NORMAL").length,
-      archivedMemory: memories.filter((memory) => memory.dbStatus === "ARCHIVED").length,
-      pages: pages.length,
-      menuItems: menu.length,
-      attachments: attachments.length,
-    };
-
-    return {
-      language: normalized,
-      counts,
-      memories,
-      pages,
-      menu,
-      comments: [],
-      attachments,
-      settings: {
-        ...this.siteSettings(),
-        autoApproveSubmissions,
-        account: this.publicAdminProfile(),
-      },
-    };
-  }
-
-  adminExport(language = "en") {
-    const data = this.adminBootstrap(language);
-    return {
-      generatedAt: new Date().toISOString(),
-      defaultLanguage: this.siteSettings().defaultLanguage,
-      format: "i-remember-admin-export-v1",
-      data,
-    };
-  }
-
-  saveMemory(input = {}) {
-    const language = normalizeLanguage(
-      input.language || input.language_code || this.siteSettings().defaultLanguage,
-    );
-    const existing = input.id ? this.store.getMemoryByRowId(input.id) : null;
-    const legacyId = existing?.legacy_id || this.store.nextLegacyId(language);
-    const bodyMarkdown = String(input.bodyMarkdown ?? input.body_markdown ?? existing?.body_markdown ?? input.text ?? "");
-    const excerpt = cleanText(
-      input.excerpt ?? existing?.excerpt ?? excerptFromMarkdown(bodyMarkdown),
-      "",
-      600,
-    );
-    const title = cleanText(input.title ?? existing?.title ?? input.name, "I Remember", 180);
-    const row = this.store.upsertMemory({
-      ...(existing || {}),
-      uid: existing?.uid || `mem_${randomUUID().replaceAll("-", "")}`,
-      legacy_id: legacyId,
-      public_id: existing?.public_id,
-      language_code: language,
-      name: cleanText(input.author ?? input.name ?? existing?.name, "I Remember", 120),
-      title,
-      excerpt,
-      text: cleanText(input.text ?? excerpt, excerpt, 12000),
-      body_markdown: bodyMarkdown,
-      content_format: "markdown",
-      is_long_form: Boolean(input.isLongForm ?? input.is_long_form ?? existing?.is_long_form),
-      image_key: input.imageKey || input.image_key || existing?.image_key || "revival-upload",
-      img_offset_x: Number(input.imgOffsetX ?? existing?.img_offset_x ?? 0),
-      img_offset_y: Number(input.imgOffsetY ?? existing?.img_offset_y ?? 0),
-      resized_img_width: Number(input.resizedImgWidth ?? existing?.resized_img_width ?? 600),
-      resized_img_height: Number(input.resizedImgHeight ?? existing?.resized_img_height ?? 600),
-      has_created_tags: existing?.has_created_tags ?? true,
-      is_stared: Boolean(input.isStared ?? existing?.is_stared),
-      tags: existing?.tags || defaultTags(language),
-      metadata_json: metadataJson(
-        input.metadataJson ?? input.metadata_json ?? input.metadata,
-        existing?.metadata_json || null,
-      ),
-      source: input.source || existing?.source || "admin",
-      status: dbStatus(input.status || existing?.status || "PENDING"),
-      created_at: existing?.created_at || new Date().toISOString(),
-    });
-
-    return adminMemory(row, language);
-  }
-
-  archiveMemory(id) {
-    const existing = this.store.getMemoryByRowId(id);
-    if (!existing) throw new HttpError(404, "Memory not found", "not_found");
-    return this.saveMemory({ id, language_code: existing.language_code, status: "ARCHIVED" });
-  }
-
-  savePage(input = {}) {
-    const language = normalizeLanguage(
-      input.language || input.language_code || this.siteSettings().defaultLanguage,
-    );
-    const slug = routeTag(input.slug || "page") || "page";
-    const existingPage = this.store.getPage(language, slug);
-    const linkedMemoryUid =
-      input.linkedMemoryUid ||
-      input.linked_memory_uid ||
-      existingPage?.linked_memory_uid ||
-      `page_${language}_${slug}`;
-    const bodyMarkdown = String(
-      input.bodyMarkdown ?? input.body_markdown ?? existingPage?.body_markdown ?? "",
-    );
-    const title = cleanText(input.title ?? existingPage?.title, "Untitled page", 180);
-    const excerpt = cleanText(
-      input.excerpt ?? existingPage?.excerpt ?? excerptFromMarkdown(bodyMarkdown),
-      "",
-      600,
-    );
-    const status = ["PUBLISHED", "DRAFT", "ARCHIVED"].includes(input.status)
-      ? input.status
-      : existingPage?.status || "DRAFT";
-    const page = this.store.upsertPage({
-      slug,
-      language_code: language,
-      title,
-      excerpt,
-      body_markdown: bodyMarkdown,
-      metadata_json: metadataJson(
-        input.metadataJson ?? input.metadata_json ?? input.metadata,
-        existingPage?.metadata_json || null,
-      ),
-      status,
-      linked_memory_uid: linkedMemoryUid,
-    });
-
-    const existingMemory = this.store.getMemoryByUid(linkedMemoryUid);
-    const legacyId = existingMemory?.legacy_id || this.store.nextLegacyId(language);
-    const memoryStatus = page.status === "PUBLISHED" ? "NORMAL" : "ARCHIVED";
-    const linkedMemory = this.store.upsertMemory({
-      ...(existingMemory || {}),
-      uid: linkedMemoryUid,
-      legacy_id: legacyId,
-      public_id: existingMemory?.public_id,
-      language_code: language,
-      name: "I Remember",
-      title,
-      excerpt,
-      text: excerpt || excerptFromMarkdown(bodyMarkdown),
-      body_markdown: bodyMarkdown,
-      content_format: "markdown",
-      is_long_form: true,
-      image_key: existingMemory?.image_key || "revival-upload",
-      img_offset_x: existingMemory?.img_offset_x || 0,
-      img_offset_y: existingMemory?.img_offset_y || 0,
-      resized_img_width: existingMemory?.resized_img_width || 600,
-      resized_img_height: existingMemory?.resized_img_height || 600,
-      has_created_tags: true,
-      is_stared: false,
-      tags: { [slug]: 2, page: 1, memory: 1 },
-      source: "page",
-      status: memoryStatus,
-      created_at: existingMemory?.created_at || new Date().toISOString(),
-    });
-
-    return adminPage(page, linkedMemory);
-  }
-
-  saveMenuItem(input = {}) {
-    const language = normalizeLanguage(
-      input.language || input.language_code || this.siteSettings().defaultLanguage,
-    );
-    const row = {
-      uid: input.uid || `footer_${routeTag(input.label || "item")}_${randomUUID().slice(0, 6)}`,
-      language_code: language,
-      label: input.label || "Menu item",
-      item_type: input.type || input.item_type || "PAGE",
-      target_value: input.targetValue ?? input.target_value ?? "",
-      url: input.url || "",
-      position: Number(input.position || 0),
-      is_visible: input.isVisible ?? input.is_visible ?? true,
-      opens_new_tab: input.opensNewTab ?? input.opens_new_tab ?? false,
-    };
-
-    const saved = input.id
-      ? this.store.updateMenuItemById(input.id, row)
-      : this.store.upsertMenuItem(row);
-    return adminMenuItem(saved);
-  }
-
-  deleteMenuItem(id) {
-    this.store.deleteMenuItem(id);
-  }
 
   async publicMenu(language = "en") {
     const v1Menu = await this.v1PublicMenu(language);
     if (v1Menu) return v1Menu;
-    if (this.hasApiBackend) return [];
-    return this.store
-      .listMenuItems(normalizeLanguage(language), { visibleOnly: true })
-      .map(publicMenuItem)
-      .filter(Boolean);
+    return [];
   }
 
   async publicMenuTarget(id, language = "en") {
     const v1Target = await this.v1PublicMenuTarget(id, language);
     if (v1Target) return v1Target;
-    if (this.hasApiBackend) throw new HttpError(404, "Menu item not found", "not_found");
-    const normalized = normalizeLanguage(language);
-    const item = this.store.getMenuItem(id);
-    if (!item || normalizeLanguage(item.language_code) !== normalized || !item.is_visible) {
-      throw new HttpError(404, "Menu item not found", "not_found");
-    }
-
-    if (item.item_type === "PAGE") {
-      const page = this.store.getPage(normalized, routeTag(item.target_value || item.label));
-      const memory = page?.linked_memory_uid
-        ? this.store.getMemoryByUid(page.linked_memory_uid)
-        : null;
-      return {
-        item: publicMenuItem(item),
-        page: adminPage(page),
-        memory: adminMemory(memory, normalized),
-        post: memory ? memoryToPost(memory) : null,
-      };
-    }
-
-    if (item.item_type === "MEMORY") {
-      const memory =
-        this.memoryByPublicId(item.target_value, normalized) ||
-        this.store.getMemoryByUid(item.target_value);
-      return {
-        item: publicMenuItem(item),
-        memory: adminMemory(memory, normalized),
-        post: memory ? memoryToPost(memory) : null,
-      };
-    }
-
-    if (item.item_type === "SEARCH") {
-      const found = await this.searchPosts(
-        normalized,
-        item.target_value || item.label,
-        new URL("/", "http://i-remember.local"),
-      );
-      const first = found[0];
-      const memory = first
-        ? this.store.getMemory(normalized, Number.parseInt(first.id, 10))
-        : null;
-      return {
-        item: publicMenuItem(item),
-        memory: adminMemory(memory, normalized),
-        post: memory ? memoryToPost(memory) : null,
-        results: found,
-      };
-    }
-
-    return {
-      item: publicMenuItem(item),
-    };
+    void id;
+    void language;
+    throw new HttpError(404, "Menu item not found", "not_found");
   }
 
   async uploadImage(file) {
@@ -2166,7 +1078,7 @@ class RevivalBackend {
       thumb: { data: thumb, mimeType: "image/jpeg" },
     });
 
-    const uploadDir = join(this.store.uploadsDir, fileId);
+    const uploadDir = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", fileId);
     mkdirSync(uploadDir, { recursive: true, mode: 0o770 });
     const originalPath = join(uploadDir, "original");
     const resizedPath = join(uploadDir, "resized.jpg");
@@ -2174,19 +1086,6 @@ class RevivalBackend {
     writeFileSync(originalPath, original, { mode: 0o660 });
     writeFileSync(resizedPath, resized, { mode: 0o660 });
     writeFileSync(thumbPath, thumb, { mode: 0o660 });
-
-    this.store.upsertImage({
-      image_key: fileId,
-      storage_type: "LOCAL",
-      original_path: relative(this.store.dataDir, originalPath),
-      resized_path: relative(this.store.dataDir, resizedPath),
-      thumb_path: relative(this.store.dataDir, thumbPath),
-      mime_type: mimeType,
-      width: metadata.width || null,
-      height: metadata.height || null,
-      sha256: createHash("sha256").update(original).digest("hex"),
-      fallback: false,
-    });
 
     return fileId;
   }
@@ -2202,9 +1101,19 @@ class RevivalBackend {
     if (match) {
       const imageKey = match[1];
       const variant = match[2] === "thumb" ? "thumb" : "resized";
-      const row = this.store.getImage(imageKey);
-      const stored = storedImageForRow(this.store, row, variant);
-      if (stored) return stored;
+      const filePath = join(
+        process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"),
+        "posts",
+        imageKey,
+        `${variant}.jpg`,
+      );
+      if (existsSync(filePath) && statSync(filePath).isFile()) {
+        return {
+          data: readFileSync(filePath),
+          filename: `${variant}.jpg`,
+          mimeType: "image/jpeg",
+        };
+      }
     }
 
     return publicUploadImageForPath(pathname) || fallbackPostImageForPath(pathname);
@@ -2260,38 +1169,7 @@ class RevivalBackend {
         status: v1Memory.status || "PENDING",
       };
     }
-    if (this.hasApiBackend) {
-      throw new HttpError(502, "API memory creation failed", "api_unavailable");
-    }
-    const legacyId = await this.nextSubmittedPostId(language);
-    const post = {
-      id: String(legacyId),
-      uid: `mem_${randomUUID().replaceAll("-", "")}`,
-      name: clean.name,
-      img: clean.fileId,
-      img_offset_x: clean.imgOffsetX,
-      img_offset_y: clean.imgOffsetY,
-      text: clean.message,
-      resized_img_width: "600",
-      resized_img_height: "600",
-      has_created_tags: "1",
-      is_stared: "0",
-      created_at: sqlTimestamp(new Date()),
-      language_id: languageId(language),
-      tags: defaultTags(language),
-      status: autoApproveSubmissions ? "NORMAL" : "PENDING",
-    };
-
-    const row = legacyPostToMemoryRow(post, "submission");
-    const data = this.store.insertMemory(row, post.status);
-    return {
-      ...memoryToPost(data),
-      status: data.status,
-    };
-  }
-
-  async nextSubmittedPostId(language) {
-    return this.store.nextLegacyId(normalizeLanguage(language));
+    throw new HttpError(502, "API memory creation failed", "api_unavailable");
   }
 
 }
@@ -2674,237 +1552,8 @@ async function handleRequest(backend, req, res, next, options = {}) {
     return;
   }
 
-  if (pathname === "/api/admin/session" && req.method === "GET") {
-    const session = adminSessionFromRequest(req);
-    sendJson(req, res, {
-      success: true,
-      data: {
-        needsSetup: backend.needsAdminSetup(),
-        authenticated: Boolean(session),
-        account: session ? backend.publicAdminProfile() : null,
-      },
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/setup" && req.method === "POST") {
-    assertSameOrigin(req);
-    assertRateLimit(req, "admin-setup", 12, 10 * 60 * 1000);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    const account = backend.setupAdmin(input);
-    const token = createAdminSession(account.email);
-    setAdminCookie(res, token);
-    sendJson(req, res, {
-      success: true,
-      data: {
-        authenticated: true,
-        account,
-      },
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/login" && req.method === "POST") {
-    assertSameOrigin(req);
-    assertRateLimit(req, "admin-login", 12, 10 * 60 * 1000);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    const result = backend.loginAdmin(input);
-    if (result.requiresTwoFactor) {
-      sendJson(req, res, { success: true, data: result });
-      return;
-    }
-    const token = createAdminSession(result.account.email);
-    setAdminCookie(res, token);
-    sendJson(req, res, {
-      success: true,
-      data: {
-        authenticated: true,
-        account: result.account,
-      },
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/logout" && req.method === "POST") {
-    assertSameOrigin(req);
-    clearAdminCookie(res, req);
-    sendJson(req, res, { success: true, data: { authenticated: false } });
-    return;
-  }
-
-  if (pathname === "/api/admin/bootstrap" && req.method === "GET") {
-    requireAdmin(req);
-    sendJson(req, res, {
-      success: true,
-      data: backend.adminBootstrap(memoryLanguage),
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/export" && req.method === "GET") {
-    requireAdmin(req);
-    sendJson(req, res, {
-      success: true,
-      data: backend.adminExport(memoryLanguage),
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/memories" && req.method === "POST") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    sendJson(req, res, {
-      success: true,
-      data: backend.saveMemory(input),
-    });
-    return;
-  }
-
-  if (/^\/api\/admin\/memories\/\d+$/.test(pathname) && req.method === "PUT") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    const id = Number.parseInt(pathname.split("/").pop(), 10);
-    sendJson(req, res, {
-      success: true,
-      data: backend.saveMemory({ ...input, id }),
-    });
-    return;
-  }
-
-  if (/^\/api\/admin\/memories\/\d+$/.test(pathname) && req.method === "DELETE") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const id = Number.parseInt(pathname.split("/").pop(), 10);
-    sendJson(req, res, {
-      success: true,
-      data: backend.archiveMemory(id),
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/pages" && req.method === "POST") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    sendJson(req, res, {
-      success: true,
-      data: backend.savePage(input),
-    });
-    return;
-  }
-
-  if (/^\/api\/admin\/pages\/[^/]+$/.test(pathname) && req.method === "PUT") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    const slug = decodeURIComponent(pathname.split("/").pop() || "");
-    sendJson(req, res, {
-      success: true,
-      data: backend.savePage({ ...input, slug }),
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/menu-items" && req.method === "POST") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    sendJson(req, res, {
-      success: true,
-      data: backend.saveMenuItem(input),
-    });
-    return;
-  }
-
-  if (/^\/api\/admin\/menu-items\/\d+$/.test(pathname) && req.method === "PUT") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    const id = Number.parseInt(pathname.split("/").pop(), 10);
-    sendJson(req, res, {
-      success: true,
-      data: backend.saveMenuItem({ ...input, id }),
-    });
-    return;
-  }
-
-  if (/^\/api\/admin\/menu-items\/\d+$/.test(pathname) && req.method === "DELETE") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const id = Number.parseInt(pathname.split("/").pop(), 10);
-    backend.deleteMenuItem(id);
-    sendJson(req, res, {
-      success: true,
-      data: { id },
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/settings" && req.method === "PUT") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    sendJson(req, res, {
-      success: true,
-      data: backend.updateSiteSettings(input),
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/account" && req.method === "PUT") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    sendJson(req, res, {
-      success: true,
-      data: backend.updateAdminAccount(input),
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/2fa/setup" && req.method === "POST") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    sendJson(req, res, {
-      success: true,
-      data: backend.setupTwoFactor(),
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/2fa/enable" && req.method === "POST") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    sendJson(req, res, {
-      success: true,
-      data: backend.enableTwoFactor(input),
-    });
-    return;
-  }
-
-  if (pathname === "/api/admin/2fa/disable" && req.method === "POST") {
-    assertSameOrigin(req);
-    requireAdmin(req);
-    const body = await collectRequest(req, maxJsonBodyBytes);
-    const input = parseJsonObject(body);
-    sendJson(req, res, {
-      success: true,
-      data: backend.disableTwoFactor(input),
-    });
+  if (pathname === "/api/admin" || pathname.startsWith("/api/admin/")) {
+    sendStatus(res, 404, "Not found");
     return;
   }
 
@@ -3115,20 +1764,12 @@ export function createViteRevivalPlugin() {
   };
 }
 
-export function createStoreForScripts() {
-  const backend = new RevivalBackend();
-  return backend.store;
-}
-
 export function createBackendForScripts() {
   return new RevivalBackend();
 }
 
 export {
   fallbackPostImages,
-  legacyDateToIso,
   legacyImagePath,
-  legacyPostToMemoryRow,
-  memoryToPost,
   postIdOffset,
 };

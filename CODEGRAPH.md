@@ -59,16 +59,10 @@ approves a visual change:
 The public memory galaxy, particle behavior, card layout, search UI, add-memory
 UI, navigation ball, and responsive behavior should remain visually unchanged.
 
-## Compatibility Backend
+## Public Visual Adapter
 
-- `src/server/revival.js`: legacy public/admin middleware, HTML patching,
-  settings, auth, starter content, upload handling, backup export, and v1 proxy
-  helpers for the admin bridge.
-- `src/server/sqlite-store.js`: SQLite connection, migrations, prepared
-  statements, and row normalization.
-- `src/server/migrations/sqlite/*.sql`: source SQLite migrations. Keep these in
-  Git; do not commit runtime SQLite files or `db/`.
-- `scripts/import-sqlite.mjs`: one-shot legacy import helper.
+- `src/server/revival.js`: public visual-shell middleware, HTML patching,
+  upload handling, and v1 API adapters for archive search/detail/menu/submission.
 
 ## Production API
 
@@ -144,8 +138,6 @@ UI, navigation ball, and responsive behavior should remain visually unchanged.
 
 - Public route/API behavior: start in `src/server/revival.js`, then check
   `public/js/revival-runtime.js`.
-- SQLite schema or persistence: add a source migration under
-  `src/server/migrations/sqlite/`, then update `src/server/sqlite-store.js`.
 - v1 API behavior: start in `apps/api/src/services.ts`,
   `apps/api/src/controllers.ts`, and `apps/api/src/prisma-repositories.ts`.
 - Admin UI behavior: start in `src/admin/AdminApp.jsx`; reuse

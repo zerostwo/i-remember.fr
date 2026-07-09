@@ -452,6 +452,10 @@ export class AssetController {
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
+  async status(_context?: RequestContext) {
+    return { success: true, data: await this.auth.status() };
+  }
+
   async login(context: RequestContext) {
     return { success: true, data: await this.auth.login(await readJson(context.req)) };
   }

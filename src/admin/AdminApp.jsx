@@ -57,7 +57,6 @@ import { MemoryGalaxy } from "@i-remember/memory-engine";
 import { cn } from "@/lib/utils";
 import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload } from "./v1-assets.js";
 import { deleteV1MenuItem, syncV1MenuItem, syncV1Page, syncV1Settings, v1PageMemory } from "./v1-content.js";
-import { mergeV1Dashboard } from "./v1-dashboard.js";
 import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
 
 const routes = [
@@ -152,6 +151,110 @@ async function rememberV1Token(credentials, options = {}) {
     body: JSON.stringify({ email: credentials.email, password: credentials.password }),
   });
   adminToken(session.token);
+}
+
+function v1Status(value) {
+  const normalized = String(value || "").toUpperCase();
+  if (normalized === "NORMAL") return "published";
+  if (normalized === "ARCHIVED") return "archived";
+  if (normalized === "REJECTED") return "rejected";
+  return "pending";
+}
+
+function metadataJson(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "{}";
+  return JSON.stringify(value, null, 2);
+}
+
+function v1MemoryAdmin(memory = {}) {
+  const metadata = memory.metadata || {};
+  const imageKey = metadata.imageKey || "revival-upload";
+  const imageUrl = memory.attachments?.[0]?.url || `/uploads/posts/${imageKey}/resized.jpg`;
+  return {
+    id: memory.id,
+    publicId: memory.id,
+    title: memory.title,
+    author: memory.authorName || "I Remember",
+    authorName: memory.authorName || "I Remember",
+    excerpt: memory.excerpt || String(memory.content || "").slice(0, 220),
+    bodyMarkdown: memory.content || "",
+    content: memory.content || "",
+    language: metadata.language || "en",
+    status: v1Status(memory.status),
+    dbStatus: memory.status,
+    source: metadata.source || "v1",
+    imageKey,
+    imageUrl,
+    isLongForm: Boolean(metadata.isLongForm),
+    metadata: metadata,
+    metadataJson: metadataJson(metadata),
+    publicUrl: `/memory/${memory.id}`,
+  };
+}
+
+function v1PageAdmin(page = {}) {
+  return {
+    ...page,
+    metadataJson: metadataJson(page.metadata),
+  };
+}
+
+function v1MenuAdmin(item = {}) {
+  return {
+    ...item,
+    metadataJson: metadataJson(item.metadata),
+  };
+}
+
+function settingsFromV1(settings = {}) {
+  return {
+    defaultLanguage: settings.defaultLanguage || "en",
+    anonymousSubmissions: settings.anonymousSubmissions !== false,
+    autoApproveSubmissions: true,
+    tracking: {
+      enabled: Boolean(settings.tracking?.enabled),
+      umamiSrc: settings.tracking?.umamiSrc || "",
+      umamiWebsiteId: settings.tracking?.umamiWebsiteId || "",
+    },
+    account: { email: "", hasPassword: true, twoFactorEnabled: false },
+  };
+}
+
+async function v1Bootstrap() {
+  const [dashboard, memories, pages, menu, settings, assets, comments] = await Promise.all([
+    v1Api("/api/v1/dashboard"),
+    v1Api("/api/v1/memories?status=all&visibility=all&limit=200"),
+    v1Api("/api/v1/pages"),
+    v1Api("/api/v1/menu-items"),
+    v1Api("/api/v1/settings"),
+    v1Api("/api/v1/assets").catch(() => []),
+    v1Api("/api/v1/comments?status=all").catch(() => []),
+  ]);
+  const payload = {
+    language: settings.defaultLanguage || "en",
+    counts: {
+      totalMemory: dashboard.totalMemories,
+      pendingMemory: dashboard.pendingMemories,
+      publishedMemory: dashboard.publishedMemories,
+      archivedMemory: dashboard.archivedMemories,
+      rejectedMemory: dashboard.rejectedMemories,
+      users: dashboard.totalUsers,
+      pages: pages.length,
+      menuItems: menu.length,
+      attachments: assets.length,
+    },
+    memories: memories.map(v1MemoryAdmin),
+    pages: pages.map(v1PageAdmin),
+    menu: menu.map(v1MenuAdmin),
+    comments,
+    attachments: [],
+    settings: settingsFromV1(settings),
+  };
+  return mergeV1Assets(payload, assets);
+}
+
+function dataUrlBase64(value = "") {
+  return String(value).includes(",") ? String(value).split(",").pop() : String(value);
 }
 
 function readFileAsDataUrl(file) {
@@ -340,11 +443,14 @@ export function AdminApp() {
 
   useEffect(() => {
     let active = true;
-    api("/api/admin/session")
-      .then((session) => {
+    Promise.all([
+      api("/api/v1/auth/status").catch(() => ({ needsSetup: false })),
+      adminToken() ? v1Api("/api/v1/dashboard").then(() => true).catch(() => false) : false,
+    ])
+      .then(([status, hasSession]) => {
         if (active) {
-          setNeedsSetup(Boolean(session.needsSetup));
-          setAuthenticated(Boolean(session.authenticated));
+          setNeedsSetup(Boolean(status.needsSetup));
+          setAuthenticated(Boolean(hasSession));
         }
       })
       .catch(() => {
@@ -362,14 +468,7 @@ export function AdminApp() {
     setLoading(true);
     setError("");
     try {
-      const legacyPayload = await api("/api/admin/bootstrap");
-      const dashboard = await v1Api("/api/v1/dashboard").catch(() => null);
-      const assets = await v1Api("/api/v1/assets").catch(() => []);
-      const comments = await v1Api("/api/v1/comments?status=all").catch(() => []);
-      const payload = {
-        ...mergeV1Assets(mergeV1Dashboard(legacyPayload, dashboard), assets),
-        comments,
-      };
+      const payload = await v1Bootstrap();
       setData(payload);
       setSelectedMemoryId((current) => (
         payload.memories.some((memory) => memory.id === current) ? current : payload.memories[0]?.id || null
@@ -420,12 +519,8 @@ export function AdminApp() {
     setLoading(true);
     setError("");
     try {
-      const session = await api("/api/admin/login", {
-        method: "POST",
-        body: JSON.stringify(credentials),
-      });
-      if (session.requiresTwoFactor) return session;
       await rememberV1Token(credentials);
+      const session = { authenticated: true };
       setAuthenticated(true);
       return session;
     } catch (loginError) {
@@ -440,11 +535,8 @@ export function AdminApp() {
     setLoading(true);
     setError("");
     try {
-      const session = await api("/api/admin/setup", {
-        method: "POST",
-        body: JSON.stringify(credentials),
-      });
       await rememberV1Token(credentials, { setup: true });
+      const session = { authenticated: true };
       setNeedsSetup(false);
       setAuthenticated(true);
       window.history.replaceState({ route: "dashboard" }, "", "/admin");
@@ -459,7 +551,6 @@ export function AdminApp() {
   }
 
   async function handleLogout() {
-    await api("/api/admin/logout", { method: "POST" }).catch(() => null);
     adminToken("");
     setAuthenticated(false);
     setData(null);
@@ -482,31 +573,23 @@ export function AdminApp() {
 
   async function saveMemory(id, payload) {
     await runAction("Memory saved", async () => {
-      const saved = await api(`/api/admin/memories/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-      await syncV1Memory(v1Api, saved).catch(() => null);
-      setSelectedMemoryId(saved.id);
+      const saved = await syncV1Memory(v1Api, payload);
+      setSelectedMemoryId(saved?.id || id);
       await refreshData();
     });
   }
 
   async function createMemory() {
     await runAction("Memory created", async () => {
-      const saved = await api("/api/admin/memories", {
-        method: "POST",
-        body: JSON.stringify({
-          title: "Untitled memory",
-          author: "I Remember",
-          excerpt: "A new editable memory.",
-          status: "pending",
-          isLongForm: true,
-          bodyMarkdown: "# Untitled memory\n\nWrite this memory in Markdown.",
-        }),
+      const saved = await syncV1Memory(v1Api, {
+        title: "Untitled memory",
+        author: "I Remember",
+        excerpt: "A new editable memory.",
+        status: "pending",
+        isLongForm: true,
+        bodyMarkdown: "# Untitled memory\n\nWrite this memory in Markdown.",
       });
-      await syncV1Memory(v1Api, saved).catch(() => null);
-      setSelectedMemoryId(saved.id);
+      setSelectedMemoryId(saved?.id || null);
       await refreshData();
     });
   }
@@ -515,8 +598,7 @@ export function AdminApp() {
     const memory = data?.memories?.find((item) => item.id === id);
     if (!memory || !window.confirm(`Archive "${memory.title || memory.excerpt || "this memory"}"?`)) return;
     await runAction("Memory archived", async () => {
-      const archived = await api(`/api/admin/memories/${id}`, { method: "DELETE" });
-      await archiveV1Memory(v1Api, archived).catch(() => null);
+      await archiveV1Memory(v1Api, memory);
       await refreshData();
     });
   }
@@ -527,7 +609,7 @@ export function AdminApp() {
     await runAction("Attachment uploaded", async () => {
       const synced = await syncV1Memory(v1Api, memory);
       if (!synced?.id) throw new Error("Memory could not be synced to v1 before upload");
-      const contentBase64 = await readFileAsDataUrl(file);
+      const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
       await v1Api("/api/v1/assets", {
         method: "POST",
         body: JSON.stringify(v1AssetUploadPayload(file, contentBase64, synced.id)),
@@ -547,11 +629,7 @@ export function AdminApp() {
 
   async function savePage(slug, payload) {
     await runAction("Page saved", async () => {
-      const saved = await api(`/api/admin/pages/${encodeURIComponent(slug)}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-      await syncV1Page(v1Api, saved).catch(() => null);
+      const saved = await syncV1Page(v1Api, { ...payload, originalSlug: slug });
       const pageMemory = v1PageMemory(saved);
       if (pageMemory) await syncV1Memory(v1Api, pageMemory).catch(() => null);
       setSelectedPageSlug(saved.slug);
@@ -562,17 +640,13 @@ export function AdminApp() {
   async function createPage() {
     await runAction("Page created", async () => {
       const slug = `page-${Date.now().toString(36)}`;
-      const saved = await api("/api/admin/pages", {
-        method: "POST",
-        body: JSON.stringify({
-          slug,
-          title: "Untitled page",
-          excerpt: "A new footer page.",
-          status: "DRAFT",
-          bodyMarkdown: "# Untitled page\n\nWrite this page in Markdown.",
-        }),
+      const saved = await syncV1Page(v1Api, {
+        slug,
+        title: "Untitled page",
+        excerpt: "A new footer page.",
+        status: "DRAFT",
+        bodyMarkdown: "# Untitled page\n\nWrite this page in Markdown.",
       });
-      await syncV1Page(v1Api, saved).catch(() => null);
       const pageMemory = v1PageMemory(saved);
       if (pageMemory) await syncV1Memory(v1Api, pageMemory).catch(() => null);
       setSelectedPageSlug(saved.slug);
@@ -582,11 +656,7 @@ export function AdminApp() {
 
   async function saveMenuItem(id, payload) {
     await runAction("Menu item saved", async () => {
-      const saved = await api(`/api/admin/menu-items/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-      await syncV1MenuItem(v1Api, saved).catch(() => null);
+      const saved = await syncV1MenuItem(v1Api, payload);
       setSelectedMenuId(saved.id);
       await refreshData();
     });
@@ -594,17 +664,14 @@ export function AdminApp() {
 
   async function createMenuItem() {
     await runAction("Menu item created", async () => {
-      const saved = await api("/api/admin/menu-items", {
-        method: "POST",
-        body: JSON.stringify({
-          label: "New item",
-          type: "PAGE",
-          targetValue: data?.pages?.[0]?.slug || "about",
-          position: (data?.menu?.at(-1)?.position || 0) + 10,
-          isVisible: true,
-        }),
+      const saved = await syncV1MenuItem(v1Api, {
+        uid: `menu-${Date.now().toString(36)}`,
+        label: "New item",
+        type: "PAGE",
+        targetValue: data?.pages?.[0]?.slug || "about",
+        position: (data?.menu?.at(-1)?.position || 0) + 10,
+        isVisible: true,
       });
-      await syncV1MenuItem(v1Api, saved).catch(() => null);
       setSelectedMenuId(saved.id);
       await refreshData();
     });
@@ -613,8 +680,7 @@ export function AdminApp() {
   async function deleteMenuItem(id) {
     const item = data?.menu?.find((candidate) => candidate.id === id);
     await runAction("Menu item deleted", async () => {
-      await api(`/api/admin/menu-items/${id}`, { method: "DELETE" });
-      await deleteV1MenuItem(v1Api, item).catch(() => null);
+      if (item) await deleteV1MenuItem(v1Api, item);
       setSelectedMenuId(null);
       await refreshData();
     });
@@ -636,63 +702,43 @@ export function AdminApp() {
 
   async function saveSettings(payload) {
     await runAction("Settings saved", async () => {
-      const settings = await api("/api/admin/settings", {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-      await syncV1Settings(v1Api, settings).catch(() => null);
+      const settings = await syncV1Settings(v1Api, payload);
       setData((current) => current ? { ...current, settings: { ...current.settings, ...settings } } : current);
     });
   }
 
   async function saveAccount(payload) {
     await runAction("Account updated", async () => {
-      const account = await api("/api/admin/account", {
-        method: "PUT",
-        body: JSON.stringify(payload),
-      });
-      setData((current) => current ? {
-        ...current,
-        settings: { ...current.settings, account },
-      } : current);
+      void payload;
+      throw new Error("Account updates now use the v1 auth account and will be added there.");
     });
   }
 
   async function exportBackup() {
     await runAction("Backup exported", async () => {
-      const bundle = await api("/api/admin/export");
-      const stamp = String(bundle.generatedAt || new Date().toISOString()).slice(0, 10);
+      const bundle = { generatedAt: new Date().toISOString(), format: "i-remember-v1-export", data };
+      const stamp = String(bundle.generatedAt).slice(0, 10);
       downloadJson(`i-remember-backup-${stamp}.json`, bundle);
     });
   }
 
   async function setupTwoFactor() {
-    return runAction("Two-factor setup created", () => api("/api/admin/2fa/setup", { method: "POST" }));
+    return runAction("Two-factor setup created", () => {
+      throw new Error("Two-factor setup is not available in the v1 auth API yet.");
+    });
   }
 
   async function enableTwoFactor(payload) {
     await runAction("Two-factor enabled", async () => {
-      const account = await api("/api/admin/2fa/enable", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      setData((current) => current ? {
-        ...current,
-        settings: { ...current.settings, account },
-      } : current);
+      void payload;
+      throw new Error("Two-factor setup is not available in the v1 auth API yet.");
     });
   }
 
   async function disableTwoFactor(payload) {
     await runAction("Two-factor disabled", async () => {
-      const account = await api("/api/admin/2fa/disable", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      setData((current) => current ? {
-        ...current,
-        settings: { ...current.settings, account },
-      } : current);
+      void payload;
+      throw new Error("Two-factor setup is not available in the v1 auth API yet.");
     });
   }
 

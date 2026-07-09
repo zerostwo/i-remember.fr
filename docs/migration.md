@@ -20,19 +20,14 @@ boundaries.
 ## Phase 4: Migrate Database
 
 Completed for the current refactor. `packages/database/prisma/schema.prisma`
-defines the PostgreSQL schema. `scripts/migrate-sqlite-to-postgres.mjs` imports
-legacy SQLite users, memories, attachments, tags, memory/tag joins, pages, menu
-items, and app settings into Prisma-backed PostgreSQL.
+defines the PostgreSQL schema. Legacy SQLite test data is intentionally not
+preserved.
 
 ```bash
 pnpm db:migrate
-pnpm db:migrate:legacy -- --dry-run
-pnpm db:migrate:legacy
 ```
 
-SQLite import remains available as migration source material. Runtime
-compatibility with previous legacy URLs or storage is not required for this
-early prototype.
+SQLite import and runtime compatibility are removed for this early prototype.
 
 ## Phase 5: Replace Old Admin
 
@@ -44,7 +39,5 @@ backend where applicable.
 ## Phase 6: Remove Deprecated Code
 
 In progress. Public archive memory list/detail rendering and anonymous memory
-submission now prefer the v1 API when `API_BASE_URL` is configured. Continue
-removing deprecated runtime paths as menu, media, and remaining archive
-endpoints are proven against v1; do not preserve legacy compatibility solely for
-old data or URLs.
+submission use the v1 API. Do not preserve legacy compatibility solely for old
+test data or URLs.

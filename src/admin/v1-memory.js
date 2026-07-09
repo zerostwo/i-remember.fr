@@ -67,7 +67,17 @@ export function v1MemoryPayload(memory = {}) {
 
 export async function syncV1Memory(v1Api, memory) {
   const payload = v1MemoryPayload(memory);
-  if (!payload.publicId) return null;
+  if (!payload.publicId) {
+    const created = await v1Api("/api/v1/memories", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    if (payload.status === "PENDING") return created;
+    return v1Api(`/api/v1/memories/${encodeURIComponent(created.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  }
 
   const existing = await v1Api(`/api/v1/memories/${encodeURIComponent(payload.publicId)}`).catch(
     () => null,

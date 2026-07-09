@@ -33,6 +33,6 @@ Do not redesign or rewrite these files during backend migration:
 - `public/audio/*`
 - `public/fonts/*`
 
-The SQLite-backed archive runtime remains only as temporary migration plumbing
-for the unchanged public visual surface. Legacy compatibility is not a product
-requirement for this early prototype.
+The public visual surface now reads and writes through the v1 PostgreSQL API.
+SQLite-backed runtime and legacy compatibility paths are intentionally removed
+for this early prototype.

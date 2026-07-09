@@ -52,21 +52,23 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      - name: Build single image
+        run: docker build --tag "${DOCKERHUB_IMAGE}:${TAG}" .
+
       - name: Build compose images
         run: docker compose build web admin api
 
-      - name: Push compose images
+      - name: Push Docker images
         shell: bash
         env:
           PRIMARY_TAG: ${{ steps.version.outputs.primary }}
           TAGS: ${{ steps.version.outputs.tags }}
         run: |
           set -euo pipefail
-          services=(web admin api)
+          images=("${DOCKERHUB_IMAGE}" "${DOCKERHUB_IMAGE}-web" "${DOCKERHUB_IMAGE}-admin" "${DOCKERHUB_IMAGE}-api")
           while IFS= read -r tag; do
             [[ -n "${tag}" ]] || continue
-            for service in "${services[@]}"; do
-              image="${DOCKERHUB_IMAGE}-${service}"
+            for image in "${images[@]}"; do
               if [[ "${tag}" != "${PRIMARY_TAG}" ]]; then
                 docker tag "${image}:${PRIMARY_TAG}" "${image}:${tag}"
               fi

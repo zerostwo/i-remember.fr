@@ -1,12 +1,12 @@
 # I Remember Backend
 
-The backend is currently a two-layer migration path:
+The backend is now PostgreSQL/v1-first:
 
-- The restored public archive still runs through `server.mjs`,
-  `src/server/revival.js`, and SQLite so the memory galaxy visual experience
-  stays unchanged.
-- New production backend work targets `apps/api`, PostgreSQL, Prisma, and the
-  shared packages under `packages/*`.
+- The restored public archive still runs through `server.mjs` and
+  `src/server/revival.js` so the memory galaxy visual experience stays
+  unchanged.
+- Runtime data targets `apps/api`, PostgreSQL, Prisma, and the shared packages
+  under `packages/*`.
 
 This keeps the archive usable while the engineering foundation moves toward the
 refactor document's monorepo architecture. Legacy compatibility is not a
@@ -17,10 +17,8 @@ product requirement for this early prototype.
 - Public archive server: `server.mjs` serves the built archive/admin app,
   applies the revival middleware, proxies `/api/v1/*` to `API_BASE_URL`, and
   proxies non-legacy v1 upload URLs such as `/uploads/admin/file.jpg`.
-- Temporary archive backend: `src/server/revival.js` owns public archive routes,
-  admin cookie auth, image uploads, starter pages, footer menu seeding, and
-  backup export until those paths move to v1. When `API_BASE_URL` is set,
-  public memory reads and anonymous memory submissions prefer the v1 API.
+- Public visual adapter: `src/server/revival.js` owns public archive routes,
+  visual-shell HTML patching, and public upload/submission adapters to v1.
 - Production API: `apps/api` exposes `/api/v1/*` through controller, service,
   repository, validation, auth, and storage boundaries.
 - Production database: `packages/database` owns the PostgreSQL Prisma schema,
@@ -45,9 +43,8 @@ Production state is modeled in Prisma:
 - `MenuItem`
 - `AppSetting`
 
-SQLite remains only for temporary archive runtime state and import source
-material. Its migration source lives in `src/server/migrations/sqlite`; legacy
-URL compatibility should not be preserved.
+SQLite runtime, import, and migration paths have been removed. Legacy URL
+compatibility should not be preserved.
 
 ## Public Safety Defaults
 
@@ -72,7 +69,6 @@ pnpm build
 pnpm test
 pnpm start
 pnpm db:migrate
-pnpm db:migrate:legacy:check
 ```
 
 Docker Compose provides `web`, `admin`, `api`, and `postgres` services. Compose

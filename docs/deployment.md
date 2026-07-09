@@ -1,6 +1,22 @@
 # Deployment
 
-Production deployment follows the refactor document's multi-service shape:
+The simplest deployment is one image plus one persistent volume:
+
+```bash
+docker run -d \
+  --name i-remember.fr \
+  -p 7892:7890 \
+  -v ~/.i-remember.fr:/var/opt/i-remember.fr \
+  zerostwo/i-remember.fr:latest
+```
+
+Open `http://localhost:7892`.
+
+That image starts the public web server, API server, and an internal PostgreSQL
+database. The mounted directory stores PostgreSQL data, uploads, and the
+generated auth secret.
+
+The PostgreSQL deployment follows the refactor document's multi-service shape:
 
 - `web`: public archive experience.
 - `admin`: admin experience served separately.
@@ -20,13 +36,14 @@ The published image names use:
 - `DOCKERHUB_IMAGE`
 - `TAG`
 
-Compose appends `-web`, `-admin`, and `-api` to the configured image base.
+The single-image runtime uses `DOCKERHUB_IMAGE` directly. Compose appends
+`-web`, `-admin`, and `-api` to the configured image base.
 `web` and `admin` can share the archive runtime data volume during migration;
 the admin service runs in admin-only mode, and production API state lives in
 PostgreSQL.
 
-The GitHub workflow builds and pushes those same compose images instead of a
-single root image.
+The GitHub workflow builds and pushes both the single root image and the compose
+images.
 
 ## Runtime Environment
 

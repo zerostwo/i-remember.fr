@@ -37,7 +37,7 @@ const upstream = createServer(async (req, res) => {
             authorName: "Prisma",
             visibility: "PUBLIC",
             status: "NORMAL",
-            metadata: { language: "en", imageKey: "revival-upload" },
+            metadata: { language: "zh", imageKey: "revival-upload" },
             tags: [{ name: "Prisma", slug: "prisma" }],
             attachments: [],
             createdAt: "2026-07-09T00:00:00.000Z",
@@ -60,7 +60,7 @@ const upstream = createServer(async (req, res) => {
           authorName: "Prisma",
           visibility: "PUBLIC",
           status: "NORMAL",
-          metadata: { language: "en", imageKey: "revival-upload" },
+          metadata: { language: "zh", imageKey: "revival-upload" },
           tags: [{ name: "Prisma", slug: "prisma" }],
           attachments: [],
           createdAt: "2026-07-09T00:00:00.000Z",
@@ -179,6 +179,7 @@ const app = spawn(process.execPath, ["server.mjs"], {
     PORT: String(appPort),
     API_BASE_URL: `http://127.0.0.1:${upstreamPort}`,
     I_REMEMBER_DATA_DIR: dataDir,
+    I_REMEMBER_DEFAULT_LANGUAGE: "zh",
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -210,39 +211,18 @@ try {
   assert.equal(homeResponse.status, 200);
   assert.equal(homeResponse.headers.get("x-frame-options"), "SAMEORIGIN");
 
-  const setupResponse = await fetch(`${baseUrl}/api/admin/setup`, {
+  const removedAdminResponse = await fetch(`${baseUrl}/api/admin/setup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: "admin@example.com", password: "correct horse battery staple" }),
   });
-  assert.equal(setupResponse.status, 200);
-  const adminCookie = setupResponse.headers.get("set-cookie")?.split(";")[0] || "";
-  assert.match(adminCookie, /^i_remember_admin_session=/);
-
-  const exportResponse = await fetch(`${baseUrl}/api/admin/export`, {
-    headers: { Cookie: adminCookie },
-  });
-  assert.equal(exportResponse.status, 200);
-  const exportBody = await exportResponse.json();
-  assert.equal(exportBody.success, true);
-  assert.equal(exportBody.data.format, "i-remember-admin-export-v1");
-  assert.equal(exportBody.data.data.settings.account.email, "admin@example.com");
+  assert.equal(removedAdminResponse.status, 404);
 
   const homeAfterSetupResponse = await fetch(`${baseUrl}/`);
   assert.equal(homeAfterSetupResponse.status, 200);
   const homeAfterSetupHtml = await homeAfterSetupResponse.text();
   assert.match(homeAfterSetupHtml, /Prisma public memory/);
   assert.match(homeAfterSetupHtml, new RegExp(`"public_id":"${v1PublicId}"`));
-
-  const settingsResponse = await fetch(`${baseUrl}/api/admin/settings`, {
-    method: "PUT",
-    headers: {
-      Cookie: adminCookie,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ defaultLanguage: "zh", anonymousSubmissions: true }),
-  });
-  assert.equal(settingsResponse.status, 200);
 
   const menuResponse = await fetch(`${baseUrl}/api/public/menu`);
   assert.equal(menuResponse.status, 200);
@@ -290,25 +270,6 @@ try {
   assert.equal(publicSubmissionBody.data.status, "PENDING");
   assert.equal(v1CreateBodies[0].metadata.language, "zh");
   assert.equal(v1CreateBodies[0].metadata.source, "public-submission");
-
-  const memoryResponse = await fetch(`${baseUrl}/api/admin/memories`, {
-    method: "POST",
-    headers: {
-      Cookie: adminCookie,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      title: "Default language memory",
-      bodyMarkdown: "# Default language memory\n\nStored through the configured content language.",
-      status: "published",
-    }),
-  });
-  assert.equal(memoryResponse.status, 200);
-  const memoryBody = await memoryResponse.json();
-  const memory = memoryBody.data;
-
-  const localOnlyMemoryResponse = await fetch(`${baseUrl}/memory/${memory.publicId}`);
-  assert.equal(localOnlyMemoryResponse.status, 404);
 
   const numericMemoryResponse = await fetch(`${baseUrl}/memory/123456789`);
   assert.equal(numericMemoryResponse.status, 404);

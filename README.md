@@ -5,8 +5,8 @@ frontend.
 
 This repository keeps the public archive UI visually close to the original site,
 while moving the engineering foundation toward a pnpm/turbo monorepo with a
-TypeScript API, PostgreSQL/Prisma persistence, shared packages, and multi-service
-Docker deployment.
+TypeScript API, PostgreSQL/Prisma persistence, shared packages, and Docker
+deployment paths for both one-image self-hosting and multi-service production.
 
 ## Current Scope
 
@@ -28,8 +28,8 @@ Docker deployment.
   Menus, Settings, and Backups.
 - Settings for default language, anonymous submissions, and self-hosted Umami
   tracking.
-- Production backend work targets PostgreSQL through Prisma; legacy
-  compatibility is not a product requirement for this early prototype.
+- Production backend work targets PostgreSQL through Prisma; SQLite and legacy
+  compatibility are not product requirements for this early prototype.
 
 ## Runtime
 
@@ -52,6 +52,24 @@ create the first administrator.
 The running app exposes its build version at `/version`.
 
 ## Docker
+
+Simple self-hosted deployment uses one image and one persistent volume:
+
+```bash
+docker run -d \
+  --name i-remember.fr \
+  -p 7892:7890 \
+  -v ~/.i-remember.fr:/var/opt/i-remember.fr \
+  zerostwo/i-remember.fr:latest
+```
+
+Open `http://localhost:7892`.
+
+The single image starts the public web server, API server, and an internal
+PostgreSQL database. The mounted directory stores PostgreSQL data, uploads, and
+the generated auth secret.
+
+The multi-service PostgreSQL deployment is still available:
 
 ```bash
 DOCKERHUB_IMAGE=zerostwo/i-remember.fr TAG=latest docker compose up -d
@@ -89,14 +107,14 @@ Generated or runtime material is intentionally excluded from Git:
 - SQLite files
 - `dist/`
 
-SQL migration source lives in `src/server/migrations/sqlite/`.
 PostgreSQL migration source lives in `packages/database/prisma/migrations/`.
 
 ## Release
 
 - `package.json` is the source of truth for the app version.
 - `CHANGELOG.md` records user-facing changes.
-- `.github/workflows/docker.yml` publishes the compose app images
+- `.github/workflows/docker.yml` publishes the one-image runtime
+  `zerostwo/i-remember.fr` and the compose app images
   `zerostwo/i-remember.fr-web`, `zerostwo/i-remember.fr-admin`, and
   `zerostwo/i-remember.fr-api` on pushes to `main`.
 - Each app image gets `<version>`, `latest`, and `sha-<commit>` tags. Pushing a

@@ -95,7 +95,7 @@ function adminOnlyPath(pathname) {
   return (
     pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
-    pathname.startsWith("/api/admin/") ||
+    pathname.startsWith("/api/v1/") ||
     pathname.startsWith("/assets/") ||
     pathname.startsWith(`${storagePublicBaseUrl}/`)
   );
@@ -221,7 +221,10 @@ function serveStatic(req, res) {
   serveFile(req, res, filePath, stat);
 }
 
-const revivalMiddleware = createRevivalMiddleware({ production: true, apiBaseUrl });
+const revivalMiddleware = createRevivalMiddleware({
+  production: true,
+  apiBaseUrl,
+});
 const server = createServer((req, res) => {
   const target = apiProxyTarget(req);
   if (target) {

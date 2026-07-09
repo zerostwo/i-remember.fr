@@ -80,7 +80,7 @@ export function v1PageMemory(page = {}) {
 
 export async function syncV1Page(v1Api, page) {
   const payload = v1PagePayload(page);
-  const path = `/api/v1/pages/${encodeURIComponent(page?.slug || payload.slug)}?language=${encodeURIComponent(payload.language)}`;
+  const path = `/api/v1/pages/${encodeURIComponent(page?.originalSlug || page?.slug || payload.slug)}?language=${encodeURIComponent(payload.language)}`;
   try {
     return await v1Api(path, {
       method: "PATCH",

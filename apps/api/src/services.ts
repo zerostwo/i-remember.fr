@@ -79,6 +79,10 @@ export class UserService {
 export class AuthService {
   constructor(private readonly users: UserRepository) {}
 
+  async status() {
+    return { needsSetup: (await this.users.count()) === 0 };
+  }
+
   async login(input: Record<string, unknown>) {
     const email = String(input.email || "")
       .trim()

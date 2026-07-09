@@ -4,9 +4,8 @@ The production backend targets PostgreSQL through Prisma. The schema lives at
 `packages/database/prisma/schema.prisma`, and the generated client is exposed by
 `@i-remember/database`.
 
-SQLite migration source stays under `src/server/migrations/sqlite` only as
-import source material; legacy runtime compatibility is not a product
-requirement for this early prototype.
+SQLite runtime, import, and migration paths are removed. PostgreSQL through
+Prisma is the only supported persistence layer for current development.
 
 ## Core Models
 
@@ -35,8 +34,5 @@ PostgreSQL without changing the public archive rendering path.
 ```bash
 pnpm db:generate
 pnpm db:migrate
-pnpm db:migrate:legacy:check
-pnpm db:migrate:legacy -- --dry-run
-pnpm db:migrate:legacy
 pnpm --filter @i-remember/database test
 ```

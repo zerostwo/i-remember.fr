@@ -115,9 +115,8 @@ The API app is split into:
 - validation: JSON input parsing and shape checks.
 - auth: signed bearer-token auth, bootstrap admin access, and role guards.
 
-Archive runtime endpoints remain in `src/server/revival.js` only until each
-path is replaced by the v1 API; they are not a compatibility contract for old
-URLs or storage:
+Archive visual-shell endpoints remain in `src/server/revival.js` as adapters to
+the v1 API; they are not a compatibility contract for old URLs or storage:
 
 - `GET /api/search-posts`
 - `GET /api/auto-complete-tags/:fragment`
@@ -131,9 +130,3 @@ When `API_BASE_URL` is configured, the public archive runtime uses v1 Prisma
 data for public memory list/detail rendering, footer menu/page targets, and
 anonymous memory submission. It does not fall back to SQLite archive content or
 legacy numeric memory URLs, while keeping the archived visual shell unchanged.
-
-- `GET /api/admin/export`
-- `POST /api/admin/*`
-
-`GET /api/admin/export` is authenticated with the admin cookie and downloads
-the current admin archive bundle for the Backups section.
