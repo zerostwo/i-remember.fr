@@ -11,6 +11,7 @@ export const apiRoutes = {
   menuItems: "/api/v1/menu-items",
   settings: "/api/v1/settings",
   assets: "/api/v1/assets",
+  authLogin: "/api/v1/auth/login",
 };
 
 export const roles = ["ADMIN", "USER", "ANONYMOUS"];
