@@ -1,11 +1,15 @@
+import { createRequire } from "node:module";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
+import type { PrismaClient as PrismaClientInstance } from "@prisma/client";
+
+const require = createRequire(import.meta.url);
+const { PrismaClient } = require("@prisma/client") as typeof import("@prisma/client");
 
 const globalForPrisma = globalThis as unknown as {
-  prisma?: PrismaClient;
+  prisma?: PrismaClientInstance;
 };
 
-export function createPrismaClient() {
+export function createPrismaClient(): PrismaClientInstance {
   const adapter = new PrismaPg({
     connectionString:
       process.env.DATABASE_URL ||
@@ -14,7 +18,7 @@ export function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-export function getPrismaClient() {
+export function getPrismaClient(): PrismaClientInstance {
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = createPrismaClient();
   }
