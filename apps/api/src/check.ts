@@ -724,6 +724,18 @@ const invalidAssetContent = await json("/api/v1/assets", {
 assert.equal(invalidAssetContent.response.status, 400);
 assert.equal(invalidAssetContent.body.error.code, "invalid_asset_content");
 
+const emptyDecodedAssetContent = await json("/api/v1/assets", {
+  method: "POST",
+  headers: { Authorization: "Bearer test-secret" },
+  body: JSON.stringify({
+    key: "empty-decoded.txt",
+    contentBase64: "A==",
+    contentType: "text/plain",
+  }),
+});
+assert.equal(emptyDecodedAssetContent.response.status, 400);
+assert.equal(emptyDecodedAssetContent.body.error.code, "invalid_asset_content");
+
 const invalidAssetKey = await json("/api/v1/assets", {
   method: "POST",
   headers: { Authorization: "Bearer test-secret" },

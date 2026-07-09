@@ -28,6 +28,7 @@ import type {
   SettingRepository,
   UserRepository,
 } from "./repositories.js";
+import { ApiError } from "./errors.js";
 
 export class MemoryService {
   constructor(private readonly memories: MemoryRepository) {}
@@ -268,7 +269,9 @@ export class AssetService {
   async upload(principal: Principal, input: AssetUploadInput) {
     requireRole(principal, ["ADMIN"]);
     const data = Buffer.from(input.contentBase64, "base64");
-    if (!data.length) throw new Error("Asset content decoded to an empty file");
+    if (!data.length) {
+      throw new ApiError(400, "Invalid asset content", "invalid_asset_content");
+    }
     const url = await this.storage.upload(input.key, data, { contentType: input.contentType });
     let record = null;
     try {
