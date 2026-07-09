@@ -29,6 +29,29 @@ export interface AssetUpload {
   metadata?: Record<string, unknown>;
 }
 
+export interface Asset {
+  id: string;
+  memoryId: string;
+  url: string;
+  type: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AssetUploadResult {
+  id?: string;
+  key: string;
+  memoryId?: string;
+  url: string;
+  type: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AssetUrl {
+  key: string;
+  url: string;
+}
+
 export interface Memory {
   id: string;
   legacyId?: number | null;
@@ -107,6 +130,18 @@ export interface MenuItem {
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AppSettings {
+  defaultLanguage?: "en" | "fr" | "zh";
+  anonymousSubmissions?: boolean;
+  tracking?: {
+    enabled?: boolean;
+    umamiSrc?: string;
+    umamiWebsiteId?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 
 export interface AuthSession {
