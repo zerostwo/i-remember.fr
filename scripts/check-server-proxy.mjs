@@ -298,9 +298,14 @@ try {
   const publicUploadForm = new FormData();
   publicUploadForm.set(
     "file",
-    new Blob([
-      await readFile(new URL("../public/uploads/posts/revival-upload/thumb.jpg", import.meta.url)),
-    ], { type: "image/jpeg" }),
+    new Blob(
+      [
+        await readFile(
+          new URL("../public/uploads/posts/revival-upload/thumb.jpg", import.meta.url),
+        ),
+      ],
+      { type: "image/jpeg" },
+    ),
     "thumb.jpg",
   );
   const publicUploadResponse = await fetch(`${baseUrl}/api/upload-image`, {

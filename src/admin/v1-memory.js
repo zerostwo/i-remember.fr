@@ -65,7 +65,8 @@ export function v1MemoryPayload(memory = {}) {
 }
 
 function v1MemoryPatchPayload(payload = {}) {
-  const { publicId: _publicId, ...patch } = payload;
+  const patch = { ...payload };
+  delete patch.publicId;
   return patch;
 }
 
