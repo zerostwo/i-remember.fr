@@ -86,7 +86,10 @@ function apiProxyTarget(req) {
   const isApiPath = url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/");
   const isV1AssetPath =
     url.pathname.startsWith(`${storagePublicBaseUrl}/`) &&
-    !(storagePublicBaseUrl === "/uploads" && url.pathname.startsWith("/uploads/posts/"));
+    !(
+      storagePublicBaseUrl === "/uploads" &&
+      (url.pathname.startsWith("/uploads/posts/") || url.pathname.startsWith("/uploads/tmp/"))
+    );
   if (!isApiPath && !isV1AssetPath) return null;
   return new URL(`${url.pathname}${url.search}`, apiBaseUrl);
 }

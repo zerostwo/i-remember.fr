@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -294,6 +294,26 @@ try {
   assert.equal(uploadedAssetResponse.status, 200);
   const uploadedAssetBody = await uploadedAssetResponse.json();
   assert.equal(uploadedAssetBody.url, "/uploads/admin/new-photo.jpg");
+
+  const publicUploadForm = new FormData();
+  publicUploadForm.set(
+    "file",
+    new Blob([
+      await readFile(new URL("../public/uploads/posts/revival-upload/thumb.jpg", import.meta.url)),
+    ], { type: "image/jpeg" }),
+    "thumb.jpg",
+  );
+  const publicUploadResponse = await fetch(`${baseUrl}/api/upload-image`, {
+    method: "POST",
+    body: publicUploadForm,
+  });
+  assert.equal(publicUploadResponse.status, 200);
+  const publicUploadBody = await publicUploadResponse.json();
+  const publicUploadPreviewResponse = await fetch(
+    `${baseUrl}/uploads/tmp/${publicUploadBody.data.fileId}/resized.jpg`,
+  );
+  assert.equal(publicUploadPreviewResponse.status, 200);
+  assert.match(publicUploadPreviewResponse.headers.get("content-type") || "", /^image\//);
 
   const legacyUploadResponse = await fetch(`${baseUrl}/uploads/posts/revival-upload/thumb.jpg`);
   assert.equal(legacyUploadResponse.status, 200);

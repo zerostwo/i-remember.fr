@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-07-10
+
+### Fixed
+
+- Fixed public memory picture upload previews by keeping `/uploads/tmp/*` on
+  the public upload handler instead of proxying those temporary images to the
+  v1 asset API.
+
 ## [0.1.4] - 2026-07-10
 
 ### Added
