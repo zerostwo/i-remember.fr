@@ -21,6 +21,7 @@ const rootUrl = new URL("../../", import.meta.url);
 const postIdOffset = 1248;
 const postSearchResultMax = 200;
 const colorMapStartupDelayMs = 1000;
+const apiFetchTimeoutMs = 2500;
 const maxJsonBodyBytes = 64 * 1024;
 const maxFormBodyBytes = 256 * 1024;
 const maxUploadBodyBytes = Number.parseInt(
@@ -1194,6 +1195,45 @@ function publicMemoryUrl(post) {
   return publicId ? `/memory/${encodeURIComponent(publicId)}` : "";
 }
 
+function v1Language(memory) {
+  return normalizeLanguage(memory?.metadata?.language || memory?.metadata?.languageCode || "en");
+}
+
+function v1ImageKey(memory) {
+  const metadataKey = String(memory?.metadata?.imageKey || "").trim();
+  if (metadataKey) return metadataKey;
+  const url = memory?.attachments?.find((attachment) => attachment?.url)?.url || "";
+  return url.match(/\/uploads\/posts\/([^/]+)\//)?.[1] || "revival-upload";
+}
+
+function v1MemoryToPost(memory, index = 0, language = "en") {
+  const content = String(memory?.content || "");
+  const excerpt = String(memory?.excerpt || content.slice(0, 220));
+  const imageKey = v1ImageKey(memory);
+  return {
+    id: String(900000 - index),
+    uid: String(memory?.id || memory?.publicId || `v1_memory_${index}`),
+    public_id: String(memory?.id || memory?.publicId || ""),
+    name: htmlText(memory?.authorName || "I Remember"),
+    title: htmlText(memory?.title || "I Remember"),
+    img: imageKey,
+    img_offset_x: "0",
+    img_offset_y: "0",
+    text: htmlText(content || excerpt),
+    excerpt: htmlText(excerpt || content),
+    body_markdown: content,
+    body_html: markdownToHtml(content || excerpt),
+    is_long_form: content.length > excerpt.length ? "1" : "0",
+    resized_img_width: "600",
+    resized_img_height: "600",
+    has_created_tags: "1",
+    is_stared: "0",
+    created_at: normalizeLegacyDate(memory?.createdAt),
+    language_id: languageId(language),
+    tags: Object.fromEntries((memory?.tags || []).map((tag) => [tag.slug || tag.name, 1])),
+  };
+}
+
 function legacyImageUrl(imageKey, variant = "thumb") {
   return legacyImagePath(imageKey || "revival-upload", variant);
 }
@@ -1397,7 +1437,8 @@ function archiveImageRowForKey(imageKey) {
 }
 
 class RevivalBackend {
-  constructor() {
+  constructor(options = {}) {
+    this.apiBaseUrl = String(options.apiBaseUrl || "").replace(/\/+$/g, "");
     this.store = new RevivalSQLiteStore();
     this.ensureAdminAccount();
     this.ensureSiteSettings();
@@ -1407,7 +1448,44 @@ class RevivalBackend {
   }
 
   get mode() {
-    return "sqlite";
+    return this.apiBaseUrl ? "v1+sqlite" : "sqlite";
+  }
+
+  async v1Data(path, options = {}) {
+    if (!this.apiBaseUrl) return null;
+    let response;
+    try {
+      response = await fetch(new URL(path, `${this.apiBaseUrl}/`), {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
+        signal: AbortSignal.timeout(apiFetchTimeoutMs),
+      });
+    } catch (_error) {
+      return null;
+    }
+    if (!response.ok) return null;
+    try {
+      const payload = await response.json();
+      return payload?.success === true ? payload.data : null;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  async v1PublicMemories(language) {
+    const data = await this.v1Data("/api/v1/memories?limit=200");
+    if (!Array.isArray(data)) return null;
+    return data
+      .filter((memory) => v1Language(memory) === normalizeLanguage(language))
+      .map((memory, index) => v1MemoryToPost(memory, index, language));
+  }
+
+  async v1PublicMemory(publicId, language) {
+    const data = await this.v1Data(`/api/v1/memories/${encodeURIComponent(publicId)}`);
+    return data ? v1MemoryToPost(data, 0, language) : null;
   }
 
   ensureAdminAccount() {
@@ -1651,6 +1729,8 @@ class RevivalBackend {
   }
 
   async allPosts(language) {
+    const v1Posts = await this.v1PublicMemories(language);
+    if (v1Posts) return uniquePosts(v1Posts);
     return uniquePosts(this.store.listMemories(normalizeLanguage(language)).map(memoryToPost));
   }
 
@@ -1658,7 +1738,9 @@ class RevivalBackend {
     return this.store.getMemoryByPublicId(publicId);
   }
 
-  async directPost(publicId) {
+  async directPost(publicId, language = "en") {
+    const v1Post = await this.v1PublicMemory(publicId, language);
+    if (v1Post) return v1Post;
     const row = this.memoryByPublicId(publicId);
     return row ? memoryToPost(row) : null;
   }
@@ -2054,6 +2136,31 @@ class RevivalBackend {
   async createPost(fields = {}) {
     const clean = validatedPostFields(fields, this.siteSettings().defaultLanguage);
     const language = clean.language;
+    const v1Memory = await this.v1Data("/api/v1/memories", {
+      method: "POST",
+      body: JSON.stringify({
+        title: clean.message.slice(0, 80) || "I Remember",
+        content: clean.message,
+        authorName: clean.name,
+        visibility: "PUBLIC",
+        metadata: {
+          language,
+          source: "public-submission",
+          imageKey: clean.fileId,
+        },
+        attachments:
+          clean.fileId && clean.fileId !== "revival-upload"
+            ? [{ url: legacyImagePath(clean.fileId, "resized"), type: "image/jpeg" }]
+            : undefined,
+        tags: Object.keys(defaultTags(language)),
+      }),
+    });
+    if (v1Memory) {
+      return {
+        ...v1MemoryToPost(v1Memory, 0, language),
+        status: v1Memory.status || "PENDING",
+      };
+    }
     const legacyId = await this.nextSubmittedPostId(language);
     const post = {
       id: String(legacyId),
@@ -2372,7 +2479,7 @@ function localizeChineseHtml(html) {
 }
 
 export function createRevivalMiddleware(options = {}) {
-  const backend = new RevivalBackend();
+  const backend = new RevivalBackend(options);
 
   return (req, res, next) => {
     handleRequest(backend, req, res, next, options).catch((error) => {

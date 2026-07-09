@@ -120,6 +120,11 @@ URLs or storage:
 - `POST /api/post`
 - `GET /api/public/menu`
 - `GET /api/public/menu-target/:id`
+
+When `API_BASE_URL` is configured, the public archive runtime now prefers v1
+Prisma data for public memory list/detail rendering and anonymous memory
+submission, while keeping the archived visual shell unchanged.
+
 - `GET /api/admin/export`
 - `POST /api/admin/*`
 

@@ -221,7 +221,7 @@ function serveStatic(req, res) {
   serveFile(req, res, filePath, stat);
 }
 
-const revivalMiddleware = createRevivalMiddleware({ production: true });
+const revivalMiddleware = createRevivalMiddleware({ production: true, apiBaseUrl });
 const server = createServer((req, res) => {
   const target = apiProxyTarget(req);
   if (target) {

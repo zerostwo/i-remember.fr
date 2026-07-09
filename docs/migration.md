@@ -43,6 +43,8 @@ backend where applicable.
 
 ## Phase 6: Remove Deprecated Code
 
-In progress. Remove deprecated runtime paths as public archive reads and writes
-are proven against the v1 API; do not preserve legacy compatibility solely for
+In progress. Public archive memory list/detail rendering and anonymous memory
+submission now prefer the v1 API when `API_BASE_URL` is configured. Continue
+removing deprecated runtime paths as menu, media, and remaining archive
+endpoints are proven against v1; do not preserve legacy compatibility solely for
 old data or URLs.

@@ -18,8 +18,9 @@ product requirement for this early prototype.
   applies the revival middleware, proxies `/api/v1/*` to `API_BASE_URL`, and
   proxies non-legacy v1 upload URLs such as `/uploads/admin/file.jpg`.
 - Temporary archive backend: `src/server/revival.js` owns public archive routes,
-  admin cookie auth, SQLite migrations, image uploads, starter pages, footer
-  menu seeding, and backup export until those paths move to v1.
+  admin cookie auth, image uploads, starter pages, footer menu seeding, and
+  backup export until those paths move to v1. When `API_BASE_URL` is set,
+  public memory reads and anonymous memory submissions prefer the v1 API.
 - Production API: `apps/api` exposes `/api/v1/*` through controller, service,
   repository, validation, auth, and storage boundaries.
 - Production database: `packages/database` owns the PostgreSQL Prisma schema,
@@ -44,9 +45,9 @@ Production state is modeled in Prisma:
 - `MenuItem`
 - `AppSetting`
 
-SQLite remains only for temporary archive runtime and import source material.
-Its migration source lives in `src/server/migrations/sqlite`; legacy URL
-compatibility should not be preserved.
+SQLite remains only for temporary archive runtime state and import source
+material. Its migration source lives in `src/server/migrations/sqlite`; legacy
+URL compatibility should not be preserved.
 
 ## Public Safety Defaults
 

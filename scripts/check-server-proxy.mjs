@@ -6,6 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const dataDir = await mkdtemp(join(tmpdir(), "i-remember-proxy-"));
+const v1PublicId = "m11111111111111111111";
+const v1SubmittedId = "m22222222222222222222";
+const v1CreateBodies = [];
 async function freePort() {
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -20,6 +23,77 @@ const upstream = createServer(async (req, res) => {
     body += chunk;
   }
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  if (req.method === "GET" && req.url === "/api/v1/memories?limit=200") {
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: [
+          {
+            id: v1PublicId,
+            title: "Prisma public memory",
+            content: "Rendered from the v1 public memory API.",
+            excerpt: "Rendered from the v1 public memory API.",
+            authorName: "Prisma",
+            visibility: "PUBLIC",
+            status: "NORMAL",
+            metadata: { language: "en", imageKey: "revival-upload" },
+            tags: [{ name: "Prisma", slug: "prisma" }],
+            attachments: [],
+            createdAt: "2026-07-09T00:00:00.000Z",
+            updatedAt: "2026-07-09T00:00:00.000Z",
+          },
+        ],
+      }),
+    );
+    return;
+  }
+  if (req.method === "GET" && req.url === `/api/v1/memories/${v1PublicId}`) {
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: {
+          id: v1PublicId,
+          title: "Prisma public memory",
+          content: "Rendered from the v1 direct memory API.",
+          excerpt: "Rendered from the v1 direct memory API.",
+          authorName: "Prisma",
+          visibility: "PUBLIC",
+          status: "NORMAL",
+          metadata: { language: "en", imageKey: "revival-upload" },
+          tags: [{ name: "Prisma", slug: "prisma" }],
+          attachments: [],
+          createdAt: "2026-07-09T00:00:00.000Z",
+          updatedAt: "2026-07-09T00:00:00.000Z",
+        },
+      }),
+    );
+    return;
+  }
+  if (req.method === "POST" && req.url === "/api/v1/memories") {
+    const input = JSON.parse(body || "{}");
+    v1CreateBodies.push(input);
+    res.statusCode = 201;
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: {
+          id: v1SubmittedId,
+          title: input.title,
+          content: input.content,
+          excerpt: input.content,
+          authorName: input.authorName,
+          visibility: "PUBLIC",
+          status: "PENDING",
+          metadata: input.metadata || {},
+          tags: [],
+          attachments: input.attachments || [],
+          createdAt: "2026-07-09T00:00:00.000Z",
+          updatedAt: "2026-07-09T00:00:00.000Z",
+        },
+      }),
+    );
+    return;
+  }
   res.end(
     JSON.stringify({
       url: req.url,
@@ -89,6 +163,12 @@ try {
   assert.equal(exportBody.data.format, "i-remember-admin-export-v1");
   assert.equal(exportBody.data.data.settings.account.email, "admin@example.com");
 
+  const homeAfterSetupResponse = await fetch(`${baseUrl}/`);
+  assert.equal(homeAfterSetupResponse.status, 200);
+  const homeAfterSetupHtml = await homeAfterSetupResponse.text();
+  assert.match(homeAfterSetupHtml, /Prisma public memory/);
+  assert.match(homeAfterSetupHtml, new RegExp(`"public_id":"${v1PublicId}"`));
+
   const settingsResponse = await fetch(`${baseUrl}/api/admin/settings`, {
     method: "PUT",
     headers: {
@@ -98,6 +178,27 @@ try {
     body: JSON.stringify({ defaultLanguage: "zh", anonymousSubmissions: true }),
   });
   assert.equal(settingsResponse.status, 200);
+
+  const v1PublicMemoryResponse = await fetch(`${baseUrl}/memory/${v1PublicId}`);
+  assert.equal(v1PublicMemoryResponse.status, 200);
+  const v1PublicMemoryHtml = await v1PublicMemoryResponse.text();
+  assert.match(v1PublicMemoryHtml, /Rendered from the v1 direct memory API/);
+  assert.match(v1PublicMemoryHtml, new RegExp(`"public_id":"${v1PublicId}"`));
+
+  const publicSubmissionResponse = await fetch(`${baseUrl}/api/post`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      name: "Visitor",
+      message: "From public form into v1.",
+    }),
+  });
+  assert.equal(publicSubmissionResponse.status, 200);
+  const publicSubmissionBody = await publicSubmissionResponse.json();
+  assert.equal(publicSubmissionBody.data.public_id, v1SubmittedId);
+  assert.equal(publicSubmissionBody.data.status, "PENDING");
+  assert.equal(v1CreateBodies[0].metadata.language, "zh");
+  assert.equal(v1CreateBodies[0].metadata.source, "public-submission");
 
   const memoryResponse = await fetch(`${baseUrl}/api/admin/memories`, {
     method: "POST",
