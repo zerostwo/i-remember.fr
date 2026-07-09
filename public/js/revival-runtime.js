@@ -516,8 +516,10 @@
       'define("../../build/almond"';
     var patched = source;
     if (patched.indexOf(marker) !== -1) patched = patched.replace(marker, replacement);
+    patched =
+      "if(window.SETTINGS&&window.REVIVAL_FADING!=null){window.SETTINGS.fading=window.REVIVAL_FADING;}\n" +
+      patched;
     return patched
-      .replace(/fading:87/g, "fading:(window.REVIVAL_FADING == null ? 87 : window.REVIVAL_FADING)")
       .replace(
         'e.SITE_URL=e.BASE_URL+(LANG=="fr"?"":"/"+LANG),',
         'e.SITE_URL=e.BASE_URL,'
