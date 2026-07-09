@@ -112,6 +112,8 @@ export function normalizeGalaxyPost(memory = {}, index = 0) {
     is_long_form: next.content && next.content.length > next.excerpt.length ? "1" : "0",
     resized_img_width: "600",
     resized_img_height: "600",
+    latitude: next.latitude,
+    longitude: next.longitude,
     has_created_tags: "1",
     is_stared: "0",
     created_at: runtimeDate(next.createdAt),

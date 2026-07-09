@@ -3,7 +3,7 @@ function v1Status(value) {
   if (normalized === "published" || normalized === "normal") return "NORMAL";
   if (normalized === "archived") return "ARCHIVED";
   if (normalized === "rejected") return "REJECTED";
-  return "PENDING";
+  return "NORMAL";
 }
 
 function memoryTags(value) {

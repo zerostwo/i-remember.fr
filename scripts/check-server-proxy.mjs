@@ -10,6 +10,7 @@ const v1PublicId = "m11111111111111111111";
 const v1SubmittedId = "m22222222222222222222";
 const v1MenuId = "menu-v1-about";
 const v1CreateBodies = [];
+const v1CreatedMemories = [];
 async function freePort() {
   const server = createServer();
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -43,6 +44,7 @@ const upstream = createServer(async (req, res) => {
             createdAt: "2026-07-09T00:00:00.000Z",
             updatedAt: "2026-07-09T00:00:00.000Z",
           },
+          ...v1CreatedMemories,
         ],
       }),
     );
@@ -73,24 +75,28 @@ const upstream = createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/api/v1/memories") {
     const input = JSON.parse(body || "{}");
     v1CreateBodies.push(input);
+    const createdMemory = {
+      id: v1SubmittedId,
+      title: input.title,
+      content: input.content,
+      excerpt: input.content,
+      authorName: input.authorName,
+      visibility: "PUBLIC",
+      status: "NORMAL",
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      metadata: input.metadata || {},
+      tags: [],
+      attachments: input.attachments || [],
+      createdAt: "2026-07-09T00:00:00.000Z",
+      updatedAt: "2026-07-09T00:00:00.000Z",
+    };
+    v1CreatedMemories.push(createdMemory);
     res.statusCode = 201;
     res.end(
       JSON.stringify({
         success: true,
-        data: {
-          id: v1SubmittedId,
-          title: input.title,
-          content: input.content,
-          excerpt: input.content,
-          authorName: input.authorName,
-          visibility: "PUBLIC",
-          status: "PENDING",
-          metadata: input.metadata || {},
-          tags: [],
-          attachments: input.attachments || [],
-          createdAt: "2026-07-09T00:00:00.000Z",
-          updatedAt: "2026-07-09T00:00:00.000Z",
-        },
+        data: createdMemory,
       }),
     );
     return;
@@ -262,14 +268,28 @@ try {
     body: new URLSearchParams({
       name: "Visitor",
       message: "From public form into v1.",
+      latitude: "31.2304",
+      longitude: "121.4737",
     }),
   });
   assert.equal(publicSubmissionResponse.status, 200);
   const publicSubmissionBody = await publicSubmissionResponse.json();
   assert.equal(publicSubmissionBody.data.public_id, v1SubmittedId);
-  assert.equal(publicSubmissionBody.data.status, "PENDING");
+  assert.equal(publicSubmissionBody.data.status, "NORMAL");
+  assert.equal(publicSubmissionBody.data.latitude, 31.2304);
+  assert.equal(publicSubmissionBody.data.longitude, 121.4737);
+  assert.equal(v1CreateBodies[0].latitude, 31.2304);
+  assert.equal(v1CreateBodies[0].longitude, 121.4737);
   assert.equal(v1CreateBodies[0].metadata.language, "zh");
   assert.equal(v1CreateBodies[0].metadata.source, "public-submission");
+
+  const publicSubmissionSearchResponse = await fetch(`${baseUrl}/api/search-posts/public`);
+  assert.equal(publicSubmissionSearchResponse.status, 200);
+  const publicSubmissionSearchBody = await publicSubmissionSearchResponse.json();
+  assert.equal(
+    publicSubmissionSearchBody.data.posts.some((post) => post.public_id === v1SubmittedId),
+    true,
+  );
 
   const numericMemoryResponse = await fetch(`${baseUrl}/memory/123456789`);
   assert.equal(numericMemoryResponse.status, 404);

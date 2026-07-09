@@ -8,6 +8,49 @@
   }
 
   var deterministic = params.qaDeterministic === "1";
+  var memoryEngineDefaultPosts = null;
+
+  function readMemoryEnginePosts() {
+    var raw;
+    var posts;
+    if (!params.memoryEngineDataset || !window.sessionStorage) return null;
+    try {
+      raw = window.sessionStorage.getItem(params.memoryEngineDataset);
+      posts = raw ? JSON.parse(raw) : null;
+      return Array.isArray(posts) ? posts : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function memoryEngineDefaultPayload() {
+    var posts = readMemoryEnginePosts();
+    if (!posts) return null;
+    return {
+      success: 1,
+      data: {
+        tagName: "",
+        posts: posts
+      },
+      input: {
+        ln: params.ln || "en"
+      }
+    };
+  }
+
+  if (params.memoryEngineDataset) {
+    try {
+      Object.defineProperty(window, "DEFAULT_POSTS", {
+        configurable: true,
+        get: function () {
+          return memoryEngineDefaultPosts;
+        },
+        set: function (value) {
+          memoryEngineDefaultPosts = memoryEngineDefaultPayload() || value;
+        }
+      });
+    } catch (error) {}
+  }
   try {
     Object.defineProperty(window, "devicePixelRatio", {
       configurable: true,
@@ -536,16 +579,7 @@
   }
 
   function memoryEnginePosts() {
-    var raw;
-    var posts;
-    if (!params.memoryEngineDataset || !window.sessionStorage) return null;
-    try {
-      raw = window.sessionStorage.getItem(params.memoryEngineDataset);
-      posts = raw ? JSON.parse(raw) : null;
-      return Array.isArray(posts) ? posts : null;
-    } catch (error) {
-      return null;
-    }
+    return readMemoryEnginePosts();
   }
 
   function memoryEngineTag(value) {

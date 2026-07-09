@@ -25,6 +25,7 @@ import type {
 import { createApiV1Middleware } from "./index.js";
 import { serveLocalAsset } from "./static-assets.js";
 import { AuthService } from "./services.js";
+import { totpCode } from "./auth.js";
 import type {
   AssetRepository,
   CommentListQuery,
@@ -112,7 +113,7 @@ class MemoryRepo implements MemoryRepository {
       authorId: input.authorId,
       authorName: input.authorName,
       visibility: input.visibility || "PUBLIC",
-      status: "PENDING",
+      status: input.status || "NORMAL",
       metadata: input.metadata || {},
       embedding: input.embedding,
       aiSummary: input.aiSummary,
@@ -148,6 +149,7 @@ class UserRepo implements UserRepository {
       email: "admin@example.com",
       passwordHash: "pbkdf2$210000$api-check-salt$v8lW0mYRgw8AS0iO9ri4qjK-jhb-r-iI6wk5xx3olII",
       role: "ADMIN",
+      twoFactorEnabled: false,
       createdAt: new Date(),
     },
     {
@@ -155,6 +157,7 @@ class UserRepo implements UserRepository {
       email: "reader@example.com",
       passwordHash: "pbkdf2$210000$api-check-salt$v8lW0mYRgw8AS0iO9ri4qjK-jhb-r-iI6wk5xx3olII",
       role: "USER",
+      twoFactorEnabled: false,
       createdAt: new Date(),
     },
   ];
@@ -171,6 +174,10 @@ class UserRepo implements UserRepository {
     return this.users.find((user) => user.email.toLowerCase() === email.toLowerCase()) || null;
   }
 
+  async findById(id: string) {
+    return this.users.find((user) => user.id === id) || null;
+  }
+
   async create(input: {
     email: string;
     passwordHash: string;
@@ -181,9 +188,17 @@ class UserRepo implements UserRepository {
       email: input.email,
       passwordHash: input.passwordHash,
       role: input.role,
+      twoFactorEnabled: false,
       createdAt: new Date(),
     } satisfies UserRecord;
     this.users.unshift(user);
+    return user;
+  }
+
+  async update(id: string, input: Partial<UserRecord>) {
+    const user = await this.findById(id);
+    assert.ok(user);
+    Object.assign(user, input);
     return user;
   }
 }
@@ -397,10 +412,19 @@ process.env.AUTH_SECRET = "test-secret";
 process.env.ADMIN_EMAIL = "admin@example.com";
 process.env.ADMIN_PASSWORD = "password123456";
 const storage = new Storage();
+const userRepository = new UserRepo();
+const seedAdminSession = await new AuthService(userRepository).login({
+  email: "admin@example.com",
+  password: "password123456",
+});
+if (!("token" in seedAdminSession)) {
+  throw new Error("Seed admin unexpectedly requires two-factor authentication");
+}
+const adminHeaders = { Authorization: `Bearer ${seedAdminSession.token}` };
 
 const middleware = createApiV1Middleware({
   memories: new MemoryRepo(),
-  users: new UserRepo(),
+  users: userRepository,
   assets: new AssetRepo(),
   comments: new CommentRepo(),
   pages: new PageRepo(),
@@ -494,24 +518,32 @@ const anonymousSubmission = await json("/api/v1/memories", {
   method: "POST",
   body: JSON.stringify({
     title: "Anonymous",
-    content: "Anonymous submission stays pending for moderation.",
+    content: "Anonymous submission publishes immediately.",
     authorName: "Visitor",
   }),
 });
 assert.equal(anonymousSubmission.response.status, 201);
-assert.equal(anonymousSubmission.body.data.status, "PENDING");
+assert.equal(anonymousSubmission.body.data.status, "NORMAL");
 assert.equal(anonymousSubmission.body.data.authorName, "Visitor");
 const publicAfterAnonymous = await json("/api/v1/memories");
 assert.equal(
   publicAfterAnonymous.body.data.some(
     (memory: { id: string }) => memory.id === anonymousSubmission.body.data.id,
   ),
-  false,
+  true,
 );
+const anonymousSearch = await json("/api/v1/search?q=immediately");
+assert.equal(anonymousSearch.body.data[0].id, anonymousSubmission.body.data.id);
+
+const anonymousPendingCreate = await json("/api/v1/memories", {
+  method: "POST",
+  body: JSON.stringify({ title: "Pending", content: "Nope", status: "PENDING" }),
+});
+assert.equal(anonymousPendingCreate.response.status, 401);
 
 const created = await json("/api/v1/memories", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     title: "New",
     content: memoryMarkdown,
@@ -526,7 +558,7 @@ const created = await json("/api/v1/memories", {
 });
 assert.equal(created.response.status, 201);
 assert.equal(created.body.data.id, "m00000000000000000001");
-assert.equal(created.body.data.status, "PENDING");
+assert.equal(created.body.data.status, "NORMAL");
 assert.equal(created.body.data.legacyId, undefined);
 assert.equal(created.body.data.authorId, "u1");
 assert.equal(created.body.data.content, memoryMarkdown);
@@ -539,17 +571,17 @@ assert.deepEqual(
 );
 assert.equal(created.body.data.attachments[0].url, "/uploads/new.jpg");
 
-const publicPendingDetail = await json(`/api/v1/memories/${created.body.data.id}`);
-assert.equal(publicPendingDetail.response.status, 401);
+const publicPublishedDetail = await json(`/api/v1/memories/${created.body.data.id}`);
+assert.equal(publicPublishedDetail.response.status, 200);
 
-const adminPendingDetail = await json(`/api/v1/memories/${created.body.data.id}`, {
-  headers: { Authorization: "Bearer test-secret" },
+const adminPublishedDetail = await json(`/api/v1/memories/${created.body.data.id}`, {
+  headers: adminHeaders,
 });
-assert.equal(adminPendingDetail.response.status, 200);
+assert.equal(adminPublishedDetail.response.status, 200);
 
 const invalidLongitude = await json(`/api/v1/memories/${created.body.data.id}`, {
   method: "PATCH",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({ longitude: -181 }),
 });
 assert.equal(invalidLongitude.response.status, 400);
@@ -558,27 +590,27 @@ assert.equal(invalidLongitude.body.error.code, "invalid_longitude");
 const publicAfterCreate = await json("/api/v1/memories");
 assert.equal(
   publicAfterCreate.body.data.some((memory: { id: string }) => memory.id === created.body.data.id),
-  false,
+  true,
 );
 
 const anonymousPending = await json("/api/v1/memories?status=PENDING");
 assert.equal(anonymousPending.response.status, 401);
 
 const adminPending = await json("/api/v1/memories?status=PENDING", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(adminPending.response.status, 200);
-assert.equal(adminPending.body.data[0].id, created.body.data.id);
+assert.equal(adminPending.body.data.length, 0);
 
 const legacyQuery = await json("/api/v1/memories?legacyId=9001", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(legacyQuery.response.status, 400);
 assert.equal(legacyQuery.body.error.code, "unsupported_legacy_id");
 
 const moderated = await json(`/api/v1/memories/${created.body.data.id}`, {
   method: "PATCH",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({ status: "NORMAL", authorId: "u2" }),
 });
 assert.equal(moderated.response.status, 200);
@@ -591,8 +623,13 @@ assert.equal(searchArchive.body.data[0].legacyId, undefined);
 const unauthorized = await json("/api/v1/users");
 assert.equal(unauthorized.response.status, 401);
 
-const authorized = await json("/api/v1/users", {
+const rawSecretBypass = await json("/api/v1/users", {
   headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(rawSecretBypass.response.status, 401);
+
+const authorized = await json("/api/v1/users", {
+  headers: adminHeaders,
 });
 assert.equal(authorized.response.status, 200);
 assert.equal(authorized.body.data[0].role, "ADMIN");
@@ -611,6 +648,130 @@ const tokenAuthorized = await json("/api/v1/users", {
 });
 assert.equal(tokenAuthorized.response.status, 200);
 assert.equal(tokenAuthorized.body.data[0].email, "admin@example.com");
+
+const account = await json("/api/v1/auth/account", {
+  headers: { Authorization: `Bearer ${loggedIn.body.data.token}` },
+});
+assert.equal(account.response.status, 200);
+assert.equal(account.body.data.email, "admin@example.com");
+assert.equal(account.body.data.passwordHash, undefined);
+assert.equal(account.body.data.twoFactorEnabled, false);
+
+const badAccountUpdate = await json("/api/v1/auth/account", {
+  method: "PATCH",
+  headers: { Authorization: `Bearer ${loggedIn.body.data.token}` },
+  body: JSON.stringify({
+    email: "admin@example.com",
+    currentPassword: "wrong-password",
+  }),
+});
+assert.equal(badAccountUpdate.response.status, 401);
+
+const updatedAccount = await json("/api/v1/auth/account", {
+  method: "PATCH",
+  headers: { Authorization: `Bearer ${loggedIn.body.data.token}` },
+  body: JSON.stringify({
+    email: "admin-updated@example.com",
+    currentPassword: "password123456",
+    newPassword: "password123456789",
+  }),
+});
+assert.equal(updatedAccount.response.status, 200);
+assert.equal(updatedAccount.body.data.account.email, "admin-updated@example.com");
+assert.equal(typeof updatedAccount.body.data.token, "string");
+
+const reloggedIn = await json("/api/v1/auth/login", {
+  method: "POST",
+  body: JSON.stringify({ email: "admin-updated@example.com", password: "password123456789" }),
+});
+assert.equal(reloggedIn.response.status, 200);
+const adminToken = reloggedIn.body.data.token;
+
+const twoFactorSetup = await json("/api/v1/auth/2fa/setup", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${adminToken}` },
+  body: JSON.stringify({ currentPassword: "password123456789" }),
+});
+assert.equal(twoFactorSetup.response.status, 200);
+assert.match(twoFactorSetup.body.data.secret, /^[A-Z2-7]+$/);
+assert.match(twoFactorSetup.body.data.otpauthUrl, /^otpauth:\/\/totp\//);
+
+const badTwoFactorSetup = await json("/api/v1/auth/2fa/setup", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${adminToken}` },
+  body: JSON.stringify({ currentPassword: "wrong-password" }),
+});
+assert.equal(badTwoFactorSetup.response.status, 401);
+
+const badTwoFactor = await json("/api/v1/auth/2fa/enable", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${adminToken}` },
+  body: JSON.stringify({ totp: "000000" }),
+});
+assert.equal(badTwoFactor.response.status, 401);
+
+const enabledTwoFactor = await json("/api/v1/auth/2fa/enable", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${adminToken}` },
+  body: JSON.stringify({ totp: totpCode(twoFactorSetup.body.data.secret) }),
+});
+assert.equal(enabledTwoFactor.response.status, 200);
+assert.equal(enabledTwoFactor.body.data.account.twoFactorEnabled, true);
+assert.equal(enabledTwoFactor.body.data.recoveryCodes.length, 10);
+
+const setupWhileEnabled = await json("/api/v1/auth/2fa/setup", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${adminToken}` },
+  body: JSON.stringify({ currentPassword: "password123456789" }),
+});
+assert.equal(setupWhileEnabled.response.status, 409);
+
+const twoFactorRequiredLogin = await json("/api/v1/auth/login", {
+  method: "POST",
+  body: JSON.stringify({ email: "admin-updated@example.com", password: "password123456789" }),
+});
+assert.equal(twoFactorRequiredLogin.response.status, 200);
+assert.equal(twoFactorRequiredLogin.body.data.requiresTwoFactor, true);
+assert.equal(twoFactorRequiredLogin.body.data.token, undefined);
+
+const twoFactorLogin = await json("/api/v1/auth/login", {
+  method: "POST",
+  body: JSON.stringify({
+    email: "admin-updated@example.com",
+    password: "password123456789",
+    totp: totpCode(twoFactorSetup.body.data.secret),
+  }),
+});
+assert.equal(twoFactorLogin.response.status, 200);
+assert.equal(typeof twoFactorLogin.body.data.token, "string");
+
+const recoveryLogin = await json("/api/v1/auth/login", {
+  method: "POST",
+  body: JSON.stringify({
+    email: "admin-updated@example.com",
+    password: "password123456789",
+    totp: enabledTwoFactor.body.data.recoveryCodes[0],
+  }),
+});
+assert.equal(recoveryLogin.response.status, 200);
+
+const reusedRecoveryLogin = await json("/api/v1/auth/login", {
+  method: "POST",
+  body: JSON.stringify({
+    email: "admin-updated@example.com",
+    password: "password123456789",
+    totp: enabledTwoFactor.body.data.recoveryCodes[0],
+  }),
+});
+assert.equal(reusedRecoveryLogin.response.status, 401);
+
+const disabledTwoFactor = await json("/api/v1/auth/2fa/disable", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${twoFactorLogin.body.data.token}` },
+  body: JSON.stringify({ totp: totpCode(twoFactorSetup.body.data.secret) }),
+});
+assert.equal(disabledTwoFactor.response.status, 200);
+assert.equal(disabledTwoFactor.body.data.account.twoFactorEnabled, false);
 
 const failedLogin = await json("/api/v1/auth/login", {
   method: "POST",
@@ -672,7 +833,7 @@ assert.equal(unauthorizedComments.response.status, 401);
 
 const createdComment = await json("/api/v1/comments", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     memoryId: "pub_1",
     authorName: "Reader",
@@ -685,32 +846,32 @@ assert.equal(createdComment.body.data.memoryId, "pub_1");
 assert.equal(createdComment.body.data.content, "A pending comment\n\nSecond line");
 
 const listedComments = await json("/api/v1/comments?status=all&q=reader", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(listedComments.body.data[0].id, createdComment.body.data.id);
 
 const invalidCommentLimit = await json("/api/v1/comments?limit=abc", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(invalidCommentLimit.response.status, 400);
 assert.equal(invalidCommentLimit.body.error.code, "invalid_limit");
 
 const approvedComment = await json(`/api/v1/comments/${createdComment.body.data.id}`, {
   method: "PATCH",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({ status: "NORMAL" }),
 });
 assert.equal(approvedComment.body.data.status, "NORMAL");
 
 const archivedComment = await json(`/api/v1/comments/${createdComment.body.data.id}`, {
   method: "DELETE",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(archivedComment.body.data.status, "ARCHIVED");
 
 const invalidPageSlug = await json("/api/v1/pages", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     slug: "../bad",
     title: "Bad",
@@ -720,14 +881,14 @@ assert.equal(invalidPageSlug.response.status, 400);
 assert.equal(invalidPageSlug.body.error.code, "invalid_page_slug");
 
 const invalidPagePath = await json("/api/v1/pages/..%2Fbad", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(invalidPagePath.response.status, 400);
 assert.equal(invalidPagePath.body.error.code, "invalid_page_slug");
 
 const createdPage = await json("/api/v1/pages", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     slug: "about",
     title: "About",
@@ -741,7 +902,7 @@ assert.equal(createdPage.body.data.bodyMarkdown, "# About\n\nManaged in v1.");
 
 const invalidPageRename = await json("/api/v1/pages/about", {
   method: "PATCH",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({ slug: "Bad Slug" }),
 });
 assert.equal(invalidPageRename.response.status, 400);
@@ -749,20 +910,20 @@ assert.equal(invalidPageRename.body.error.code, "invalid_page_slug");
 
 const updatedPage = await json("/api/v1/pages/about", {
   method: "PATCH",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({ status: "PUBLISHED", metadata: { footer: true } }),
 });
 assert.equal(updatedPage.body.data.status, "PUBLISHED");
 assert.equal(updatedPage.body.data.metadata.footer, true);
 
 const listedPages = await json("/api/v1/pages", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(listedPages.body.data[0].slug, "about");
 
 const createdMenuItem = await json("/api/v1/menu-items", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     label: "About",
     type: "PAGE",
@@ -775,7 +936,7 @@ assert.equal(createdMenuItem.body.data.type, "PAGE");
 
 const updatedMenuItem = await json(`/api/v1/menu-items/${createdMenuItem.body.data.id}`, {
   method: "PATCH",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({ label: "About us", opensNewTab: true }),
 });
 assert.equal(updatedMenuItem.body.data.label, "About us");
@@ -794,7 +955,7 @@ assert.equal(publicMenuTarget.body.data.page.status, "PUBLISHED");
 
 const savedSettings = await json("/api/v1/settings", {
   method: "PUT",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     defaultLanguage: "en",
     tracking: { enabled: true, provider: "umami" },
@@ -804,13 +965,13 @@ assert.equal(savedSettings.body.data.defaultLanguage, "en");
 assert.equal(savedSettings.body.data.tracking.provider, "umami");
 
 const listedSettings = await json("/api/v1/settings", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(listedSettings.body.data.tracking.enabled, true);
 
 const deletedMenuItem = await json(`/api/v1/menu-items/${createdMenuItem.body.data.id}`, {
   method: "DELETE",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(deletedMenuItem.body.data.deleted, true);
 
@@ -818,13 +979,13 @@ const unauthorizedDashboard = await json("/api/v1/dashboard");
 assert.equal(unauthorizedDashboard.response.status, 401);
 
 const dashboard = await json("/api/v1/dashboard", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(dashboard.response.status, 200);
 assert.equal(dashboard.body.data.totalUsers, 2);
 assert.equal(dashboard.body.data.totalMemories, 3);
-assert.equal(dashboard.body.data.pendingMemories, 1);
-assert.equal(dashboard.body.data.publishedMemories, 2);
+assert.equal(dashboard.body.data.pendingMemories, 0);
+assert.equal(dashboard.body.data.publishedMemories, 3);
 
 const userAuthoredMemory = await json("/api/v1/memories", {
   method: "POST",
@@ -836,7 +997,7 @@ assert.equal(userAuthoredMemory.body.data.authorId, "u2");
 
 const uploaded = await json("/api/v1/assets", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     key: "asset-test.txt",
     memoryId: created.body.data.id,
@@ -850,7 +1011,7 @@ assert.equal(uploaded.body.data.memoryId, created.body.data.id);
 
 const invalidAssetContent = await json("/api/v1/assets", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     key: "invalid.txt",
     contentBase64: "%%%not-base64%%%",
@@ -862,7 +1023,7 @@ assert.equal(invalidAssetContent.body.error.code, "invalid_asset_content");
 
 const emptyDecodedAssetContent = await json("/api/v1/assets", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     key: "empty-decoded.txt",
     contentBase64: "A==",
@@ -874,7 +1035,7 @@ assert.equal(emptyDecodedAssetContent.body.error.code, "invalid_asset_content");
 
 const invalidAssetKey = await json("/api/v1/assets", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     key: "../invalid.txt",
     contentBase64: Buffer.from("invalid key").toString("base64"),
@@ -886,7 +1047,7 @@ assert.equal(invalidAssetKey.body.error.code, "invalid_asset_key");
 
 const failedUpload = await json("/api/v1/assets", {
   method: "POST",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
   body: JSON.stringify({
     key: "orphan-test.txt",
     memoryId: "missing",
@@ -898,28 +1059,28 @@ assert.equal(failedUpload.response.status, 404);
 assert.equal(storage.keys.has("orphan-test.txt"), false);
 
 const assetsAfterUpload = await json("/api/v1/assets", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(assetsAfterUpload.body.data[0].url, "/uploads/asset-test.txt");
 
 const invalidAssetLimit = await json("/api/v1/assets?limit=abc", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(invalidAssetLimit.response.status, 400);
 assert.equal(invalidAssetLimit.body.error.code, "invalid_asset_limit");
 
 const assetUrl = await json("/api/v1/assets/asset-test.txt", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(assetUrl.body.data.url, "/uploads/asset-test.txt");
 
 const nestedAssetUrl = await json("/api/v1/assets/memory/nested-test.txt", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(nestedAssetUrl.body.data.url, "/uploads/memory/nested-test.txt");
 
 const invalidAssetPath = await json("/api/v1/assets/..%2Fsecret.txt", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(invalidAssetPath.response.status, 400);
 assert.equal(invalidAssetPath.body.error.code, "invalid_asset_key");
@@ -954,11 +1115,11 @@ try {
 
 const deleted = await json("/api/v1/assets/asset-test.txt", {
   method: "DELETE",
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(deleted.body.data.deleted, true);
 const assetsAfterDelete = await json("/api/v1/assets", {
-  headers: { Authorization: "Bearer test-secret" },
+  headers: adminHeaders,
 });
 assert.equal(
   assetsAfterDelete.body.data.some(

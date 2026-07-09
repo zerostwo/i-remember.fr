@@ -18,7 +18,7 @@ export function MemoryGalaxy({
   const [storedPayload, setStoredPayload] = React.useState("");
 
   React.useEffect(() => {
-    if (!runtimePosts.length || typeof window === "undefined" || !window.sessionStorage) {
+    if (typeof window === "undefined" || !window.sessionStorage) {
       setStoredPayload("");
       return;
     }
@@ -31,7 +31,7 @@ export function MemoryGalaxy({
     }
   }, [runtimePayload, runtimePosts.length, storageKey]);
 
-  const hasStoredDataset = runtimePosts.length > 0 && storedPayload === runtimePayload;
+  const hasStoredDataset = storedPayload === runtimePayload;
   const url = React.useMemo(() => {
     const next = new URL(src, "http://i-remember.local");
     if (deterministic) next.searchParams.set("qaDeterministic", "1");
@@ -39,7 +39,7 @@ export function MemoryGalaxy({
     return `${next.pathname}${next.search}${next.hash}`;
   }, [deterministic, hasStoredDataset, src, storageKey]);
 
-  if (runtimePosts.length > 0 && !hasStoredDataset && storedPayload !== "unavailable") {
+  if (!hasStoredDataset && storedPayload !== "unavailable") {
     return React.createElement("div", {
       className,
       "data-memory-count": normalizedMemories.length,

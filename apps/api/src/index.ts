@@ -147,6 +147,11 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   router.add("GET", "/api/v1/auth/status", (context) => auth.status(context));
   router.add("POST", "/api/v1/auth/setup", (context) => auth.setup(context));
   router.add("POST", "/api/v1/auth/login", (context) => auth.login(context));
+  router.add("GET", "/api/v1/auth/account", (context) => auth.account(context));
+  router.add("PATCH", "/api/v1/auth/account", (context) => auth.updateAccount(context));
+  router.add("POST", "/api/v1/auth/2fa/setup", (context) => auth.setupTwoFactor(context));
+  router.add("POST", "/api/v1/auth/2fa/enable", (context) => auth.enableTwoFactor(context));
+  router.add("POST", "/api/v1/auth/2fa/disable", (context) => auth.disableTwoFactor(context));
 
   return router;
 }

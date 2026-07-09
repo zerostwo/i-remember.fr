@@ -58,6 +58,7 @@ export type MemoryInput = {
   authorId?: string;
   authorName?: string;
   visibility?: Visibility;
+  status?: MemoryStatus;
   latitude?: number;
   longitude?: number;
   emotion?: string;
@@ -78,6 +79,9 @@ export type UserRecord = {
   email: string;
   passwordHash: string;
   role: Role;
+  twoFactorSecret?: string | null;
+  twoFactorEnabled: boolean;
+  twoFactorRecoveryCodes?: string[] | null;
   createdAt: Date;
 };
 
@@ -86,6 +90,14 @@ export type UserCreateInput = {
   passwordHash: string;
   role: Role;
 };
+
+export type UserUpdateInput = Partial<{
+  email: string;
+  passwordHash: string;
+  twoFactorSecret: string | null;
+  twoFactorEnabled: boolean;
+  twoFactorRecoveryCodes: string[] | null;
+}>;
 
 export type AssetRecord = {
   id: string;

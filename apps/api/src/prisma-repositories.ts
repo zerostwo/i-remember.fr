@@ -19,6 +19,7 @@ import type {
   SettingRecord,
   UserCreateInput,
   UserRecord,
+  UserUpdateInput,
 } from "./domain.js";
 import { ApiError } from "./errors.js";
 import type {
@@ -169,11 +170,17 @@ function comment(row: any): CommentRecord {
 }
 
 function user(row: any): UserRecord {
+  const recoveryCodes = Array.isArray(row.twoFactorRecoveryCodes)
+    ? row.twoFactorRecoveryCodes.filter((item: unknown) => typeof item === "string")
+    : null;
   return {
     id: row.id,
     email: row.email,
     passwordHash: row.passwordHash,
     role: row.role,
+    twoFactorSecret: row.twoFactorSecret,
+    twoFactorEnabled: Boolean(row.twoFactorEnabled),
+    twoFactorRecoveryCodes: recoveryCodes,
     createdAt: row.createdAt,
   };
 }
@@ -270,7 +277,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
           authorId: input.authorId,
           authorName: input.authorName || "Anonymous",
           visibility: input.visibility || "PUBLIC",
-          status: "PENDING",
+          status: input.status || "NORMAL",
           latitude: input.latitude,
           longitude: input.longitude,
           emotion: input.emotion,
@@ -421,6 +428,11 @@ export class PrismaUserRepository implements UserRepository {
     return row ? user(row) : null;
   }
 
+  async findById(id: string) {
+    const row = await this.db.user.findUnique({ where: { id } });
+    return row ? user(row) : null;
+  }
+
   async create(input: UserCreateInput) {
     return user(
       await this.db.user.create({
@@ -428,6 +440,21 @@ export class PrismaUserRepository implements UserRepository {
           email: input.email,
           passwordHash: input.passwordHash,
           role: input.role,
+        },
+      }),
+    );
+  }
+
+  async update(id: string, input: UserUpdateInput) {
+    return user(
+      await this.db.user.update({
+        where: { id },
+        data: {
+          email: input.email,
+          passwordHash: input.passwordHash,
+          twoFactorSecret: input.twoFactorSecret,
+          twoFactorEnabled: input.twoFactorEnabled,
+          twoFactorRecoveryCodes: input.twoFactorRecoveryCodes as any,
         },
       }),
     );

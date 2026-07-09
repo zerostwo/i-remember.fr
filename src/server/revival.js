@@ -776,6 +776,8 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     is_long_form: content.length > excerpt.length ? "1" : "0",
     resized_img_width: "600",
     resized_img_height: "600",
+    latitude: memory?.latitude ?? null,
+    longitude: memory?.longitude ?? null,
     has_created_tags: "1",
     is_stared: "0",
     created_at: normalizeLegacyDate(memory?.createdAt),
@@ -884,6 +886,12 @@ function clampNumber(value, min, max, fallback = 0) {
   return Math.min(Math.max(parsed, min), max);
 }
 
+function optionalCoordinate(value, min, max) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : undefined;
+}
+
 function cleanText(value, fallback, maxLength) {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   return (text || fallback).slice(0, maxLength);
@@ -901,6 +909,8 @@ function validatedPostFields(fields = {}, defaultLanguage = "en") {
     fileId: safeUploadedFileId(fileId) || "revival-upload",
     imgOffsetX: String(clampNumber(fields.imgOffsetX || fields.img_offset_x, -1, 1)),
     imgOffsetY: String(clampNumber(fields.imgOffsetY || fields.img_offset_y, -1, 1)),
+    latitude: optionalCoordinate(fields.latitude ?? fields.lat, -90, 90),
+    longitude: optionalCoordinate(fields.longitude ?? fields.lng ?? fields.lon, -180, 180),
   };
 }
 
@@ -1152,6 +1162,8 @@ class RevivalBackend {
         content: clean.message,
         authorName: clean.name,
         visibility: "PUBLIC",
+        latitude: clean.latitude,
+        longitude: clean.longitude,
         metadata: {
           language,
           source: "public-submission",
@@ -1167,7 +1179,7 @@ class RevivalBackend {
     if (v1Memory) {
       return {
         ...v1MemoryToPost(v1Memory, 0, language),
-        status: v1Memory.status || "PENDING",
+        status: v1Memory.status || "NORMAL",
       };
     }
     throw new HttpError(502, "API memory creation failed", "api_unavailable");

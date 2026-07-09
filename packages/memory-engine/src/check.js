@@ -35,6 +35,7 @@ assert.equal(posts.length, 2);
 assert.equal(posts[0].id, "900000");
 assert.equal(posts[0].public_id, "pub-1");
 assert.equal(posts[0].name, "Ada");
+assert.equal(posts[0].latitude, 48.8566);
 assert.equal(posts[1].img, "revival-upload");
 
 console.log("memory engine ok");

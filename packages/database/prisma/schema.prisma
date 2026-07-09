@@ -49,13 +49,16 @@ enum MenuItemType {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         Role     @default(USER)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  memories     Memory[] @relation("MemoryAuthor")
+  id                     String   @id @default(cuid())
+  email                  String   @unique
+  passwordHash           String   @map("password_hash")
+  role                   Role     @default(USER)
+  twoFactorSecret        String?  @map("two_factor_secret")
+  twoFactorEnabled       Boolean  @default(false) @map("two_factor_enabled")
+  twoFactorRecoveryCodes Json?    @map("two_factor_recovery_codes")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+  memories               Memory[] @relation("MemoryAuthor")
 
   @@map("users")
 }
@@ -69,7 +72,7 @@ model Memory {
   authorId       String?      @map("author_id")
   authorName     String?      @map("author_name")
   visibility     Visibility   @default(PUBLIC)
-  status         MemoryStatus @default(PENDING)
+  status         MemoryStatus @default(NORMAL)
   latitude       Float?
   longitude      Float?
   emotion        String?

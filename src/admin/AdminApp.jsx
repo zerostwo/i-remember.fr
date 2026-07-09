@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   DatabaseBackup,
@@ -22,6 +22,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
+import QRCode from "qrcode";
 import {
   Badge,
   Button,
@@ -143,9 +144,14 @@ async function rememberV1Token(credentials, options = {}) {
   const path = options.setup ? "/api/v1/auth/setup" : "/api/v1/auth/login";
   const session = await api(path, {
     method: "POST",
-    body: JSON.stringify({ email: credentials.email, password: credentials.password }),
+    body: JSON.stringify({
+      email: credentials.email,
+      password: credentials.password,
+      totp: credentials.totp,
+    }),
   });
-  adminToken(session.token);
+  if (session.token) adminToken(session.token);
+  return session;
 }
 
 function v1Status(value) {
@@ -201,7 +207,7 @@ function v1MenuAdmin(item = {}) {
   };
 }
 
-function settingsFromV1(settings = {}) {
+function settingsFromV1(settings = {}, account = {}) {
   return {
     defaultLanguage: settings.defaultLanguage || "en",
     anonymousSubmissions: settings.anonymousSubmissions !== false,
@@ -211,17 +217,22 @@ function settingsFromV1(settings = {}) {
       umamiSrc: settings.tracking?.umamiSrc || "",
       umamiWebsiteId: settings.tracking?.umamiWebsiteId || "",
     },
-    account: { email: "", hasPassword: true, twoFactorEnabled: false },
+    account: {
+      email: account.email || "",
+      hasPassword: account.hasPassword !== false,
+      twoFactorEnabled: Boolean(account.twoFactorEnabled),
+    },
   };
 }
 
 async function v1Bootstrap() {
-  const [dashboard, memories, pages, menu, settings, assets, comments] = await Promise.all([
+  const [dashboard, memories, pages, menu, settings, account, assets, comments] = await Promise.all([
     v1Api("/api/v1/dashboard"),
     v1Api("/api/v1/memories?status=all&visibility=all&limit=200"),
     v1Api("/api/v1/pages"),
     v1Api("/api/v1/menu-items"),
     v1Api("/api/v1/settings"),
+    v1Api("/api/v1/auth/account"),
     v1Api("/api/v1/assets").catch(() => []),
     v1Api("/api/v1/comments?status=all").catch(() => []),
   ]);
@@ -243,7 +254,7 @@ async function v1Bootstrap() {
     menu: menu.map(v1MenuAdmin),
     comments,
     attachments: [],
-    settings: settingsFromV1(settings),
+    settings: settingsFromV1(settings, account),
   };
   return mergeV1Assets(payload, assets);
 }
@@ -262,7 +273,15 @@ function readFileAsDataUrl(file) {
 }
 
 function downloadJson(filename, value) {
-  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+  downloadBlob(filename, JSON.stringify(value, null, 2), "application/json");
+}
+
+function downloadText(filename, value) {
+  downloadBlob(filename, value, "text/plain");
+}
+
+function downloadBlob(filename, value, type) {
+  const blob = new Blob([value], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -412,6 +431,30 @@ function ToggleField({ label, description, checked, onCheckedChange }) {
   );
 }
 
+function TotpQrCode({ value }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || !value) return;
+    QRCode.toCanvas(
+      canvasRef.current,
+      value,
+      {
+        width: 192,
+        margin: 2,
+        color: { dark: "#111827", light: "#ffffff" },
+      },
+      () => {},
+    );
+  }, [value]);
+
+  return (
+    <div className="w-fit rounded-lg border bg-white p-3">
+      <canvas ref={canvasRef} width="192" height="192" aria-label="Two-factor QR code" />
+    </div>
+  );
+}
+
 function MarkdownPreview({ value }) {
   return (
     <div
@@ -508,7 +551,8 @@ export function AdminApp() {
     setLoading(true);
     setError("");
     try {
-      await rememberV1Token(credentials);
+      const result = await rememberV1Token(credentials);
+      if (result?.requiresTwoFactor) return result;
       const session = { authenticated: true };
       setAuthenticated(true);
       return session;
@@ -574,7 +618,7 @@ export function AdminApp() {
         title: "Untitled memory",
         author: "I Remember",
         excerpt: "A new editable memory.",
-        status: "pending",
+        status: "published",
         isLongForm: true,
         bodyMarkdown: "# Untitled memory\n\nWrite this memory in Markdown.",
       });
@@ -697,9 +741,26 @@ export function AdminApp() {
   }
 
   async function saveAccount(payload) {
-    await runAction("Account updated", async () => {
-      void payload;
-      throw new Error("Account updates now use the v1 auth account and will be added there.");
+    return runAction("Account updated", async () => {
+      const result = await v1Api("/api/v1/auth/account", {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      if (result.token) adminToken(result.token);
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              settings: {
+                ...current.settings,
+                account: {
+                  ...(current.settings?.account || {}),
+                  ...(result.account || {}),
+                },
+              },
+            }
+          : current,
+      );
     });
   }
 
@@ -711,23 +772,59 @@ export function AdminApp() {
     });
   }
 
-  async function setupTwoFactor() {
-    return runAction("Two-factor setup created", () => {
-      throw new Error("Two-factor setup is not available in the v1 auth API yet.");
-    });
+  async function setupTwoFactor(payload) {
+    return runAction("Two-factor setup created", () =>
+      v1Api("/api/v1/auth/2fa/setup", {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+      }),
+    );
   }
 
   async function enableTwoFactor(payload) {
-    await runAction("Two-factor enabled", async () => {
-      void payload;
-      throw new Error("Two-factor setup is not available in the v1 auth API yet.");
+    return runAction("Two-factor enabled", async () => {
+      const result = await v1Api("/api/v1/auth/2fa/enable", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              settings: {
+                ...current.settings,
+                account: {
+                  ...(current.settings?.account || {}),
+                  ...(result.account || {}),
+                },
+              },
+            }
+          : current,
+      );
+      return result;
     });
   }
 
   async function disableTwoFactor(payload) {
-    await runAction("Two-factor disabled", async () => {
-      void payload;
-      throw new Error("Two-factor setup is not available in the v1 auth API yet.");
+    return runAction("Two-factor disabled", async () => {
+      const result = await v1Api("/api/v1/auth/2fa/disable", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              settings: {
+                ...current.settings,
+                account: {
+                  ...(current.settings?.account || {}),
+                  ...(result.account || {}),
+                },
+              },
+            }
+          : current,
+      );
     });
   }
 
@@ -872,7 +969,13 @@ function LoginScreen({ loading, onLogin }) {
                   <TextField label="Username or email" value={email} onChange={setEmail} autoComplete="username" />
                   <TextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="current-password" />
                   {requiresTwoFactor ? (
-                    <TextField label="Two-factor code" value={totp} onChange={setTotp} inputMode="numeric" autoComplete="one-time-code" />
+                    <TextField
+                      label="Two-factor or recovery code"
+                      value={totp}
+                      onChange={setTotp}
+                      inputMode="text"
+                      autoComplete="one-time-code"
+                    />
                   ) : null}
                 </FieldGroup>
                 {loginError ? <StatusMessage variant="error" message={loginError} /> : null}
@@ -1736,6 +1839,7 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
   const [twoFactor, setTwoFactor] = useState(null);
   const [twoFactorCode, setTwoFactorCode] = useState("");
   const [disableCode, setDisableCode] = useState("");
+  const [recoveryCodes, setRecoveryCodes] = useState([]);
 
   useEffect(() => {
     setSiteDraft({
@@ -1818,10 +1922,12 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
           <CardDescription>Password changes require the current password.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-5" onSubmit={(event) => {
+          <form className="grid gap-5" onSubmit={async (event) => {
             event.preventDefault();
-            saveAccount(accountDraft);
-            setAccountDraft((current) => ({ ...current, currentPassword: "", newPassword: "" }));
+            const result = await saveAccount(accountDraft);
+            if (result) {
+              setAccountDraft((current) => ({ ...current, currentPassword: "", newPassword: "" }));
+            }
           }}>
             <FieldGroup>
               <TextField label="Admin email" value={accountDraft.email} onChange={(value) => updateAccount("email", value)} type="email" />
@@ -1846,33 +1952,50 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
         </CardHeader>
         <CardContent className="grid gap-5">
           {account.twoFactorEnabled ? (
-            <form className="grid max-w-md gap-4" onSubmit={(event) => {
+            <form className="grid max-w-md gap-4" onSubmit={async (event) => {
               event.preventDefault();
-              disableTwoFactor({ totp: disableCode });
-              setDisableCode("");
+              const result = await disableTwoFactor({ totp: disableCode });
+              if (result) {
+                setDisableCode("");
+                setRecoveryCodes([]);
+              }
             }}>
-              <TextField label="Authenticator code" value={disableCode} onChange={setDisableCode} inputMode="numeric" autoComplete="one-time-code" />
+              <TextField
+                label="Authenticator or recovery code"
+                value={disableCode}
+                onChange={setDisableCode}
+                inputMode="text"
+                autoComplete="one-time-code"
+              />
               <Button variant="outline" className="w-fit" type="submit">Disable 2FA</Button>
             </form>
           ) : (
             <div className="grid gap-4">
               <Button className="w-fit" variant="outline" type="button" onClick={async () => {
-                const setup = await setupTwoFactor();
-                if (setup) setTwoFactor(setup);
+                const setup = await setupTwoFactor({ currentPassword: accountDraft.currentPassword });
+                if (setup) {
+                  setTwoFactor(setup);
+                  setRecoveryCodes([]);
+                }
               }}>
                 Start 2FA setup
               </Button>
               {twoFactor ? (
-                <form className="grid gap-4 rounded-lg border bg-background/45 p-4" onSubmit={(event) => {
+                <form className="grid gap-4 rounded-lg border bg-background/45 p-4" onSubmit={async (event) => {
                   event.preventDefault();
-                  enableTwoFactor({ totp: twoFactorCode });
-                  setTwoFactorCode("");
+                  const result = await enableTwoFactor({ totp: twoFactorCode });
+                  if (result?.recoveryCodes?.length) {
+                    setRecoveryCodes(result.recoveryCodes);
+                    setTwoFactor(null);
+                  }
+                  if (result) setTwoFactorCode("");
                 }}>
-                  <div className="grid gap-2 text-sm">
-                    <span className="text-muted-foreground">Secret</span>
-                    <code className="overflow-x-auto rounded border px-3 py-2">{twoFactor.secret}</code>
-                    <span className="text-muted-foreground">otpauth URL</span>
-                    <code className="overflow-x-auto rounded border px-3 py-2">{twoFactor.otpauthUrl}</code>
+                  <div className="grid gap-4 md:grid-cols-[auto_minmax(0,1fr)]">
+                    <TotpQrCode value={twoFactor.otpauthUrl} />
+                    <div className="grid min-w-0 gap-2 text-sm">
+                      <span className="text-muted-foreground">Scan this QR code with an authenticator app, or enter the secret manually.</span>
+                      <code className="overflow-x-auto rounded border px-3 py-2">{twoFactor.secret}</code>
+                    </div>
                   </div>
                   <TextField label="Authenticator code" value={twoFactorCode} onChange={setTwoFactorCode} inputMode="numeric" autoComplete="one-time-code" />
                   <Button className="w-fit" type="submit">Enable 2FA</Button>
@@ -1880,6 +2003,35 @@ function SettingsView({ data, saveSettings, saveAccount, setupTwoFactor, enableT
               ) : null}
             </div>
           )}
+          {recoveryCodes.length ? (
+            <div className="grid gap-4 rounded-lg border bg-background/45 p-4">
+              <div className="grid gap-1">
+                <strong className="text-sm">Recovery codes</strong>
+                <p className="text-sm text-muted-foreground">Save these now. They are shown once and each code can be used one time.</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                {recoveryCodes.map((code) => (
+                  <code key={code} className="rounded border px-3 py-2 text-center text-sm">
+                    {code}
+                  </code>
+                ))}
+              </div>
+              <Button
+                className="w-fit"
+                variant="outline"
+                type="button"
+                onClick={() =>
+                  downloadText(
+                    "i-remember-recovery-codes.txt",
+                    `I Remember recovery codes\nGenerated: ${new Date().toISOString()}\n\n${recoveryCodes.join("\n")}\n`,
+                  )
+                }
+              >
+                <Download data-icon="inline-start" />
+                Download recovery codes
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
     </div>

@@ -192,11 +192,15 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
   const title = text(value.title, "", 180);
   const content = bodyText(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
   const visibility = text(value.visibility, "PUBLIC", 20).toUpperCase();
+  const status = has(value, "status") ? text(value.status, "NORMAL", 20).toUpperCase() : "";
 
   if (!title) throw new ApiError(400, "Title is required", "missing_title");
   if (!content) throw new ApiError(400, "Content is required", "missing_content");
   if (!visibilityValues.has(visibility)) {
     throw new ApiError(400, "Invalid visibility", "invalid_visibility");
+  }
+  if (status && !memoryStatusValues.has(status)) {
+    throw new ApiError(400, "Invalid status", "invalid_status");
   }
 
   return {
@@ -209,6 +213,7 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
         : undefined,
     authorName: text(value.authorName ?? value.author, "Anonymous", 120),
     visibility: visibility as Visibility,
+    status: status ? (status as MemoryStatus) : undefined,
     latitude: coordinate(value.latitude, -90, 90, "invalid_latitude"),
     longitude: coordinate(value.longitude, -180, 180, "invalid_longitude"),
     emotion: value.emotion ? text(value.emotion, "", 80) : undefined,

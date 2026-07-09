@@ -16,6 +16,7 @@ import type {
   SettingRecord,
   UserCreateInput,
   UserRecord,
+  UserUpdateInput,
 } from "./domain.js";
 
 export type MemoryListQuery = {
@@ -44,8 +45,10 @@ export interface MemoryRepository {
 export interface UserRepository {
   list(): Promise<UserRecord[]>;
   count(): Promise<number>;
+  findById(id: string): Promise<UserRecord | null>;
   findByEmail(email: string): Promise<UserRecord | null>;
   create(input: UserCreateInput): Promise<UserRecord>;
+  update(id: string, input: UserUpdateInput): Promise<UserRecord>;
 }
 
 export interface PageRepository {

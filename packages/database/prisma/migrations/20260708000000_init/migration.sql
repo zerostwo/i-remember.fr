@@ -25,6 +25,9 @@ CREATE TABLE "users" (
     "email" TEXT NOT NULL,
     "password_hash" TEXT NOT NULL,
     "role" "Role" NOT NULL DEFAULT 'USER',
+    "two_factor_secret" TEXT,
+    "two_factor_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "two_factor_recovery_codes" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -41,7 +44,7 @@ CREATE TABLE "memories" (
     "author_id" TEXT,
     "author_name" TEXT,
     "visibility" "Visibility" NOT NULL DEFAULT 'PUBLIC',
-    "status" "MemoryStatus" NOT NULL DEFAULT 'PENDING',
+    "status" "MemoryStatus" NOT NULL DEFAULT 'NORMAL',
     "latitude" DOUBLE PRECISION,
     "longitude" DOUBLE PRECISION,
     "emotion" TEXT,

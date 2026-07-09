@@ -137,7 +137,18 @@ function userDto(user: UserRecord) {
     id: user.id,
     email: user.email,
     role: user.role,
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
     createdAt: user.createdAt.toISOString(),
+  };
+}
+
+function accountDto(user: UserRecord) {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    hasPassword: Boolean(user.passwordHash),
+    twoFactorEnabled: Boolean(user.twoFactorEnabled),
   };
 }
 
@@ -190,6 +201,9 @@ export class MemoryController {
           throw new ApiError(403, "Permission denied", "forbidden");
         }
       }
+    }
+    if (input.status && input.status !== "NORMAL") {
+      requireRole(authenticate(context.req), ["ADMIN"]);
     }
     const data = await this.memories.create(input);
     context.res.statusCode = 201;
@@ -463,5 +477,38 @@ export class AuthController {
   async setup(context: RequestContext) {
     context.res.statusCode = 201;
     return { success: true, data: await this.auth.setup(await readJson(context.req)) };
+  }
+
+  async account(context: RequestContext) {
+    const data = await this.auth.account(authenticate(context.req));
+    return { success: true, data: accountDto(data) };
+  }
+
+  async updateAccount(context: RequestContext) {
+    const data = await this.auth.updateAccount(authenticate(context.req), await readJson(context.req));
+    return { success: true, data: { account: accountDto(data.account), token: data.token } };
+  }
+
+  async setupTwoFactor(context: RequestContext) {
+    return {
+      success: true,
+      data: await this.auth.setupTwoFactor(authenticate(context.req), await readJson(context.req)),
+    };
+  }
+
+  async enableTwoFactor(context: RequestContext) {
+    const data = await this.auth.enableTwoFactor(authenticate(context.req), await readJson(context.req));
+    return {
+      success: true,
+      data: { account: accountDto(data.account), recoveryCodes: data.recoveryCodes },
+    };
+  }
+
+  async disableTwoFactor(context: RequestContext) {
+    const data = await this.auth.disableTwoFactor(
+      authenticate(context.req),
+      await readJson(context.req),
+    );
+    return { success: true, data: { account: accountDto(data.account) } };
   }
 }

@@ -16,7 +16,22 @@ import type {
   Principal,
   UserRecord,
 } from "./domain.js";
-import { hashPassword, login, loginUser, requireRole } from "./auth.js";
+import {
+  assertLoginPassword,
+  createRecoveryCodes,
+  createTotpSecret,
+  hashPassword,
+  hashRecoveryCodes,
+  loginUser,
+  protectTotpSecret,
+  requireRole,
+  totpUri,
+  twoFactorRequired,
+  unprotectTotpSecret,
+  verifyPasswordHash,
+  verifyRecoveryCode,
+  verifyTotp,
+} from "./auth.js";
 import type {
   AssetRepository,
   CommentListQuery,
@@ -88,7 +103,30 @@ export class AuthService {
       .trim()
       .toLowerCase();
     const user: UserRecord | null = email ? await this.users.findByEmail(email) : null;
-    return user ? loginUser(input, user) : login(input);
+    if (!user) throw new ApiError(401, "Invalid credentials", "invalid_credentials");
+
+    assertLoginPassword(input, user);
+    if (!user.twoFactorEnabled) return loginUser(input, user);
+
+    const code = String(input.totp || input.twoFactorCode || "");
+    if (!code) return twoFactorRequired(user);
+
+    const totpSecret = user.twoFactorSecret ? unprotectTotpSecret(user.twoFactorSecret) : "";
+    if (totpSecret && verifyTotp(totpSecret, code)) {
+      return loginUser(input, user);
+    }
+
+    const recoveryIndex = verifyRecoveryCode(code, user.twoFactorRecoveryCodes || []);
+    if (recoveryIndex >= 0) {
+      const remainingCodes = [...(user.twoFactorRecoveryCodes || [])];
+      remainingCodes.splice(recoveryIndex, 1);
+      const updated = await this.users.update(user.id, {
+        twoFactorRecoveryCodes: remainingCodes,
+      });
+      return loginUser(input, updated);
+    }
+
+    throw new ApiError(401, "Invalid two-factor code", "invalid_two_factor");
   }
 
   async setup(input: Record<string, unknown>) {
@@ -111,6 +149,104 @@ export class AuthService {
       role: "ADMIN",
     });
     return loginUser({ password }, user);
+  }
+
+  private async currentUser(principal: Principal) {
+    requireRole(principal, ["ADMIN"]);
+    const user = principal.id
+      ? await this.users.findById(principal.id)
+      : principal.email
+        ? await this.users.findByEmail(principal.email)
+        : null;
+    if (!user) throw new ApiError(401, "A user-backed admin session is required", "user_required");
+    return user;
+  }
+
+  async account(principal: Principal) {
+    return this.currentUser(principal);
+  }
+
+  async updateAccount(principal: Principal, input: Record<string, unknown>) {
+    const user = await this.currentUser(principal);
+    const currentPassword = String(input.currentPassword || "");
+    if (!verifyPasswordHash(currentPassword, user.passwordHash)) {
+      throw new ApiError(401, "Current password is incorrect", "invalid_current_password");
+    }
+
+    const email = String(input.email || "")
+      .trim()
+      .toLowerCase();
+    const newPassword = String(input.newPassword || "");
+    if (!email || !email.includes("@")) {
+      throw new ApiError(400, "Valid email is required", "invalid_email");
+    }
+    if (newPassword && newPassword.length < 12) {
+      throw new ApiError(400, "Password must be at least 12 characters", "weak_password");
+    }
+
+    const updated = await this.users.update(user.id, {
+      email,
+      ...(newPassword ? { passwordHash: hashPassword(newPassword) } : {}),
+    });
+    return {
+      account: updated,
+      token: loginUser({}, updated).token,
+    };
+  }
+
+  async setupTwoFactor(principal: Principal, input: Record<string, unknown>) {
+    const user = await this.currentUser(principal);
+    const currentPassword = String(input.currentPassword || "");
+    if (!verifyPasswordHash(currentPassword, user.passwordHash)) {
+      throw new ApiError(401, "Current password is incorrect", "invalid_current_password");
+    }
+    if (user.twoFactorEnabled) {
+      throw new ApiError(409, "Two-factor authentication is already enabled", "two_factor_enabled");
+    }
+    const secret = createTotpSecret();
+    const updated = await this.users.update(user.id, {
+      twoFactorSecret: protectTotpSecret(secret),
+      twoFactorEnabled: false,
+      twoFactorRecoveryCodes: null,
+    });
+    return {
+      secret,
+      otpauthUrl: totpUri(updated, secret),
+    };
+  }
+
+  async enableTwoFactor(principal: Principal, input: Record<string, unknown>) {
+    const user = await this.currentUser(principal);
+    const secret = user.twoFactorSecret ? unprotectTotpSecret(user.twoFactorSecret) : "";
+    if (!secret) throw new ApiError(400, "Two-factor setup has not been started", "totp_not_setup");
+    if (!verifyTotp(secret, String(input.totp || input.code || ""))) {
+      throw new ApiError(401, "Invalid two-factor code", "invalid_two_factor");
+    }
+    const recoveryCodes = createRecoveryCodes();
+    const updated = await this.users.update(user.id, {
+      twoFactorEnabled: true,
+      twoFactorRecoveryCodes: hashRecoveryCodes(recoveryCodes),
+    });
+    return { account: updated, recoveryCodes };
+  }
+
+  async disableTwoFactor(principal: Principal, input: Record<string, unknown>) {
+    const user = await this.currentUser(principal);
+    if (user.twoFactorEnabled) {
+      const code = String(input.totp || input.code || "");
+      const recoveryIndex = verifyRecoveryCode(code, user.twoFactorRecoveryCodes || []);
+      const secret = user.twoFactorSecret ? unprotectTotpSecret(user.twoFactorSecret) : "";
+      const validTotp = secret ? verifyTotp(secret, code) : false;
+      if (!validTotp && recoveryIndex < 0) {
+        throw new ApiError(401, "Invalid two-factor code", "invalid_two_factor");
+      }
+    }
+    const updated = await this.users.update(user.id, {
+      twoFactorSecret: null,
+      twoFactorEnabled: false,
+      twoFactorRecoveryCodes: null,
+    });
+    return { account: updated };
   }
 }
 
