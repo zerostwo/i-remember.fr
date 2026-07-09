@@ -28,8 +28,8 @@ Docker deployment.
   Menus, Settings, and Backups.
 - Settings for default language, anonymous submissions, and self-hosted Umami
   tracking.
-- Legacy SQLite remains only as a compatibility layer for the restored public
-  archive while production backend work targets PostgreSQL.
+- Production backend work targets PostgreSQL through Prisma; legacy
+  compatibility is not a product requirement for this early prototype.
 
 ## Runtime
 
@@ -40,8 +40,8 @@ pnpm test
 pnpm start
 ```
 
-`pnpm dev` runs the web and API workspaces through Turbo. The legacy public
-archive server still listens on `PORT` and `HOST`; the default local URL is
+`pnpm dev` runs the web and API workspaces through Turbo. The public archive
+server still listens on `PORT` and `HOST`; the default local URL is
 `http://127.0.0.1:7890/`.
 
 Admin is available at `/admin/`.
@@ -66,7 +66,7 @@ Copy `.env.example` into your deployment environment and set at least:
 - `DATABASE_URL`: PostgreSQL connection string for `apps/api`.
 - `AUTH_SECRET`: bearer-token secret for admin API access.
 - `STORAGE_PATH`: local asset storage directory.
-- `I_REMEMBER_DATA_DIR`: legacy public archive compatibility data directory.
+- `I_REMEMBER_DATA_DIR`: public archive runtime data directory.
 - `I_REMEMBER_DEFAULT_LANGUAGE`: `en`, `fr`, or `zh`.
 - `I_REMEMBER_ANONYMOUS_SUBMISSIONS`: `true` or `false`.
 - `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`: `true` by default so public submissions

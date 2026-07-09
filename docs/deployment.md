@@ -21,9 +21,8 @@ The published image names use:
 - `TAG`
 
 Compose appends `-web`, `-admin`, and `-api` to the configured image base.
-`web` and `admin` share the same archive compatibility data volume while the
-public archive still reads legacy SQLite data; production API state lives in
-PostgreSQL.
+`web` and `admin` can share the archive runtime data volume during migration;
+production API state lives in PostgreSQL.
 
 The GitHub workflow builds and pushes those same compose images instead of a
 single root image.
@@ -46,5 +45,5 @@ Common operational variables:
 - `UMAMI_SRC`
 - `UMAMI_WEBSITE_ID`
 
-The legacy public archive compatibility layer still needs
-`I_REMEMBER_DATA_DIR` until the public frontend fully reads from the new API.
+`I_REMEMBER_DATA_DIR` points at the archive runtime data directory until the
+public frontend fully reads from the new API.

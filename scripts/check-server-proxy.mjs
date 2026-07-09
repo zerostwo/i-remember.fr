@@ -133,9 +133,11 @@ try {
   assert.match(chineseMemoryHtml, /var LANG = 'zh';/);
   assert.match(chineseMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
 
-  const legacyMemoryResponse = await fetch(`${baseUrl}/memory/${Number(memory.legacyId) + 1248}`);
-  assert.equal(legacyMemoryResponse.status, 200);
-  assert.match(await legacyMemoryResponse.text(), new RegExp(`"public_id":"${memory.publicId}"`));
+  const numericMemoryResponse = await fetch(`${baseUrl}/memory/${Number(memory.legacyId) + 1248}`);
+  assert.equal(numericMemoryResponse.status, 200);
+  const numericMemoryHtml = await numericMemoryResponse.text();
+  assert.match(numericMemoryHtml, /var DEFAULT_POST = \(function \(\)/);
+  assert.doesNotMatch(numericMemoryHtml, /var DEFAULT_POST = \{"success":1/);
 
   const response = await fetch(`${baseUrl}/api/v1/memories?status=PENDING`, {
     headers: { Authorization: "Bearer proxy-test" },

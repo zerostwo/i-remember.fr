@@ -30,8 +30,9 @@ pnpm db:migrate:legacy -- --dry-run
 pnpm db:migrate:legacy
 ```
 
-Legacy SQLite remains as a compatibility layer until archive reads and writes
-are fully moved.
+SQLite import remains available as migration source material. Runtime
+compatibility with previous legacy URLs or storage is not required for this
+early prototype.
 
 ## Phase 5: Replace Old Admin
 
@@ -42,6 +43,6 @@ backend where applicable.
 
 ## Phase 6: Remove Deprecated Code
 
-Deferred intentionally. Legacy API and SQLite code remain only as compatibility
-fallbacks for the restored public archive until public archive reads and writes
-are fully proven against the v1 API.
+In progress. Remove deprecated runtime paths as public archive reads and writes
+are proven against the v1 API; do not preserve legacy compatibility solely for
+old data or URLs.

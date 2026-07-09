@@ -1191,9 +1191,7 @@ function legacyImagePath(imageKey, variant = "resized") {
 
 function publicMemoryUrl(post) {
   const publicId = String(post?.public_id || post?.publicId || "").trim();
-  const legacyId = numericPostId(post);
-  const fallback = legacyId >= 0 ? String(legacyId + postIdOffset) : "";
-  return `/memory/${encodeURIComponent(publicId || fallback)}`;
+  return publicId ? `/memory/${encodeURIComponent(publicId)}` : "";
 }
 
 function legacyImageUrl(imageKey, variant = "thumb") {
@@ -1657,17 +1655,12 @@ class RevivalBackend {
     return uniquePosts(this.store.listMemories(normalizeLanguage(language)).map(memoryToPost));
   }
 
-  memoryByPublicId(publicId, fallbackLanguage = "en") {
-    const row = this.store.getMemoryByPublicId(publicId);
-    if (row) return row;
-
-    const legacyId = Number.parseInt(publicId, 10) - postIdOffset;
-    if (!Number.isFinite(legacyId)) return null;
-    return this.store.getMemory(normalizeLanguage(fallbackLanguage), legacyId);
+  memoryByPublicId(publicId) {
+    return this.store.getMemoryByPublicId(publicId);
   }
 
-  async directPost(publicId, fallbackLanguage = "en") {
-    const row = this.memoryByPublicId(publicId, fallbackLanguage);
+  async directPost(publicId) {
+    const row = this.memoryByPublicId(publicId);
     return row ? memoryToPost(row) : null;
   }
 

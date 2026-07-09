@@ -12,7 +12,7 @@ Current backend/product decisions:
 - For the production architecture refactor requested on 2026-07-08, the pasted refactor document is the highest-priority product/engineering source. Implement the pnpm/turbo monorepo, TypeScript API app, PostgreSQL/Prisma database package, Docker web/admin/api/postgres services, and full verification plan from that document while keeping the archive frontend experience visually unchanged.
 - Use the admin-configured default language for `/`, missing `ln`, and bare `/memory/:id` routes; the initial default is English.
 - Preserve French support and add full Chinese support at `/zh` and `/zh/memory/:id`.
-- During the migration, legacy SQLite routes may remain only as compatibility fallbacks for the restored public archive; new production backend work should target PostgreSQL through Prisma.
+- Because the project is still early, do not preserve previous legacy compatibility; remove compatibility fallbacks as production PostgreSQL/Prisma paths become available.
 - Expose first-pass AI agent support through HTTP APIs, not MCP.
 - Keep Facebook and Instagram API modernization out of scope until explicitly requested.
 - Publish through the refactor document's multi-service Docker deployment; DockerHub image names and tags must still come from `DOCKERHUB_IMAGE` and `TAG` env vars where an app image is published.
@@ -25,7 +25,7 @@ Current backend/product decisions:
 - The public intro/loading screen should support click/tap fast-forward so repeat visits can quickly see both intro message groups and enter the app.
 - Public language switching should stay on the current route path: switching updates `ln` language text only for display, and route path (including `/memory/:id`) is preserved.
 - Public and admin language controls are UI language only; they must not choose content collections, menu records, or admin list data. Backend/admin content uses the site default language from System Settings.
-- Public memory URLs must be language-free `/memory/:id` routes using non-sequential random alphanumeric public IDs; legacy numeric memory URLs may remain as compatibility fallbacks only.
+- Public memory URLs must be language-free `/memory/:id` routes using non-sequential random alphanumeric public IDs; legacy numeric memory URLs must not resolve memory content.
 - Each memory may occupy only one map coordinate; deduplicate memory identity before passing posts into the legacy map/search rendering flow.
 - Public search, add-memory, navigation ball, and opened memory-card layout must preserve the archive original positions and dimensions unless the user explicitly approves a visual change.
 - Do not commit generated QA artifacts, imported data snapshots, runtime database directories, SQLite files, or `db/`; keep migration source under `src/server/migrations/sqlite`.

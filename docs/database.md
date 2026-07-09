@@ -4,8 +4,9 @@ The production backend targets PostgreSQL through Prisma. The schema lives at
 `packages/database/prisma/schema.prisma`, and the generated client is exposed by
 `@i-remember/database`.
 
-Legacy SQLite files under `src/server/migrations/sqlite` remain only for the
-restored public archive compatibility layer while the migration is in progress.
+SQLite migration source stays under `src/server/migrations/sqlite` only as
+import source material; legacy runtime compatibility is not a product
+requirement for this early prototype.
 
 ## Core Models
 

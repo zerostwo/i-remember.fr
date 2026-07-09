@@ -59,11 +59,11 @@ anonymous or authenticated JSON body like `{"query":"Paris","limit":5}` and
 returns a deterministic answer plus `/memory/:id` citations from public,
 published memories. It does not expose MCP or call an external model yet.
 
-`POST /api/v1/auth/login` checks migrated Prisma users first using the legacy
+`POST /api/v1/auth/login` checks Prisma users first using the stored
 `pbkdf2$iterations$salt$hash` password format and issues a signed bearer token
-with the user's role. The raw `AUTH_SECRET` bearer token remains accepted as a
-bootstrap/admin compatibility fallback, and `ADMIN_EMAIL`/`ADMIN_PASSWORD` are
-only used when no matching database user exists.
+with the user's role. The raw `AUTH_SECRET` bearer token remains accepted for
+bootstrap/admin operations, and `ADMIN_EMAIL`/`ADMIN_PASSWORD` are only used
+when no matching database user exists.
 
 `PATCH /api/v1/memories/:id` is admin-only and accepts partial edits, including
 moderation status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`.
@@ -76,8 +76,8 @@ views.
 Memory create and patch bodies may include `tags` and `attachments`; memory
 responses include both relation lists.
 
-Admin-authenticated migration clients may set `legacyId` and filter
-`GET /api/v1/memories` with `legacyId=...`.
+Admin-authenticated import clients may set `legacyId` as source metadata and
+filter `GET /api/v1/memories` with `legacyId=...`.
 
 `GET /api/v1/dashboard` is admin-only and returns total memories, moderation
 counts, total users, and recent memory activity.
@@ -102,10 +102,10 @@ The API app is split into:
 - repositories: Prisma persistence.
 - storage: local filesystem or S3-compatible upload/delete/getUrl adapter.
 - validation: JSON input parsing and shape checks.
-- auth: signed bearer-token auth, bootstrap admin compatibility, and role guards.
+- auth: signed bearer-token auth, bootstrap admin access, and role guards.
 
-Legacy endpoints remain in `src/server/revival.js` only for the restored public
-archive runtime:
+Archive runtime endpoints remain in `src/server/revival.js` until each path is
+replaced by the v1 API:
 
 - `GET /api/search-posts`
 - `GET /api/auto-complete-tags/:fragment`
@@ -117,6 +117,5 @@ archive runtime:
 - `GET /api/admin/export`
 - `POST /api/admin/*`
 
-`GET /api/admin/export` is authenticated with the legacy admin cookie and
-downloads the current admin archive bundle for the Backups section while the
-admin compatibility layer is still active.
+`GET /api/admin/export` is authenticated with the admin cookie and downloads
+the current admin archive bundle for the Backups section.
