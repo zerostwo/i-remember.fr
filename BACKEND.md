@@ -1,58 +1,80 @@
 # I Remember Backend
 
-The backend follows a lightweight self-hosted pattern inspired by
-`usememos/memos`: one app process, an app-owned data directory, SQLite as the
-default database, SQL migrations, and local filesystem attachment storage.
+The backend is currently a two-layer bridge:
 
-## Runtime Model
+- The restored public archive still runs through `server.mjs`,
+  `src/server/revival.js`, and SQLite so the memory galaxy visual experience
+  stays unchanged.
+- New production backend work targets `apps/api`, PostgreSQL, Prisma, and the
+  shared packages under `packages/*`.
 
-- Database: SQLite at `${I_REMEMBER_DATA_DIR}/i-remember.sqlite`.
-- Images: local files below `${I_REMEMBER_DATA_DIR}/uploads`.
-- Migrations: `src/server/migrations/sqlite/*.sql`, applied automatically on startup.
-- Archive import: the restored HTML `DEFAULT_POSTS` payload is imported
-  idempotently on startup; generated `data/` snapshots are not committed.
-- Admin auth: password-checked session cookies, optional TOTP 2FA, and account
-  settings stored in SQLite.
+This keeps the archive usable while the engineering foundation moves toward the
+refactor document's monorepo architecture.
+
+## Runtime Layers
+
+- Public compatibility server: `server.mjs` serves the built archive/admin app,
+  applies the revival middleware, proxies `/api/v1/*` to `API_BASE_URL`, and
+  proxies non-legacy v1 upload URLs such as `/uploads/admin/file.jpg`.
+- Legacy compatibility backend: `src/server/revival.js` owns public archive
+  routes, admin cookie auth, SQLite migrations, image uploads, starter pages,
+  footer menu seeding, and backup export.
+- Production API: `apps/api` exposes `/api/v1/*` through controller, service,
+  repository, validation, auth, and storage boundaries.
+- Production database: `packages/database` owns the PostgreSQL Prisma schema,
+  migrations, and client.
+- Storage: `packages/storage` provides local filesystem and S3-compatible
+  `upload`, `delete`, and `getUrl` adapters. The API serves local files from
+  `STORAGE_PUBLIC_BASE_URL` when `STORAGE_PATH` is used.
+- Shared contracts: `packages/types` and `packages/config` define API shapes,
+  route constants, roles, and language support.
+
+## Data Model
+
+Production state is modeled in Prisma:
+
+- `User`
+- `Memory`
+- `Attachment`
+- `Tag`
+- `MemoryTag`
+- `Comment`
+- `Page`
+- `MenuItem`
+- `AppSetting`
+
+Legacy SQLite remains only for the restored public archive compatibility layer.
+Its migration source lives in `src/server/migrations/sqlite`.
 
 ## Public Safety Defaults
 
-- New public submissions default to `PENDING` and are not returned by public
-  search or direct memory routes.
-- Set `I_REMEMBER_ANONYMOUS_SUBMISSIONS=false` or use Admin Settings to close
-  public anonymous submissions.
-- Set `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS=true` only for trusted/private
-  deployments where immediate publishing is intended.
-- Public memory `name` and `text` fields are treated as plain text and encoded
-  before they enter the legacy browser API envelope.
-- Uploads are capped by `I_REMEMBER_MAX_UPLOAD_BYTES` and decoded with a pixel
-  limit from `I_REMEMBER_MAX_IMAGE_PIXELS`.
-- JSONP is disabled; API responses are JSON only.
-- User content injected into legacy inline scripts is serialized with script-safe
-  escaping.
-- The archived frontend still contains a bundled legacy jQuery 1.x runtime.
-  `public/js/revival-runtime.js` installs a compatibility hardening layer for
-  prototype-pollution merges, script-preserving HTML parsing, dynamic JSONP, and
-  external script injection without changing the visual UI.
-
-## Public Deployment Notes
-
-- Put the app behind a TLS-terminating reverse proxy or managed edge.
-- Mirror the upload size limit at the proxy with a matching request body limit.
-- Back up `${I_REMEMBER_DATA_DIR}`; it contains both SQLite data and uploaded
-  images.
-- Keep `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS=false` unless a separate moderation
-  process is added.
-- The CSP intentionally allows legacy inline/eval script behavior for the
-  restored archive UI. Tightening this requires rebuilding the archived frontend
-  bundle.
+- Anonymous public memory submission can be disabled through settings or
+  `I_REMEMBER_ANONYMOUS_SUBMISSIONS=false`.
+- Legacy public submissions default to the site moderation policy controlled by
+  `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`.
+- v1 anonymous memory creates are accepted, but pending/private management views
+  require an admin bearer token.
+- Uploads are capped by `I_REMEMBER_MAX_UPLOAD_BYTES` or
+  `API_MAX_JSON_BODY_BYTES` depending on the runtime path.
+- User content serialized into legacy inline scripts is escaped before it enters
+  the page.
+- The restored archive still requires legacy inline/eval-compatible browser
+  behavior; tightening CSP requires rebuilding the archived frontend.
 
 ## Commands
 
 ```bash
-npm run db:import
-npm run build
-npm start
+pnpm install
+pnpm build
+pnpm test
+pnpm start
+pnpm db:migrate
+pnpm db:migrate:legacy:check
 ```
 
-Docker Compose persists the data directory with the `i-remember-data` named
-volume.
+Docker Compose provides `web`, `admin`, `api`, and `postgres` services. Compose
+syntax can be validated with:
+
+```bash
+docker compose config --quiet
+```

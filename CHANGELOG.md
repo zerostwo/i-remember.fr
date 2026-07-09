@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added durable admin Page metadata editing and v1 page metadata sync.
+- Added local v1 asset serving from the API service and web/admin proxying for
+  non-legacy upload URLs.
+
+### Fixed
+
+- Fixed Docker/local deployments where v1 upload URLs could point to files in
+  the API asset volume that no HTTP service was serving.
+
 ## [0.1.2] - 2026-07-08
 
 ### Fixed
