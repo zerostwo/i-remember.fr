@@ -699,7 +699,7 @@ function autocompleteList(posts, fragment, language = "en") {
 function setSecurityHeaders(res, { html = false } = {}) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   if (html) {
     res.setHeader(
@@ -708,7 +708,7 @@ function setSecurityHeaders(res, { html = false } = {}) {
         "default-src 'self'",
         "base-uri 'self'",
         "object-src 'none'",
-        "frame-ancestors 'none'",
+        "frame-ancestors 'self'",
         "img-src 'self' data: blob:",
         "media-src 'self'",
         "style-src 'self' 'unsafe-inline'",

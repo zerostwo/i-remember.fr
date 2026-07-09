@@ -67,6 +67,10 @@ try {
   }
   assert.equal(ready, true, output || "server did not start");
 
+  const homeResponse = await fetch(`${baseUrl}/`);
+  assert.equal(homeResponse.status, 200);
+  assert.equal(homeResponse.headers.get("x-frame-options"), "SAMEORIGIN");
+
   const setupResponse = await fetch(`${baseUrl}/api/admin/setup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
