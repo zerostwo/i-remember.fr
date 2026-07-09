@@ -109,6 +109,7 @@ class MemoryRepo implements MemoryRepository {
       title: input.title,
       content: input.content,
       excerpt: input.content.slice(0, 220),
+      authorId: input.authorId,
       authorName: input.authorName,
       visibility: input.visibility || "PUBLIC",
       status: "PENDING",
@@ -457,6 +458,7 @@ const created = await json("/api/v1/memories", {
     title: "New",
     content: memoryMarkdown,
     legacyId: 9001,
+    authorId: "u1",
     tags: ["Paris", "Archive"],
     attachments: [{ url: "/uploads/new.jpg", type: "image/jpeg" }],
   }),
@@ -464,6 +466,7 @@ const created = await json("/api/v1/memories", {
 assert.equal(created.response.status, 201);
 assert.equal(created.body.data.status, "PENDING");
 assert.equal(created.body.data.legacyId, 9001);
+assert.equal(created.body.data.authorId, "u1");
 assert.equal(created.body.data.content, memoryMarkdown);
 assert.deepEqual(
   created.body.data.tags.map((item: { name: string }) => item.name),
@@ -505,10 +508,11 @@ assert.equal(adminPending.body.data[0].id, created.body.data.id);
 const moderated = await json(`/api/v1/memories/${created.body.data.id}`, {
   method: "PATCH",
   headers: { Authorization: "Bearer test-secret" },
-  body: JSON.stringify({ status: "NORMAL" }),
+  body: JSON.stringify({ status: "NORMAL", authorId: "u2" }),
 });
 assert.equal(moderated.response.status, 200);
 assert.equal(moderated.body.data.status, "NORMAL");
+assert.equal(moderated.body.data.authorId, "u2");
 assert.equal((await json("/api/v1/search?q=Archive")).body.data[0].id, created.body.data.id);
 assert.equal((await json("/api/v1/memories?legacyId=9001")).body.data[0].id, created.body.data.id);
 

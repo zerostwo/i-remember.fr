@@ -181,6 +181,10 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
     title,
     content,
     legacyId: optionalNumber(value.legacyId ?? value.legacy_id),
+    authorId:
+      value.authorId || value.author_id
+        ? text(value.authorId ?? value.author_id, "", 240)
+        : undefined,
     authorName: text(value.authorName ?? value.author, "Anonymous", 120),
     visibility: visibility as Visibility,
     latitude: coordinate(value.latitude, -90, 90, "invalid_latitude"),
@@ -235,6 +239,11 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
 
   if (has(value, "authorName") || has(value, "author")) {
     input.authorName = text(value.authorName ?? value.author, "", 120);
+  }
+
+  if (has(value, "authorId") || has(value, "author_id")) {
+    const authorId = text(value.authorId ?? value.author_id, "", 240);
+    if (authorId) input.authorId = authorId;
   }
 
   if (has(value, "visibility")) {

@@ -52,6 +52,7 @@ export type MemoryInput = {
   title: string;
   content: string;
   legacyId?: number;
+  authorId?: string;
   authorName?: string;
   visibility?: Visibility;
   latitude?: number;
