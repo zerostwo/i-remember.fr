@@ -4,10 +4,10 @@ ENV NPM_CONFIG_FUND=false
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.17.1 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
-COPY apps/api/package.json ./apps/api/package.json
-COPY packages/database/package.json ./packages/database/package.json
-COPY packages/storage/package.json ./packages/storage/package.json
-COPY packages/types/package.json ./packages/types/package.json
+COPY apps/api ./apps/api
+COPY packages/database ./packages/database
+COPY packages/storage ./packages/storage
+COPY packages/types ./packages/types
 RUN pnpm install --frozen-lockfile
 
 FROM node:22-slim AS build
