@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Trash2,
   Upload,
+  Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1035,17 +1036,19 @@ function DashboardView({ data, navigate }) {
 
   return (
     <div className="grid gap-5">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <MetricCard label="Total memories" value={counts.totalMemory || 0} detail="all archive records" icon={Archive} />
         <MetricCard label="Pending memory" value={counts.pendingMemory || 0} detail="anonymous submissions" icon={Archive} />
         <MetricCard label="Published memory" value={counts.publishedMemory || 0} detail="archive and long reads" icon={ShieldCheck} />
+        <MetricCard label="Users" value={counts.users || 0} detail="admin and reader accounts" icon={Users} />
         <MetricCard label="Footer menu" value={counts.menuItems || 0} detail="lower-right navigation" icon={MenuIcon} />
         <MetricCard label="Attachments" value={counts.attachments || 0} detail="local and archive images" icon={ImageIcon} />
       </div>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
         <Card className="rounded-lg">
           <CardHeader>
-            <CardTitle>Review queue</CardTitle>
-            <CardDescription>Newest memories and long-form entries.</CardDescription>
+            <CardTitle>Recent activity</CardTitle>
+            <CardDescription>Newest memories and moderation queue.</CardDescription>
             <CardAction>
               <Button variant="outline" onClick={navigate}>
                 Open Memory

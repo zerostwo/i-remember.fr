@@ -4,6 +4,7 @@ export function mergeV1Dashboard(payload, dashboard) {
     ...payload,
     counts: {
       ...(payload.counts || {}),
+      totalMemory: dashboard.totalMemories,
       pendingMemory: dashboard.pendingMemories,
       publishedMemory: dashboard.publishedMemories,
       archivedMemory: dashboard.archivedMemories,

@@ -4,6 +4,7 @@ import { mergeV1Dashboard } from "./v1-dashboard.js";
 const merged = mergeV1Dashboard(
   { counts: { pendingMemory: 1, menuItems: 2 } },
   {
+    totalMemories: 12,
     pendingMemories: 3,
     publishedMemories: 4,
     archivedMemories: 5,
@@ -12,6 +13,7 @@ const merged = mergeV1Dashboard(
   },
 );
 
+assert.equal(merged.counts.totalMemory, 12);
 assert.equal(merged.counts.pendingMemory, 3);
 assert.equal(merged.counts.publishedMemory, 4);
 assert.equal(merged.counts.menuItems, 2);
