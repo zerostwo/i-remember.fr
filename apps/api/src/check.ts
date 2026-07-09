@@ -411,6 +411,10 @@ assert.equal((await json("/api/v1/memories")).body.data[0].id, "pub_1");
 assert.equal((await json("/api/v1/search?q=first")).body.data.length, 1);
 assert.equal((await json("/api/v1/memories/pub_1")).body.data.title, "First memory");
 
+const invalidMemoryLimit = await json("/api/v1/memories?limit=abc");
+assert.equal(invalidMemoryLimit.response.status, 400);
+assert.equal(invalidMemoryLimit.body.error.code, "invalid_limit");
+
 const agent = await json("/api/v1/agent", {
   method: "POST",
   body: JSON.stringify({ query: "first", limit: 3 }),
@@ -542,6 +546,12 @@ const listedComments = await json("/api/v1/comments?status=all&q=reader", {
   headers: { Authorization: "Bearer test-secret" },
 });
 assert.equal(listedComments.body.data[0].id, createdComment.body.data.id);
+
+const invalidCommentLimit = await json("/api/v1/comments?limit=abc", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(invalidCommentLimit.response.status, 400);
+assert.equal(invalidCommentLimit.body.error.code, "invalid_limit");
 
 const approvedComment = await json(`/api/v1/comments/${createdComment.body.data.id}`, {
   method: "PATCH",

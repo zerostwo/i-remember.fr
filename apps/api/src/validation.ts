@@ -46,6 +46,16 @@ function optionalNumber(value: unknown) {
   return next;
 }
 
+function limitParam(searchParams: URLSearchParams, fallback = 100) {
+  const raw = searchParams.get("limit");
+  if (raw === null || raw === "") return fallback;
+  const limit = Number(raw);
+  if (!Number.isFinite(limit) || limit < 1) {
+    throw new ApiError(400, "Invalid limit", "invalid_limit");
+  }
+  return Math.min(Math.floor(limit), 200);
+}
+
 function has(value: Record<string, unknown>, key: string) {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
@@ -139,7 +149,7 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
 export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery {
   const status = text(searchParams.get("status"), "NORMAL", 20).toUpperCase();
   const visibility = text(searchParams.get("visibility"), "PUBLIC", 20).toUpperCase();
-  const limit = Math.min(Math.max(Number(searchParams.get("limit") || 100), 1), 200);
+  const limit = limitParam(searchParams);
   const legacyId = optionalNumber(searchParams.get("legacyId") ?? searchParams.get("legacy_id"));
 
   if (status !== "ALL" && !memoryStatusValues.has(status)) {
@@ -378,7 +388,7 @@ function commentStatus(value: unknown, fallback = "PENDING") {
 
 export function commentListQuery(searchParams: URLSearchParams): CommentListQuery {
   const status = text(searchParams.get("status"), "PENDING", 20).toUpperCase();
-  const limit = Math.min(Math.max(Number(searchParams.get("limit") || 100), 1), 200);
+  const limit = limitParam(searchParams);
   if (status !== "ALL" && !commentStatusValues.has(status)) {
     throw new ApiError(400, "Invalid comment status", "invalid_comment_status");
   }
