@@ -54,7 +54,7 @@ import {
   Textarea,
 } from "@i-remember/ui";
 import { cn } from "@/lib/utils";
-import { mergeV1Assets, v1AssetUploadPayload } from "./v1-assets.js";
+import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload } from "./v1-assets.js";
 import { deleteV1MenuItem, syncV1MenuItem, syncV1Page, syncV1Settings, v1PageMemory } from "./v1-content.js";
 import { mergeV1Dashboard } from "./v1-dashboard.js";
 import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
@@ -538,6 +538,15 @@ export function AdminApp() {
     });
   }
 
+  async function deleteAttachment(attachment) {
+    if (!attachment || attachment.storageType !== "v1") return;
+    if (!window.confirm(`Delete "${attachment.imageKey || "this attachment"}"?`)) return;
+    await runAction("Attachment deleted", async () => {
+      await v1Api(v1AssetDeletePath(attachment), { method: "DELETE" });
+      await refreshData();
+    });
+  }
+
   async function savePage(slug, payload) {
     await runAction("Page saved", async () => {
       const saved = await api(`/api/admin/pages/${encodeURIComponent(slug)}`, {
@@ -756,6 +765,7 @@ export function AdminApp() {
                 saveMemory={saveMemory}
                 deleteMemory={deleteMemory}
                 uploadAttachment={uploadAttachment}
+                deleteAttachment={deleteAttachment}
                 createPage={createPage}
                 savePage={savePage}
                 createMenuItem={createMenuItem}
@@ -1000,6 +1010,7 @@ function AdminRoute(props) {
           search={props.search}
           selectedMemoryId={props.selectedMemoryId}
           uploadAttachment={props.uploadAttachment}
+          deleteAttachment={props.deleteAttachment}
         />
       );
     case "theme":
@@ -1555,7 +1566,7 @@ function CommentsView({ data, search, updateCommentStatus }) {
   );
 }
 
-function AttachmentsView({ data, search, selectedMemoryId, uploadAttachment }) {
+function AttachmentsView({ data, search, selectedMemoryId, uploadAttachment, deleteAttachment }) {
   const [memoryId, setMemoryId] = useState(String(selectedMemoryId || data.memories?.[0]?.id || ""));
   const attachments = (data.attachments || []).filter((attachment) => (
     containsQuery([attachment.imageKey, attachment.storageType, attachment.mimeType], search)
@@ -1605,6 +1616,14 @@ function AttachmentsView({ data, search, selectedMemoryId, uploadAttachment }) {
           <CardHeader>
             <CardTitle className="truncate text-sm">{attachment.imageKey}</CardTitle>
             <CardDescription>{attachment.storageType} · {attachment.mimeType || "image"}</CardDescription>
+            {attachment.storageType === "v1" ? (
+              <CardAction>
+                <Button variant="destructive" size="sm" onClick={() => deleteAttachment(attachment)}>
+                  <Trash2 data-icon="inline-start" />
+                  Delete
+                </Button>
+              </CardAction>
+            ) : null}
           </CardHeader>
         </Card>
       ))}

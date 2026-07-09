@@ -1,7 +1,10 @@
 function assetKey(asset = {}) {
   const url = String(asset.url || "");
   const fallback = String(asset.id || "asset");
-  return decodeURIComponent(url.split("?")[0].split("/").filter(Boolean).pop() || fallback);
+  const pathname = decodeURIComponent(url.split("?")[0]);
+  const uploadKey = pathname.match(/(?:^|\/)uploads\/(.+)$/)?.[1];
+  if (uploadKey) return uploadKey;
+  return pathname.split("/").filter(Boolean).pop() || fallback;
 }
 
 function adminAttachment(asset = {}) {
@@ -35,6 +38,11 @@ export function v1AssetUploadPayload(file = {}, contentBase64 = "", memoryId, st
     contentBase64,
     contentType: file.type || "application/octet-stream",
   };
+}
+
+export function v1AssetDeletePath(attachment = {}) {
+  const key = attachment.imageKey || assetKey({ url: attachment.resizedUrl || attachment.thumbUrl });
+  return `/api/v1/assets/${encodeURIComponent(key)}`;
 }
 
 export function mergeV1Assets(payload, assets = []) {
