@@ -1270,6 +1270,7 @@ function adminPage(row) {
     excerpt: row.excerpt || excerptFromMarkdown(row.body_markdown || ""),
     bodyMarkdown: row.body_markdown || "",
     bodyHtml: markdownToHtml(row.body_markdown || ""),
+    metadataJson: row.metadata_json || "",
     status: row.status,
     linkedMemoryUid: row.linked_memory_uid || "",
     createdAt: row.created_at,
@@ -1819,6 +1820,10 @@ class RevivalBackend {
       title,
       excerpt,
       body_markdown: bodyMarkdown,
+      metadata_json: metadataJson(
+        input.metadataJson ?? input.metadata_json ?? input.metadata,
+        existingPage?.metadata_json || null,
+      ),
       status,
       linked_memory_uid: linkedMemoryUid,
     });

@@ -363,6 +363,7 @@ export class RevivalSQLiteStore {
           title,
           excerpt,
           body_markdown,
+          metadata_json,
           status,
           linked_memory_uid,
           updated_at
@@ -372,6 +373,7 @@ export class RevivalSQLiteStore {
           @title,
           @excerpt,
           @body_markdown,
+          @metadata_json,
           @status,
           @linked_memory_uid,
           strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -380,6 +382,7 @@ export class RevivalSQLiteStore {
           title = excluded.title,
           excerpt = excluded.excerpt,
           body_markdown = excluded.body_markdown,
+          metadata_json = excluded.metadata_json,
           status = excluded.status,
           linked_memory_uid = excluded.linked_memory_uid,
           updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
@@ -578,6 +581,7 @@ export class RevivalSQLiteStore {
       title: String(row.title || "Untitled page").slice(0, 180),
       excerpt: String(row.excerpt || "").slice(0, 600),
       body_markdown: String(row.body_markdown || "").slice(0, 50000),
+      metadata_json: row.metadata_json || null,
       status: ["PUBLISHED", "DRAFT", "ARCHIVED"].includes(row.status)
         ? row.status
         : "DRAFT",

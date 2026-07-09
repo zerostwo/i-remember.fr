@@ -20,6 +20,16 @@ try {
   });
   const found = store.getMemoryByRowId(saved.id);
   assert.equal(found.metadata_json, "{\"mood\":\"quiet\"}");
+
+  const page = store.upsertPage({
+    slug: "about",
+    language_code: "en",
+    title: "About",
+    body_markdown: "# About",
+    metadata_json: "{\"footer\":true}",
+    status: "PUBLISHED",
+  });
+  assert.equal(page.metadata_json, "{\"footer\":true}");
   console.log("sqlite store ok");
 } finally {
   store.close();

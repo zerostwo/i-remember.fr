@@ -22,6 +22,24 @@ function legacyMetadata(record = {}) {
   };
 }
 
+function jsonObject(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(String(value));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function pageMetadata(record = {}) {
+  return {
+    ...jsonObject(record.metadataJson ?? record.metadata_json ?? record.metadata),
+    ...legacyMetadata(record),
+  };
+}
+
 export function v1PagePayload(page = {}) {
   return {
     slug: String(page.slug || "page").trim(),
@@ -31,7 +49,7 @@ export function v1PagePayload(page = {}) {
     bodyMarkdown: String(page.bodyMarkdown || page.body_markdown || ""),
     status: pageStatus(page.status),
     linkedMemoryId: page.linkedMemoryId || page.linked_memory_id || undefined,
-    metadata: legacyMetadata(page),
+    metadata: pageMetadata(page),
   };
 }
 
@@ -49,6 +67,7 @@ export function v1PageMemory(page = {}) {
     isLongForm: true,
     dbStatus: page.status === "PUBLISHED" ? "NORMAL" : "ARCHIVED",
     metadata: {
+      ...jsonObject(page.metadataJson ?? page.metadata_json ?? page.metadata),
       pageSlug: page.slug,
       linkedMemoryUid: page.linkedMemoryUid,
       isLongForm: true,

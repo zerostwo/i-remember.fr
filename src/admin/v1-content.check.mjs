@@ -16,7 +16,13 @@ assert.deepEqual(v1PagePayload({
   title: "About",
   bodyMarkdown: "# About",
   status: "PUBLISHED",
-}).metadata, { legacyId: 7, legacyUid: "" });
+  metadataJson: "{\"footer\":true}",
+}).metadata, { footer: true, legacyId: 7, legacyUid: "" });
+assert.equal(v1PageMemory({
+  linkedMemoryLegacyId: 9002,
+  status: "PUBLISHED",
+  metadataJson: "{\"footer\":true}",
+}).metadata.footer, true);
 assert.equal(v1PageMemory({ linkedMemoryLegacyId: 9002, status: "PUBLISHED" }).dbStatus, "NORMAL");
 assert.equal(v1PageMemory({ linkedMemoryLegacyId: 9002, status: "DRAFT" }).dbStatus, "ARCHIVED");
 assert.equal(v1PageMemory({}), null);

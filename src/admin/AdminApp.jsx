@@ -1386,6 +1386,12 @@ function PageEditor({ page, onSave }) {
             </div>
             <TextField label="Title" value={draft.title} onChange={(value) => update("title", value)} />
             <TextareaField label="Excerpt" value={draft.excerpt} onChange={(value) => update("excerpt", value)} rows={3} />
+            <TextareaField
+              label="Metadata JSON"
+              value={draft.metadataJson}
+              onChange={(value) => update("metadataJson", value)}
+              rows={5}
+            />
             <TextareaField label="Page Markdown" value={draft.bodyMarkdown} onChange={(value) => update("bodyMarkdown", value)} rows={14} />
             <MarkdownPreview value={draft.bodyMarkdown} />
           </FieldGroup>
