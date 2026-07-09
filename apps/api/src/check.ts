@@ -36,6 +36,7 @@ import type {
   UserRepository,
 } from "./repositories.js";
 import { ApiError } from "./errors.js";
+import { createPublicMemoryId } from "./prisma-repositories.js";
 import type { StorageAdapter } from "@i-remember/storage";
 
 function tag(name: string) {
@@ -405,6 +406,12 @@ async function json(path: string, options: RequestInit = {}) {
   const response = await fetch(`${baseUrl}${path}`, options);
   const body = await response.json();
   return { response, body };
+}
+
+const generatedPublicIds = new Set(Array.from({ length: 32 }, createPublicMemoryId));
+assert.equal(generatedPublicIds.size, 32);
+for (const publicId of generatedPublicIds) {
+  assert.match(publicId, /^[a-f0-9]{20}$/);
 }
 
 assert.equal((await json("/api/v1/memories")).body.data[0].id, "pub_1");

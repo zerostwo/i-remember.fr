@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { getPrismaClient } from "@i-remember/database";
 import type {
   AttachmentInput,
@@ -35,6 +36,10 @@ const memoryInclude = {
   attachments: { orderBy: { createdAt: "asc" } },
   tags: { include: { tag: true }, orderBy: { createdAt: "asc" } },
 } as const;
+
+export function createPublicMemoryId() {
+  return randomBytes(10).toString("hex");
+}
 
 function tagSlug(name: string) {
   return (
@@ -255,6 +260,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
     return memory(
       await this.db.memory.create({
         data: {
+          publicId: createPublicMemoryId(),
           title: input.title,
           legacyId: input.legacyId,
           content: input.content,
