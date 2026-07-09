@@ -114,6 +114,9 @@ class MemoryRepo implements MemoryRepository {
       visibility: input.visibility || "PUBLIC",
       status: "PENDING",
       metadata: input.metadata || {},
+      embedding: input.embedding,
+      aiSummary: input.aiSummary,
+      knowledgeGraph: input.knowledgeGraph,
       attachments: attachments(input.attachments, `internal-${this.memories.length + 1}`),
       tags: (input.tags || []).map(tag),
       createdAt: new Date("2026-01-02T00:00:00Z"),
@@ -464,6 +467,12 @@ const anonymousLegacyId = await json("/api/v1/memories", {
 });
 assert.equal(anonymousLegacyId.response.status, 401);
 
+const anonymousAiFields = await json("/api/v1/memories", {
+  method: "POST",
+  body: JSON.stringify({ title: "AI", content: "Nope", aiSummary: "private" }),
+});
+assert.equal(anonymousAiFields.response.status, 401);
+
 const anonymousSubmission = await json("/api/v1/memories", {
   method: "POST",
   body: JSON.stringify({
@@ -491,6 +500,9 @@ const created = await json("/api/v1/memories", {
     content: memoryMarkdown,
     legacyId: 9001,
     authorId: "u1",
+    embedding: [0.1, 0.2],
+    aiSummary: "API-created memory summary",
+    knowledgeGraph: { nodes: ["memory"] },
     tags: ["Paris", "Archive"],
     attachments: [{ url: "/uploads/new.jpg", type: "image/jpeg" }],
   }),
@@ -500,6 +512,9 @@ assert.equal(created.body.data.status, "PENDING");
 assert.equal(created.body.data.legacyId, 9001);
 assert.equal(created.body.data.authorId, "u1");
 assert.equal(created.body.data.content, memoryMarkdown);
+assert.deepEqual(created.body.data.embedding, [0.1, 0.2]);
+assert.equal(created.body.data.aiSummary, "API-created memory summary");
+assert.equal(created.body.data.knowledgeGraph.nodes[0], "memory");
 assert.deepEqual(
   created.body.data.tags.map((item: { name: string }) => item.name),
   ["Paris", "Archive"],

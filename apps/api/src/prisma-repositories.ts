@@ -87,6 +87,10 @@ function memory(row: any): MemoryRecord {
     longitude: row.longitude,
     emotion: row.emotion,
     metadata: row.metadata,
+    embedding: Array.isArray(row.embedding) ? row.embedding.map(Number) : null,
+    aiSummary: row.aiSummary,
+    knowledgeGraph:
+      row.knowledgeGraph && typeof row.knowledgeGraph === "object" ? row.knowledgeGraph : null,
     attachments: (row.attachments || []).map((attachment: any) => ({
       id: attachment.id,
       memoryId: attachment.memoryId,
@@ -273,6 +277,9 @@ export class PrismaMemoryRepository implements MemoryRepository {
           longitude: input.longitude,
           emotion: input.emotion,
           metadata: input.metadata as any,
+          embedding: input.embedding as any,
+          aiSummary: input.aiSummary,
+          knowledgeGraph: input.knowledgeGraph as any,
           attachments: input.attachments?.length
             ? { create: attachmentCreates(input.attachments) }
             : undefined,
@@ -299,6 +306,9 @@ export class PrismaMemoryRepository implements MemoryRepository {
       emotion: input.emotion,
       status: input.status,
       metadata: input.metadata as any,
+      embedding: input.embedding as any,
+      aiSummary: input.aiSummary,
+      knowledgeGraph: input.knowledgeGraph as any,
     };
     if (input.attachments) {
       data.attachments = { deleteMany: {}, create: attachmentCreates(input.attachments) };

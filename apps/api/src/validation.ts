@@ -96,6 +96,16 @@ function metadata(value: unknown) {
     : undefined;
 }
 
+function embedding(value: unknown) {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) throw new ApiError(400, "Invalid embedding", "invalid_embedding");
+  return value.map((item) => {
+    const next = Number(item);
+    if (!Number.isFinite(next)) throw new ApiError(400, "Invalid embedding", "invalid_embedding");
+    return next;
+  });
+}
+
 function tags(value: unknown) {
   if (value === undefined || value === null || value === "") return undefined;
   const raw = Array.isArray(value) ? value : String(value).split(",");
@@ -194,6 +204,12 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
       value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)
         ? (value.metadata as Record<string, unknown>)
         : undefined,
+    embedding: embedding(value.embedding),
+    aiSummary:
+      value.aiSummary || value.ai_summary
+        ? text(value.aiSummary ?? value.ai_summary, "", 4000)
+        : undefined,
+    knowledgeGraph: metadata(value.knowledgeGraph ?? value.knowledge_graph),
     attachments: attachments(value.attachments),
     tags: tags(value.tags),
   };
@@ -273,6 +289,13 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
       value.metadata && typeof value.metadata === "object" && !Array.isArray(value.metadata)
         ? (value.metadata as Record<string, unknown>)
         : undefined;
+  }
+  if (has(value, "embedding")) input.embedding = embedding(value.embedding);
+  if (has(value, "aiSummary") || has(value, "ai_summary")) {
+    input.aiSummary = text(value.aiSummary ?? value.ai_summary, "", 4000);
+  }
+  if (has(value, "knowledgeGraph") || has(value, "knowledge_graph")) {
+    input.knowledgeGraph = metadata(value.knowledgeGraph ?? value.knowledge_graph);
   }
   if (has(value, "attachments")) input.attachments = attachments(value.attachments) || [];
   if (has(value, "tags")) input.tags = tags(value.tags) || [];

@@ -40,8 +40,8 @@ import {
   settingsInput,
 } from "./validation.js";
 
-function memoryDto(memory: MemoryRecord) {
-  return {
+function memoryDto(memory: MemoryRecord, includePrivate = false) {
+  const dto = {
     id: memory.publicId,
     legacyId: memory.legacyId,
     title: memory.title,
@@ -69,6 +69,13 @@ function memoryDto(memory: MemoryRecord) {
     })),
     createdAt: memory.createdAt.toISOString(),
     updatedAt: memory.updatedAt.toISOString(),
+  };
+  if (!includePrivate) return dto;
+  return {
+    ...dto,
+    embedding: memory.embedding || null,
+    aiSummary: memory.aiSummary || null,
+    knowledgeGraph: memory.knowledgeGraph || null,
   };
 }
 
@@ -146,24 +153,35 @@ export class MemoryController {
   constructor(private readonly memories: MemoryService) {}
 
   async list(context: RequestContext) {
-    const data = await this.memories.list(
-      authenticate(context.req),
-      memoryListQuery(context.url.searchParams),
-    );
-    return { success: true, data: data.map(memoryDto) };
+    const principal = authenticate(context.req);
+    const data = await this.memories.list(principal, memoryListQuery(context.url.searchParams));
+    return {
+      success: true,
+      data: data.map((memory) => memoryDto(memory, principal.role === "ADMIN")),
+    };
   }
 
   async get(context: RequestContext) {
-    const data = await this.memories.get(authenticate(context.req), context.params.id);
+    const principal = authenticate(context.req);
+    const data = await this.memories.get(principal, context.params.id);
     if (!data) throw new ApiError(404, "Memory not found", "not_found");
-    return { success: true, data: memoryDto(data) };
+    return { success: true, data: memoryDto(data, principal.role === "ADMIN") };
   }
 
   async create(context: RequestContext) {
     const input = memoryInput(await readJson(context.req));
-    if (input.authorId || input.legacyId !== undefined) {
+    const hasAiFields =
+      input.embedding !== undefined ||
+      input.aiSummary !== undefined ||
+      input.knowledgeGraph !== undefined;
+    let includePrivate = false;
+    if (input.authorId || input.legacyId !== undefined || hasAiFields) {
       const principal = authenticate(context.req);
+      includePrivate = principal.role === "ADMIN";
       if (input.legacyId !== undefined) {
+        requireRole(principal, ["ADMIN"]);
+      }
+      if (hasAiFields) {
         requireRole(principal, ["ADMIN"]);
       }
       if (input.authorId) {
@@ -175,7 +193,7 @@ export class MemoryController {
     }
     const data = await this.memories.create(input);
     context.res.statusCode = 201;
-    return { success: true, data: memoryDto(data) };
+    return { success: true, data: memoryDto(data, includePrivate) };
   }
 
   async update(context: RequestContext) {
@@ -184,12 +202,12 @@ export class MemoryController {
       context.params.id,
       memoryPatchInput(await readJson(context.req)),
     );
-    return { success: true, data: memoryDto(data) };
+    return { success: true, data: memoryDto(data, true) };
   }
 
   async archive(context: RequestContext) {
     const data = await this.memories.archive(authenticate(context.req), context.params.id);
-    return { success: true, data: memoryDto(data) };
+    return { success: true, data: memoryDto(data, true) };
   }
 }
 
@@ -201,7 +219,7 @@ export class SearchController {
       authenticate(context.req),
       memoryListQuery(context.url.searchParams),
     );
-    return { success: true, data: data.map(memoryDto) };
+    return { success: true, data: data.map((memory) => memoryDto(memory)) };
   }
 }
 

@@ -37,6 +37,9 @@ export type MemoryRecord = {
   longitude?: number | null;
   emotion?: string | null;
   metadata?: Record<string, unknown> | null;
+  embedding?: number[] | null;
+  aiSummary?: string | null;
+  knowledgeGraph?: Record<string, unknown> | null;
   attachments?: AttachmentRecord[];
   tags?: TagRecord[];
   createdAt: Date;
@@ -60,6 +63,9 @@ export type MemoryInput = {
   longitude?: number;
   emotion?: string;
   metadata?: Record<string, unknown>;
+  embedding?: number[];
+  aiSummary?: string;
+  knowledgeGraph?: Record<string, unknown>;
   attachments?: AttachmentInput[];
   tags?: string[];
 };

@@ -66,6 +66,9 @@ export interface Memory {
   longitude?: number | null;
   emotion?: string | null;
   metadata: Record<string, unknown>;
+  embedding?: number[] | null;
+  aiSummary?: string | null;
+  knowledgeGraph?: Record<string, unknown> | null;
   attachments: Attachment[];
   tags: Tag[];
   createdAt: string;
