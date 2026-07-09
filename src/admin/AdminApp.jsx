@@ -1822,7 +1822,7 @@ function BackupsView({ exportBackup }) {
   const rows = [
     ["Application data", "memories, pages, menu, comments, settings"],
     ["Uploaded images", "local filesystem and v1 asset references"],
-    ["Restore point", "Snapshot policy can be wired to the deployment target"],
+    ["Restore point", "Managed by the deployment storage policy"],
   ];
 
   return (
