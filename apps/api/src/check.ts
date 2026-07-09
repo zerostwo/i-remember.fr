@@ -509,7 +509,7 @@ const created = await json("/api/v1/memories", {
 });
 assert.equal(created.response.status, 201);
 assert.equal(created.body.data.status, "PENDING");
-assert.equal(created.body.data.legacyId, 9001);
+assert.equal(created.body.data.legacyId, undefined);
 assert.equal(created.body.data.authorId, "u1");
 assert.equal(created.body.data.content, memoryMarkdown);
 assert.deepEqual(created.body.data.embedding, [0.1, 0.2]);
@@ -560,8 +560,9 @@ const moderated = await json(`/api/v1/memories/${created.body.data.id}`, {
 assert.equal(moderated.response.status, 200);
 assert.equal(moderated.body.data.status, "NORMAL");
 assert.equal(moderated.body.data.authorId, "u2");
-assert.equal((await json("/api/v1/search?q=Archive")).body.data[0].id, created.body.data.id);
-assert.equal((await json("/api/v1/memories?legacyId=9001")).body.data[0].id, created.body.data.id);
+const searchArchive = await json("/api/v1/search?q=Archive");
+assert.equal(searchArchive.body.data[0].id, created.body.data.id);
+assert.equal(searchArchive.body.data[0].legacyId, undefined);
 
 const unauthorized = await json("/api/v1/users");
 assert.equal(unauthorized.response.status, 401);

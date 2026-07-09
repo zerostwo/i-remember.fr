@@ -43,7 +43,6 @@ import {
 function memoryDto(memory: MemoryRecord, includePrivate = false) {
   const dto = {
     id: memory.publicId,
-    legacyId: memory.legacyId,
     title: memory.title,
     content: memory.content,
     excerpt: memory.excerpt,
