@@ -455,7 +455,10 @@ export function settingsInput(value: Record<string, unknown>) {
 export function agentQueryInput(value: Record<string, unknown>): AgentQueryInput {
   const query = text(value.query ?? value.q, "", 240);
   const requestedLimit = Number(value.limit ?? 5);
-  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 10) : 5;
+  if (!Number.isFinite(requestedLimit) || requestedLimit < 1) {
+    throw new ApiError(400, "Invalid limit", "invalid_limit");
+  }
+  const limit = Math.min(Math.floor(requestedLimit), 10);
 
   if (!query) throw new ApiError(400, "Agent query is required", "missing_agent_query");
 

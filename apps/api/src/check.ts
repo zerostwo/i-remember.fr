@@ -423,6 +423,13 @@ assert.equal(agent.response.status, 200);
 assert.equal(agent.body.data.citations[0].id, "pub_1");
 assert.equal(agent.body.data.citations[0].url, "/memory/pub_1");
 
+const invalidAgentLimit = await json("/api/v1/agent", {
+  method: "POST",
+  body: JSON.stringify({ query: "first", limit: "abc" }),
+});
+assert.equal(invalidAgentLimit.response.status, 400);
+assert.equal(invalidAgentLimit.body.error.code, "invalid_limit");
+
 const emptyAgent = await json("/api/v1/agent", {
   method: "POST",
   body: JSON.stringify({ query: "" }),
