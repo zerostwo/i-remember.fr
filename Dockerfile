@@ -45,7 +45,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl postgresql postgresql-client \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=build --chown=node:node /app/package.json ./package.json
-COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=deps --chown=node:node /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/server.mjs ./server.mjs
