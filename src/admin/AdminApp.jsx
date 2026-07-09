@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   Archive,
   DatabaseBackup,
@@ -60,6 +60,8 @@ import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload } from "./v1-ass
 import { deleteV1MenuItem, syncV1MenuItem, syncV1Page, syncV1Settings, v1PageMemory } from "./v1-content.js";
 import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
 
+const MarkdownEditor = lazy(() => import("./MarkdownEditor.jsx"));
+
 const routes = [
   { id: "dashboard", label: "Dashboard", title: "Today in the archive", group: "Overview", icon: Home },
   { id: "memory", label: "Memory", title: "Memory", group: "Content management", icon: Archive },
@@ -79,7 +81,7 @@ const groupedRoutes = routes.reduce((groups, route) => {
   return groups;
 }, new Map());
 
-const menuTypes = ["PAGE", "MEMORY", "SEARCH", "EXTERNAL", "TERMS", "CREDITS", "LANGUAGE"];
+const menuTypes = ["PAGE", "MEMORY", "SEARCH", "EXTERNAL"];
 const pageStatuses = ["PUBLISHED", "DRAFT", "ARCHIVED"];
 const memoryStatuses = ["published", "pending", "archived"];
 const v1TokenKey = "i-remember:v1-admin-token";
@@ -416,6 +418,24 @@ function TextareaField({ label, description, value, onChange, rows = 5, ...props
       <Textarea value={value || ""} onChange={(event) => onChange(event.target.value)} rows={rows} {...props} />
       {description ? <FieldDescription>{description}</FieldDescription> : null}
     </Field>
+  );
+}
+
+function MarkdownEditorField(props) {
+  return (
+    <Suspense
+      fallback={
+        <TextareaField
+          label={props.label}
+          description={props.description}
+          value={props.value}
+          onChange={props.onChange}
+          rows={14}
+        />
+      }
+    >
+      <MarkdownEditor {...props} />
+    </Suspense>
   );
 }
 
@@ -1289,7 +1309,7 @@ function MemoryView({
   }, [search, memoryFilter]);
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.7fr)]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(360px,0.75fr)_minmax(560px,1.25fr)]">
       <Card className="rounded-lg">
         <CardHeader>
           <CardTitle>Memory</CardTitle>
@@ -1428,7 +1448,13 @@ function MemoryEditor({ memory, onSave, onDelete }) {
               onChange={(value) => update("metadataJson", value)}
               rows={5}
             />
-            <TextareaField label="Memory Markdown" value={draft.bodyMarkdown} onChange={(value) => update("bodyMarkdown", value)} rows={12} />
+            <MarkdownEditorField
+              label="Memory Markdown"
+              description="Use source mode for raw Markdown when writing long-form memories."
+              value={draft.bodyMarkdown}
+              onChange={(value) => update("bodyMarkdown", value)}
+              editorKey={memory.id}
+            />
             <MarkdownPreview value={draft.bodyMarkdown} />
           </FieldGroup>
           <div className="flex flex-wrap gap-2">
@@ -1461,7 +1487,7 @@ function PagesView({ data, search, selectedPageSlug, setSelectedPageSlug, create
   const selected = pages.find((page) => page.slug === selectedPageSlug) || filtered[0];
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(380px,1fr)]">
+    <div className="grid gap-5 xl:grid-cols-[minmax(340px,0.75fr)_minmax(560px,1.25fr)]">
       <Card className="rounded-lg">
         <CardHeader>
           <CardTitle>Pages</CardTitle>
@@ -1539,7 +1565,13 @@ function PageEditor({ page, onSave }) {
               onChange={(value) => update("metadataJson", value)}
               rows={5}
             />
-            <TextareaField label="Page Markdown" value={draft.bodyMarkdown} onChange={(value) => update("bodyMarkdown", value)} rows={14} />
+            <MarkdownEditorField
+              label="Page Markdown"
+              description="Use pages for About, Resume, Terms, and other footer menu articles."
+              value={draft.bodyMarkdown}
+              onChange={(value) => update("bodyMarkdown", value)}
+              editorKey={page.slug}
+            />
             <MarkdownPreview value={draft.bodyMarkdown} />
           </FieldGroup>
           <Button className="w-fit" type="submit">
@@ -1589,16 +1621,25 @@ function MenusView({ data, search, selectedMenuId, setSelectedMenuId, createMenu
           ))}
         </CardContent>
       </Card>
-      <MenuEditor item={selected} onSave={saveMenuItem} onDelete={deleteMenuItem} />
+      <MenuEditor item={selected} pages={data.pages || []} onSave={saveMenuItem} onDelete={deleteMenuItem} />
     </div>
   );
 }
 
-function MenuEditor({ item, onSave, onDelete }) {
+function MenuEditor({ item, pages, onSave, onDelete }) {
   const [draft, setDraft] = useState(null);
 
   useEffect(() => {
-    setDraft(item ? { ...item } : null);
+    if (!item) {
+      setDraft(null);
+      return;
+    }
+    const editableType = menuTypes.includes(item.type) ? item.type : "PAGE";
+    setDraft({
+      ...item,
+      type: editableType,
+      targetValue: item.targetValue || (item.type === "TERMS" ? "terms" : item.type === "CREDITS" ? "credits" : ""),
+    });
   }, [item]);
 
   if (!item || !draft) {
@@ -1610,6 +1651,10 @@ function MenuEditor({ item, onSave, onDelete }) {
   }
 
   const update = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
+  const pageOptions = pages.map((page) => ({
+    value: page.slug,
+    label: `${page.title || page.slug} /${page.slug}`,
+  }));
 
   return (
     <Card className="rounded-lg">
@@ -1630,9 +1675,28 @@ function MenuEditor({ item, onSave, onDelete }) {
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
                 <FieldLabel>Type</FieldLabel>
-                <AdminSelect value={draft.type} onValueChange={(value) => update("type", value)} options={menuTypes} />
+                <AdminSelect
+                  value={draft.type}
+                  onValueChange={(value) => setDraft((current) => ({
+                    ...current,
+                    type: value,
+                    targetValue: value === "PAGE" && !current.targetValue ? pageOptions[0]?.value || "" : current.targetValue,
+                  }))}
+                  options={menuTypes}
+                />
               </Field>
-              <TextField label="Target value" value={draft.targetValue} onChange={(value) => update("targetValue", value)} placeholder="about, terms, memory id, or query" />
+              {draft.type === "PAGE" && pageOptions.length ? (
+                <Field>
+                  <FieldLabel>Page</FieldLabel>
+                  <AdminSelect
+                    value={draft.targetValue || pageOptions[0]?.value || ""}
+                    onValueChange={(value) => update("targetValue", value)}
+                    options={pageOptions}
+                  />
+                </Field>
+              ) : (
+                <TextField label="Target value" value={draft.targetValue} onChange={(value) => update("targetValue", value)} placeholder="about, terms, memory id, or query" />
+              )}
             </div>
             <TextField label="External URL" value={draft.url} onChange={(value) => update("url", value)} placeholder="https://..." />
             <ToggleField label="Visible" description="Show in the public lower-right footer." checked={Boolean(draft.isVisible)} onCheckedChange={(value) => update("isVisible", value)} />

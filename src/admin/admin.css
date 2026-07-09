@@ -118,6 +118,44 @@ body {
   text-underline-offset: 0.2rem;
 }
 
+.admin-markdown-editor {
+  --basePageBg: var(--card);
+  --baseBase: var(--card);
+  --baseBgSubtle: color-mix(in oklch, var(--card), white 3%);
+  --baseBg: var(--muted);
+  --baseBgHover: color-mix(in oklch, var(--muted), white 8%);
+  --baseBgActive: color-mix(in oklch, var(--muted), white 12%);
+  --baseLine: var(--border);
+  --baseBorder: var(--border);
+  --baseBorderHover: color-mix(in oklch, var(--border), white 18%);
+  --baseText: var(--muted-foreground);
+  --baseTextContrast: var(--foreground);
+  --accentText: var(--foreground);
+  --accentSolid: var(--primary);
+  --accentTextContrast: var(--primary-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.admin-markdown-editor [role="toolbar"] {
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.admin-markdown-editor [contenteditable="true"] {
+  min-height: 24rem;
+}
+
+.admin-markdown-editor .cm-editor {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.admin-markdown-editor a {
+  color: var(--foreground);
+}
+
 .theme-preview {
   aspect-ratio: 16 / 9;
   background:
