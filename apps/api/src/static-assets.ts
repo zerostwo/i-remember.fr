@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, resolve, sep } from "node:path";
+import type { ApiErrorResponse } from "@i-remember/types";
 
 const contentTypes: Record<string, string> = {
   ".gif": "image/gif",
@@ -15,6 +16,10 @@ const contentTypes: Record<string, string> = {
 function publicBaseUrl(value = process.env.STORAGE_PUBLIC_BASE_URL || "/uploads") {
   const normalized = `/${String(value || "/uploads").replace(/^\/+|\/+$/g, "")}`;
   return normalized === "/" ? "/uploads" : normalized;
+}
+
+function assetErrorBody(code: string, message: string): ApiErrorResponse {
+  return { success: false, error: { code, message } };
 }
 
 function assetPath(reqUrl = "/", rootDir: string, baseUrl: string) {
@@ -54,21 +59,21 @@ export function serveLocalAsset(
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.statusCode = 405;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({ success: false, error: { code: "method_not_allowed" } }));
+    res.end(JSON.stringify(assetErrorBody("method_not_allowed", "Method not allowed")));
     return true;
   }
 
   if (resolved.forbidden || !resolved.filePath) {
     res.statusCode = 403;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({ success: false, error: { code: "forbidden" } }));
+    res.end(JSON.stringify(assetErrorBody("forbidden", "Asset path is forbidden")));
     return true;
   }
 
   if (!existsSync(resolved.filePath)) {
     res.statusCode = 404;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({ success: false, error: { code: "not_found" } }));
+    res.end(JSON.stringify(assetErrorBody("not_found", "Asset not found")));
     return true;
   }
 
@@ -76,7 +81,7 @@ export function serveLocalAsset(
   if (!stat.isFile()) {
     res.statusCode = 404;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({ success: false, error: { code: "not_found" } }));
+    res.end(JSON.stringify(assetErrorBody("not_found", "Asset not found")));
     return true;
   }
 

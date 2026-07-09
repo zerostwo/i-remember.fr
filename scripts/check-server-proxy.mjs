@@ -127,6 +127,12 @@ try {
   assert.match(frenchMemoryHtml, /var LANG = 'fr';/);
   assert.match(frenchMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
 
+  const chineseMemoryResponse = await fetch(`${baseUrl}/zh/memory/${memory.publicId}`);
+  assert.equal(chineseMemoryResponse.status, 200);
+  const chineseMemoryHtml = await chineseMemoryResponse.text();
+  assert.match(chineseMemoryHtml, /var LANG = 'zh';/);
+  assert.match(chineseMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
+
   const legacyMemoryResponse = await fetch(`${baseUrl}/memory/${Number(memory.legacyId) + 1248}`);
   assert.equal(legacyMemoryResponse.status, 200);
   assert.match(await legacyMemoryResponse.text(), new RegExp(`"public_id":"${memory.publicId}"`));

@@ -164,7 +164,20 @@ export interface AgentAnswer {
 }
 
 export interface ApiResponse<T> {
-  success: boolean;
+  success: true;
   data: T;
   meta?: Record<string, unknown>;
 }
+
+export interface ApiErrorDetail {
+  code: string;
+  message: string;
+}
+
+export interface ApiErrorResponse {
+  success: false;
+  error: ApiErrorDetail;
+  meta?: Record<string, unknown>;
+}
+
+export type ApiResult<T> = ApiResponse<T> | ApiErrorResponse;

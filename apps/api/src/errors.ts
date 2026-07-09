@@ -1,3 +1,5 @@
+import type { ApiErrorResponse } from "@i-remember/types";
+
 export class ApiError extends Error {
   constructor(
     readonly statusCode: number,
@@ -8,7 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-export function errorBody(error: unknown) {
+export function errorBody(error: unknown): ApiErrorResponse {
   if (error instanceof ApiError) {
     return {
       success: false,

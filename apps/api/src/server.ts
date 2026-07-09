@@ -18,7 +18,7 @@ const server = createServer((req, res) => {
   api(req, res, () => {
     res.statusCode = 404;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.end(JSON.stringify({ success: false, error: { code: "not_found" } }));
+    res.end(JSON.stringify({ success: false, error: { code: "not_found", message: "Not found" } }));
   });
 });
 
