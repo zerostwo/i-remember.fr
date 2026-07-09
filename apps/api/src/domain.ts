@@ -1,10 +1,20 @@
-export type Role = "ADMIN" | "USER" | "ANONYMOUS";
-export type Visibility = "PUBLIC" | "UNLISTED" | "PRIVATE";
-export type MemoryStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
-export type CommentStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
-export type PageStatus = "PUBLISHED" | "DRAFT" | "ARCHIVED";
-export type MenuItemType =
-  "PAGE" | "MEMORY" | "SEARCH" | "EXTERNAL" | "TERMS" | "CREDITS" | "LANGUAGE";
+import type {
+  CommentStatus,
+  MemoryStatus,
+  MenuItemType,
+  PageStatus,
+  Role,
+  Visibility,
+} from "@i-remember/types";
+
+export type {
+  CommentStatus,
+  MemoryStatus,
+  MenuItemType,
+  PageStatus,
+  Role,
+  Visibility,
+} from "@i-remember/types";
 
 export type Principal = {
   role: Role;
