@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reduced the production image by installing only runtime dependencies after
+  the monorepo build instead of copying the full development dependency tree.
 - Moved Memory editing to `/admin/memory/editor`, made long-form expansion
   automatic, and split Settings into Site, Account, and Security tabs.
 - Made published Pages create and maintain their linked long-form Memory.

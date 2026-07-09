@@ -3,6 +3,12 @@
   "private": true,
   "type": "module",
   "types": "./dist/index.d.ts",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "pg": "^8.22.0",
+    "prisma": "^7.8.0"
+  },
   "scripts": {
     "build": "pnpm generate && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",

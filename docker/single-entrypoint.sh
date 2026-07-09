@@ -39,7 +39,7 @@ if [ ! -s "$pgdata/PG_VERSION" ]; then
 fi
 
 log "postgres_start" "starting internal PostgreSQL on 127.0.0.1:$postgres_port"
-su postgres -c "\"$pg_bin/pg_ctl\" -D \"$pgdata\" -l \"$postgres_log\" -o \"-c listen_addresses=127.0.0.1 -p $postgres_port\" -w start" >> "$startup_log" 2>&1
+su postgres -c "\"$pg_bin/pg_ctl\" -D \"$pgdata\" -l \"$postgres_log\" -o \"-c listen_addresses=127.0.0.1 -c jit=off -p $postgres_port\" -w start" >> "$startup_log" 2>&1
 
 if ! "$pg_bin/psql" -h 127.0.0.1 -p "$postgres_port" -U postgres -tAc "select 1 from pg_database where datname = '$postgres_db'" | grep -q 1; then
   log "postgres_database_create" "creating database $postgres_db"
@@ -65,7 +65,7 @@ export PORT="${PORT:-7890}"
 
 cd /app/packages/database
 log "database_migrate" "applying Prisma migrations"
-../../node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma >> "$startup_log" 2>&1
+./node_modules/.bin/prisma migrate deploy --schema prisma/schema.prisma >> "$startup_log" 2>&1
 
 cd /app
 log "api_start" "starting API server on 127.0.0.1:$API_PORT"
