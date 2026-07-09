@@ -47,6 +47,23 @@ import {
 } from "./services.js";
 import type { StorageAdapter } from "@i-remember/storage";
 
+function logApiRequest(req: IncomingMessage, res: ServerResponse, startedAt: number) {
+  const url = new URL(req.url || "/", "http://i-remember.local");
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level: "info",
+      component: "api",
+      event: "http_request",
+      method: req.method || "GET",
+      path: url.pathname,
+      status: res.statusCode,
+      durationMs: Date.now() - startedAt,
+      contentLength: req.headers["content-length"] || "",
+    }),
+  );
+}
+
 export type ApiDependencies = {
   memories?: MemoryRepository;
   users?: UserRepository;
@@ -138,6 +155,8 @@ export function createApiV1Middleware(dependencies: ApiDependencies = {}) {
   const router = createApiV1Router(dependencies);
 
   return (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    const startedAt = Date.now();
+    res.once("finish", () => logApiRequest(req, res, startedAt));
     handleErrors(res, () => router.handle(req, res)).then((handled) => {
       if (!handled) next();
     });

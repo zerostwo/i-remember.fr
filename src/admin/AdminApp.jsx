@@ -111,7 +111,7 @@ async function api(path, options = {}) {
   const response = await fetch(path, { ...options, headers });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.success === false) {
-    throw new Error(payload.message || payload.errorMsg || `Request failed: ${response.status}`);
+    throw new Error(payload.error?.message || payload.message || payload.errorMsg || `Request failed: ${response.status}`);
   }
   return payload.data;
 }

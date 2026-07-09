@@ -67,7 +67,9 @@ Open `http://localhost:7892`.
 
 The single image starts the public web server, API server, and an internal
 PostgreSQL database. The mounted directory stores PostgreSQL data, uploads, and
-the generated auth secret.
+the generated auth secret. Runtime logs are written to
+`/var/opt/i-remember.fr/logs/` inside the container, which maps into the mounted
+volume as `logs/startup.log`, `logs/app.log`, and `logs/postgres.log`.
 
 The multi-service PostgreSQL deployment is still available:
 

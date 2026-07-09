@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-10
+
+### Added
+
+- Added persistent single-image runtime logs under
+  `/var/opt/i-remember.fr/logs/` for startup, app/API/web requests, and
+  PostgreSQL.
+
+### Fixed
+
+- Fixed fresh one-image deployments so `/` redirects to `/admin/setup` while no
+  admin user exists.
+- Fixed admin Memory saves and attachment uploads by omitting immutable public
+  memory IDs from v1 patch requests.
+- Fixed admin error messages so backend validation details are shown instead of
+  generic `Request failed: 400` text.
+- Added structured v1 API and web proxy request logs so failed admin operations
+  can be diagnosed from container logs and persisted log files.
+
 ## [0.1.3] - 2026-07-09
 
 ### Added

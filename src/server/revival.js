@@ -982,8 +982,9 @@ class RevivalBackend {
     };
   }
 
-  needsAdminSetup() {
-    return false;
+  async needsAdminSetup() {
+    const status = await this.v1Data("/api/v1/auth/status");
+    return Boolean(status?.needsSetup);
   }
 
   async allPosts(language) {
@@ -1568,7 +1569,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
       return;
     }
 
-    if (backend.needsAdminSetup() && appShellRequested(pathname)) {
+    if ((await backend.needsAdminSetup()) && appShellRequested(pathname)) {
       res.statusCode = 302;
       res.setHeader("Location", "/admin/setup");
       res.end();

@@ -64,6 +64,11 @@ export function v1MemoryPayload(memory = {}) {
   };
 }
 
+function v1MemoryPatchPayload(payload = {}) {
+  const { publicId: _publicId, ...patch } = payload;
+  return patch;
+}
+
 export async function syncV1Memory(v1Api, memory) {
   const payload = v1MemoryPayload(memory);
   if (!payload.publicId) {
@@ -84,7 +89,7 @@ export async function syncV1Memory(v1Api, memory) {
   if (existing) {
     return v1Api(`/api/v1/memories/${encodeURIComponent(existing.id)}`, {
       method: "PATCH",
-      body: JSON.stringify(payload),
+      body: JSON.stringify(v1MemoryPatchPayload(payload)),
     });
   }
 
@@ -95,7 +100,7 @@ export async function syncV1Memory(v1Api, memory) {
   if (payload.status === "PENDING") return created;
   return v1Api(`/api/v1/memories/${encodeURIComponent(created.id)}`, {
     method: "PATCH",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(v1MemoryPatchPayload(payload)),
   });
 }
 

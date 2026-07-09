@@ -102,6 +102,8 @@ function adminOnlyPath(pathname) {
 }
 
 async function proxyApi(req, res, target) {
+  const startedAt = Date.now();
+  const url = new URL(req.url || "/", "http://i-remember.local");
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (value === undefined || hopByHopHeaders.has(name.toLowerCase())) continue;
@@ -122,12 +124,38 @@ async function proxyApi(req, res, target) {
     });
     if (req.method === "HEAD" || !upstream.body) {
       res.end();
+      logProxyRequest(req, url.pathname, upstream.status, Date.now() - startedAt);
       return;
     }
     Readable.fromWeb(upstream.body).pipe(res);
-  } catch (_error) {
+    res.once("finish", () => logProxyRequest(req, url.pathname, upstream.status, Date.now() - startedAt));
+  } catch (error) {
+    console.error(JSON.stringify({
+      ts: new Date().toISOString(),
+      level: "error",
+      component: "web",
+      event: "api_proxy_error",
+      method: req.method || "GET",
+      path: url.pathname,
+      message: error instanceof Error ? error.message : String(error),
+    }));
     sendStatus(res, 502, "API upstream unavailable");
+    logProxyRequest(req, url.pathname, 502, Date.now() - startedAt);
   }
+}
+
+function logProxyRequest(req, path, status, durationMs) {
+  console.log(JSON.stringify({
+    ts: new Date().toISOString(),
+    level: "info",
+    component: "web",
+    event: "api_proxy",
+    method: req.method || "GET",
+    path,
+    status,
+    durationMs,
+    contentLength: req.headers["content-length"] || "",
+  }));
 }
 
 function serveFile(req, res, filePath, stat) {

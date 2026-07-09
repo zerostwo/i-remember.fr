@@ -14,7 +14,11 @@ Open `http://localhost:7892`.
 
 That image starts the public web server, API server, and an internal PostgreSQL
 database. The mounted directory stores PostgreSQL data, uploads, and the
-generated auth secret.
+generated auth secret. It also stores runtime logs:
+
+- `logs/startup.log`: entrypoint, migration, and service startup events.
+- `logs/app.log`: web, API, proxy, and admin request logs.
+- `logs/postgres.log`: internal PostgreSQL logs.
 
 The PostgreSQL deployment follows the refactor document's multi-service shape:
 

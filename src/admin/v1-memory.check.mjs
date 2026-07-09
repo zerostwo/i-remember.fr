@@ -33,7 +33,7 @@ const patched = await syncV1Memory(async (path, options = {}) => {
 assert.equal(patched.id, "pub_existing");
 assert.equal(patchedCalls[0].path, "/api/v1/memories/m00000000000000000012");
 assert.equal(patchedCalls[1].options.method, "PATCH");
-assert.equal(JSON.parse(patchedCalls[1].options.body).publicId, "m00000000000000000012");
+assert.equal(JSON.parse(patchedCalls[1].options.body).publicId, undefined);
 assert.equal(JSON.parse(patchedCalls[1].options.body).legacyId, undefined);
 
 const createdCalls = [];
@@ -48,7 +48,7 @@ assert.equal(createdCalls[1].options.method, "POST");
 assert.equal(JSON.parse(createdCalls[1].options.body).publicId, "m00000000000000000013");
 assert.equal(JSON.parse(createdCalls[1].options.body).legacyId, undefined);
 assert.equal(createdCalls[2].options.method, "PATCH");
-assert.equal(JSON.parse(createdCalls[2].options.body).publicId, "m00000000000000000013");
+assert.equal(JSON.parse(createdCalls[2].options.body).publicId, undefined);
 assert.equal(JSON.parse(createdCalls[2].options.body).legacyId, undefined);
 
 const archivedCalls = [];
