@@ -21,6 +21,15 @@ try {
   const found = store.getMemoryByRowId(saved.id);
   assert.equal(found.metadata_json, "{\"mood\":\"quiet\"}");
 
+  const generatedPublicId = store.upsertMemory({
+    uid: "mem_test_2",
+    legacy_id: 2,
+    language_code: "en",
+    name: "Grace",
+    text: "Generated public id",
+  });
+  assert.match(generatedPublicId.public_id, /^m[a-f0-9]{20}$/);
+
   const page = store.upsertPage({
     slug: "about",
     language_code: "en",

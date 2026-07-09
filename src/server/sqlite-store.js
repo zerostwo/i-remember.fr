@@ -681,5 +681,5 @@ function randomishId() {
 }
 
 function randomPublicId() {
-  return randomBytes(10).toString("hex");
+  return `m${randomBytes(10).toString("hex")}`;
 }

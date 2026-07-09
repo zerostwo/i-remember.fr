@@ -38,7 +38,7 @@ const memoryInclude = {
 } as const;
 
 export function createPublicMemoryId() {
-  return randomBytes(10).toString("hex");
+  return `m${randomBytes(10).toString("hex")}`;
 }
 
 function tagSlug(name: string) {
