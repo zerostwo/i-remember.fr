@@ -159,6 +159,16 @@ function comment(row: any): CommentRecord {
   };
 }
 
+function user(row: any): UserRecord {
+  return {
+    id: row.id,
+    email: row.email,
+    passwordHash: row.passwordHash,
+    role: row.role,
+    createdAt: row.createdAt,
+  };
+}
+
 function memoryWhere(query: MemoryListQuery) {
   const q = query.q?.trim();
   return {
@@ -381,11 +391,19 @@ export class PrismaUserRepository implements UserRepository {
   constructor(private readonly db = getPrismaClient()) {}
 
   async list(): Promise<UserRecord[]> {
-    return this.db.user.findMany({ orderBy: { createdAt: "desc" } });
+    const rows = await this.db.user.findMany({ orderBy: { createdAt: "desc" } });
+    return rows.map(user);
   }
 
   async count() {
     return this.db.user.count();
+  }
+
+  async findByEmail(email: string) {
+    const row = await this.db.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } } as any,
+    });
+    return row ? user(row) : null;
   }
 }
 

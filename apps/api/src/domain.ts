@@ -59,6 +59,7 @@ export type MemoryUpdateInput = Partial<MemoryInput> & {
 export type UserRecord = {
   id: string;
   email: string;
+  passwordHash: string;
   role: Role;
   createdAt: Date;
 };

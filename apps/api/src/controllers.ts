@@ -1,16 +1,18 @@
-import { authenticate, login } from "./auth.js";
+import { authenticate } from "./auth.js";
 import type {
   CommentRecord,
   MenuItemRecord,
   MemoryRecord,
   PageRecord,
   SettingRecord,
+  UserRecord,
 } from "./domain.js";
 import { ApiError } from "./errors.js";
 import { readJson, type RequestContext } from "./http.js";
 import {
   AgentService,
   AssetService,
+  AuthService,
   CommentService,
   DashboardService,
   MenuItemService,
@@ -121,6 +123,15 @@ function settingsDto(settings: SettingRecord[]) {
   return Object.fromEntries(settings.map((item) => [item.key, item.value]));
 }
 
+function userDto(user: UserRecord) {
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    createdAt: user.createdAt.toISOString(),
+  };
+}
+
 export class MemoryController {
   constructor(private readonly memories: MemoryService) {}
 
@@ -188,7 +199,7 @@ export class UserController {
 
   async list(context: RequestContext) {
     const data = await this.users.list(authenticate(context.req));
-    return { success: true, data };
+    return { success: true, data: data.map(userDto) };
   }
 }
 
@@ -368,7 +379,9 @@ export class AssetController {
 }
 
 export class AuthController {
+  constructor(private readonly auth: AuthService) {}
+
   async login(context: RequestContext) {
-    return { success: true, data: login(await readJson(context.req)) };
+    return { success: true, data: await this.auth.login(await readJson(context.req)) };
   }
 }

@@ -111,8 +111,10 @@ export interface MenuItem {
 
 export interface AuthSession {
   token: string;
-  role: Role;
-  email: string;
+  user: {
+    role: Role;
+    email: string;
+  };
 }
 
 export interface AgentQuery {

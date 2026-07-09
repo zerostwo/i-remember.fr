@@ -14,8 +14,9 @@ import type {
   PageInput,
   PageUpdateInput,
   Principal,
+  UserRecord,
 } from "./domain.js";
-import { requireRole } from "./auth.js";
+import { login, loginUser, requireRole } from "./auth.js";
 import type {
   AssetRepository,
   CommentListQuery,
@@ -71,6 +72,18 @@ export class UserService {
   list(principal: Principal) {
     requireRole(principal, ["ADMIN"]);
     return this.users.list();
+  }
+}
+
+export class AuthService {
+  constructor(private readonly users: UserRepository) {}
+
+  async login(input: Record<string, unknown>) {
+    const email = String(input.email || "")
+      .trim()
+      .toLowerCase();
+    const user: UserRecord | null = email ? await this.users.findByEmail(email) : null;
+    return user ? loginUser(input, user) : login(input);
   }
 }
 

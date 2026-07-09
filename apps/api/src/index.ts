@@ -34,6 +34,7 @@ import type {
 import {
   AgentService,
   AssetService,
+  AuthService,
   CommentService,
   DashboardService,
   MenuItemService,
@@ -72,6 +73,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   const settingService = new SettingService(settingRepository);
   const dashboardService = new DashboardService(memoryRepository, userRepository);
   const agentService = new AgentService(memoryService);
+  const authService = new AuthService(userRepository);
   const memories = new MemoryController(memoryService);
   const dashboard = new DashboardController(dashboardService);
   const search = new SearchController(memoryService);
@@ -82,7 +84,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   const pages = new PageController(pageService);
   const menuItems = new MenuItemController(menuItemService);
   const settings = new SettingController(settingService);
-  const auth = new AuthController();
+  const auth = new AuthController(authService);
   const router = new Router();
 
   router.add("GET", "/api/v1/memories", (context) => memories.list(context));

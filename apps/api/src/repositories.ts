@@ -44,6 +44,7 @@ export interface MemoryRepository {
 export interface UserRepository {
   list(): Promise<UserRecord[]>;
   count(): Promise<number>;
+  findByEmail(email: string): Promise<UserRecord | null>;
 }
 
 export interface PageRepository {

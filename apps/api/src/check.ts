@@ -133,12 +133,33 @@ class MemoryRepo implements MemoryRepository {
 }
 
 class UserRepo implements UserRepository {
+  users: UserRecord[] = [
+    {
+      id: "u1",
+      email: "admin@example.com",
+      passwordHash: "pbkdf2$210000$api-check-salt$v8lW0mYRgw8AS0iO9ri4qjK-jhb-r-iI6wk5xx3olII",
+      role: "ADMIN",
+      createdAt: new Date(),
+    },
+    {
+      id: "u2",
+      email: "reader@example.com",
+      passwordHash: "pbkdf2$210000$api-check-salt$v8lW0mYRgw8AS0iO9ri4qjK-jhb-r-iI6wk5xx3olII",
+      role: "USER",
+      createdAt: new Date(),
+    },
+  ];
+
   async list(): Promise<UserRecord[]> {
-    return [{ id: "u1", email: "admin@example.com", role: "ADMIN", createdAt: new Date() }];
+    return this.users;
   }
 
   async count() {
     return (await this.list()).length;
+  }
+
+  async findByEmail(email: string) {
+    return this.users.find((user) => user.email.toLowerCase() === email.toLowerCase()) || null;
   }
 }
 
@@ -460,6 +481,39 @@ const authorized = await json("/api/v1/users", {
 });
 assert.equal(authorized.response.status, 200);
 assert.equal(authorized.body.data[0].role, "ADMIN");
+assert.equal(authorized.body.data[0].passwordHash, undefined);
+
+const loggedIn = await json("/api/v1/auth/login", {
+  method: "POST",
+  body: JSON.stringify({ email: "admin@example.com", password: "password123456" }),
+});
+assert.equal(loggedIn.response.status, 200);
+assert.equal(loggedIn.body.data.user.role, "ADMIN");
+assert.notEqual(loggedIn.body.data.token, "test-secret");
+
+const tokenAuthorized = await json("/api/v1/users", {
+  headers: { Authorization: `Bearer ${loggedIn.body.data.token}` },
+});
+assert.equal(tokenAuthorized.response.status, 200);
+assert.equal(tokenAuthorized.body.data[0].email, "admin@example.com");
+
+const failedLogin = await json("/api/v1/auth/login", {
+  method: "POST",
+  body: JSON.stringify({ email: "admin@example.com", password: "wrong-password" }),
+});
+assert.equal(failedLogin.response.status, 401);
+
+const userLogin = await json("/api/v1/auth/login", {
+  method: "POST",
+  body: JSON.stringify({ email: "reader@example.com", password: "password123456" }),
+});
+assert.equal(userLogin.response.status, 200);
+assert.equal(userLogin.body.data.user.role, "USER");
+
+const userBlockedFromAdmin = await json("/api/v1/users", {
+  headers: { Authorization: `Bearer ${userLogin.body.data.token}` },
+});
+assert.equal(userBlockedFromAdmin.response.status, 403);
 
 const unauthorizedPages = await json("/api/v1/pages");
 assert.equal(unauthorizedPages.response.status, 401);
@@ -574,7 +628,7 @@ const dashboard = await json("/api/v1/dashboard", {
   headers: { Authorization: "Bearer test-secret" },
 });
 assert.equal(dashboard.response.status, 200);
-assert.equal(dashboard.body.data.totalUsers, 1);
+assert.equal(dashboard.body.data.totalUsers, 2);
 assert.equal(dashboard.body.data.totalMemories, 2);
 assert.equal(dashboard.body.data.pendingMemories, 0);
 assert.equal(dashboard.body.data.publishedMemories, 2);
