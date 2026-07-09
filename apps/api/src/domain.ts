@@ -25,7 +25,6 @@ export type Principal = {
 export type MemoryRecord = {
   id: string;
   publicId: string;
-  legacyId?: number | null;
   title: string;
   content: string;
   excerpt?: string | null;

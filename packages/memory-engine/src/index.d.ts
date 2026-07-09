@@ -3,7 +3,6 @@ import type { CSSProperties, ReactElement } from "react";
 export type GalaxyMemory = {
   id: string;
   publicId: string;
-  legacyId?: string | number | null;
   title: string;
   content: string;
   excerpt: string;
@@ -35,4 +34,4 @@ export function MemoryGalaxy(props: {
   style?: CSSProperties;
 }): ReactElement;
 
-export const legacyRuntimePath: string;
+export const runtimePath: string;

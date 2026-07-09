@@ -34,20 +34,18 @@ function imageKey(value) {
   return match ? match[1] : "revival-upload";
 }
 
-function legacyDate(value) {
+function runtimeDate(value) {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
-function numericLegacyId(memory, index = 0) {
-  const id = Number.parseInt(memory.legacyId, 10);
-  return Number.isFinite(id) ? id : 900000 - index;
+function runtimePostId(index = 0) {
+  return 900000 - index;
 }
 
 export function normalizeGalaxyMemory(memory = {}) {
   const id = firstText(memory.publicId, memory.public_id, memory.uid, memory.id);
-  const legacyId = memory.legacyId ?? memory.legacy_id ?? null;
   const title = firstText(memory.title, memory.name, "Untitled memory");
   const content = firstText(memory.content, memory.bodyMarkdown, memory.body_markdown, memory.text);
   const excerpt = firstText(memory.excerpt, content.slice(0, 220));
@@ -62,7 +60,6 @@ export function normalizeGalaxyMemory(memory = {}) {
   return {
     id,
     publicId: firstText(memory.publicId, memory.public_id, id),
-    legacyId,
     title,
     content,
     excerpt,
@@ -85,7 +82,7 @@ export function normalizeGalaxyMemories(memories = []) {
 
   for (const memory of memories || []) {
     const next = normalizeGalaxyMemory(memory);
-    const identity = firstText(next.publicId, next.legacyId, next.id);
+    const identity = firstText(next.publicId, next.id);
     if (!identity || seen.has(identity)) continue;
     seen.add(identity);
     normalized.push(next);
@@ -96,12 +93,12 @@ export function normalizeGalaxyMemories(memories = []) {
 
 export function normalizeGalaxyPost(memory = {}, index = 0) {
   const next = normalizeGalaxyMemory(memory);
-  const legacyId = numericLegacyId(next, index);
+  const postId = runtimePostId(index);
   const image = imageKey(next.imageUrl);
 
   return {
-    id: String(legacyId),
-    uid: next.id || `memory-engine-${legacyId}`,
+    id: String(postId),
+    uid: next.id || `memory-engine-${postId}`,
     public_id: next.publicId,
     name: htmlText(next.authorName || "I Remember"),
     title: htmlText(next.title || "I Remember"),
@@ -117,7 +114,7 @@ export function normalizeGalaxyPost(memory = {}, index = 0) {
     resized_img_height: "600",
     has_created_tags: "1",
     is_stared: "0",
-    created_at: legacyDate(next.createdAt),
+    created_at: runtimeDate(next.createdAt),
     language_id: "2",
   };
 }

@@ -10,28 +10,28 @@ export function MemoryGalaxy({
   style,
 }) {
   const normalizedMemories = React.useMemo(() => normalizeGalaxyMemories(memories), [memories]);
-  const legacyPosts = React.useMemo(() => normalizeGalaxyPosts(memories), [memories]);
-  const legacyPayload = React.useMemo(() => JSON.stringify(legacyPosts), [legacyPosts]);
+  const runtimePosts = React.useMemo(() => normalizeGalaxyPosts(memories), [memories]);
+  const runtimePayload = React.useMemo(() => JSON.stringify(runtimePosts), [runtimePosts]);
   const storageKey = React.useMemo(() => {
     return `i-remember:memory-engine:${Math.random().toString(36).slice(2)}`;
   }, []);
   const [storedPayload, setStoredPayload] = React.useState("");
 
   React.useEffect(() => {
-    if (!legacyPosts.length || typeof window === "undefined" || !window.sessionStorage) {
+    if (!runtimePosts.length || typeof window === "undefined" || !window.sessionStorage) {
       setStoredPayload("");
       return;
     }
     try {
-      window.sessionStorage.setItem(storageKey, legacyPayload);
-      setStoredPayload(legacyPayload);
+      window.sessionStorage.setItem(storageKey, runtimePayload);
+      setStoredPayload(runtimePayload);
       return () => window.sessionStorage.removeItem(storageKey);
     } catch {
       setStoredPayload("unavailable");
     }
-  }, [legacyPayload, legacyPosts.length, storageKey]);
+  }, [runtimePayload, runtimePosts.length, storageKey]);
 
-  const hasStoredDataset = legacyPosts.length > 0 && storedPayload === legacyPayload;
+  const hasStoredDataset = runtimePosts.length > 0 && storedPayload === runtimePayload;
   const url = React.useMemo(() => {
     const next = new URL(src, "http://i-remember.local");
     if (deterministic) next.searchParams.set("qaDeterministic", "1");
@@ -39,7 +39,7 @@ export function MemoryGalaxy({
     return `${next.pathname}${next.search}${next.hash}`;
   }, [deterministic, hasStoredDataset, src, storageKey]);
 
-  if (legacyPosts.length > 0 && !hasStoredDataset && storedPayload !== "unavailable") {
+  if (runtimePosts.length > 0 && !hasStoredDataset && storedPayload !== "unavailable") {
     return React.createElement("div", {
       className,
       "data-memory-count": normalizedMemories.length,

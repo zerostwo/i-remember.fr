@@ -15,10 +15,10 @@ function menuType(value) {
     : "PAGE";
 }
 
-function legacyMetadata(record = {}) {
+function sourceMetadata(record = {}) {
   return {
-    legacyId: record.id ?? record.rowId ?? null,
-    legacyUid: record.uid || "",
+    sourceRowId: record.id ?? record.rowId ?? null,
+    sourceUid: record.uid || "",
   };
 }
 
@@ -36,7 +36,7 @@ function jsonObject(value) {
 function pageMetadata(record = {}) {
   return {
     ...jsonObject(record.metadataJson ?? record.metadata_json ?? record.metadata),
-    ...legacyMetadata(record),
+    ...sourceMetadata(record),
   };
 }
 
@@ -54,9 +54,10 @@ export function v1PagePayload(page = {}) {
 }
 
 export function v1PageMemory(page = {}) {
-  if (!page.linkedMemoryLegacyId) return null;
+  const publicId = String(page.linkedMemoryPublicId || page.linked_memory_public_id || "").trim();
+  if (!publicId) return null;
   return {
-    legacyId: page.linkedMemoryLegacyId,
+    publicId,
     uid: page.linkedMemoryUid,
     language: page.language,
     source: "page",
@@ -95,7 +96,7 @@ export async function syncV1Page(v1Api, page) {
 
 export function v1MenuItemPayload(item = {}) {
   return {
-    uid: String(item.uid || `legacy-menu-${item.id || "item"}`),
+    uid: String(item.uid || `menu-${item.id || "item"}`),
     language: language(item.language),
     label: String(item.label || "Menu item").trim() || "Menu item",
     type: menuType(item.type),
@@ -104,7 +105,7 @@ export function v1MenuItemPayload(item = {}) {
     position: Number.isFinite(Number(item.position)) ? Number(item.position) : 0,
     isVisible: item.isVisible ?? item.is_visible ?? true,
     opensNewTab: item.opensNewTab ?? item.opens_new_tab ?? false,
-    metadata: legacyMetadata(item),
+    metadata: sourceMetadata(item),
   };
 }
 
@@ -115,7 +116,8 @@ export async function findV1MenuItem(v1Api, item = {}) {
     const metadata = candidate.metadata || {};
     return (
       candidate.uid === payload.uid ||
-      (payload.metadata.legacyId !== null && String(metadata.legacyId) === String(payload.metadata.legacyId))
+      (payload.metadata.sourceRowId !== null &&
+        String(metadata.sourceRowId) === String(payload.metadata.sourceRowId))
     );
   });
 }

@@ -41,7 +41,6 @@ function memoryData(row) {
   return {
     id: row.uid,
     publicId: publicId(row.public_id),
-    legacyId: Number(row.legacy_id),
     title: String(row.title || row.name || "I Remember").slice(0, 180),
     content: String(row.body_markdown || row.text || ""),
     excerpt: row.excerpt || row.text || null,
@@ -82,7 +81,7 @@ function pageData(row) {
     bodyMarkdown: row.body_markdown || "",
     status: enumValue(row.status, new Set(["PUBLISHED", "DRAFT", "ARCHIVED"]), "DRAFT"),
     linkedMemoryId: row.linked_memory_uid || null,
-    metadata: { legacyId: row.id },
+    metadata: { sourceRowId: row.id },
     createdAt: date(row.created_at),
     updatedAt: date(row.updated_at),
   };
@@ -90,7 +89,7 @@ function pageData(row) {
 
 function menuItemData(row) {
   const language = row.language_code || "en";
-  const uid = row.uid || `legacy-menu-${row.id}`;
+  const uid = row.uid || `menu-${row.id}`;
   return {
     id: `menu_${language}_${uid}`,
     uid,
@@ -106,7 +105,7 @@ function menuItemData(row) {
     position: Number(row.position || 0),
     isVisible: row.is_visible !== 0,
     opensNewTab: row.opens_new_tab === 1,
-    metadata: { legacyId: row.id },
+    metadata: { sourceRowId: row.id },
     createdAt: date(row.created_at),
     updatedAt: date(row.updated_at),
   };
@@ -319,7 +318,7 @@ function selfCheck() {
     "PAGE",
   );
   assert.equal(settingData({ key: "site.tracking_enabled", value: "true" }).value, true);
-  console.log("legacy migration mapper ok");
+  console.log("sqlite migration mapper ok");
 }
 
 if (args.has("--self-check")) {

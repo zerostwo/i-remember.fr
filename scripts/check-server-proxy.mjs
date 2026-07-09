@@ -133,7 +133,7 @@ try {
   assert.match(chineseMemoryHtml, /var LANG = 'zh';/);
   assert.match(chineseMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
 
-  const numericMemoryResponse = await fetch(`${baseUrl}/memory/${Number(memory.legacyId) + 1248}`);
+  const numericMemoryResponse = await fetch(`${baseUrl}/memory/123456789`);
   assert.equal(numericMemoryResponse.status, 200);
   const numericMemoryHtml = await numericMemoryResponse.text();
   assert.match(numericMemoryHtml, /var DEFAULT_POST = \(function \(\)/);

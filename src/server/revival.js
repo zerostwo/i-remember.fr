@@ -1235,7 +1235,6 @@ function adminMemory(row, language = row?.language_code || "en") {
   return {
     rowId: row.id,
     id: row.id,
-    legacyId: row.legacy_id,
     publicId: row.public_id,
     uid: row.uid,
     title: row.title || row.name || "I Remember",
@@ -1258,7 +1257,7 @@ function adminMemory(row, language = row?.language_code || "en") {
   };
 }
 
-function adminPage(row) {
+function adminPage(row, linkedMemory = null) {
   if (!row) return null;
   return {
     id: row.id,
@@ -1271,6 +1270,7 @@ function adminPage(row) {
     metadataJson: row.metadata_json || "",
     status: row.status,
     linkedMemoryUid: row.linked_memory_uid || "",
+    linkedMemoryPublicId: linkedMemory?.public_id || "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -1636,7 +1636,6 @@ class RevivalBackend {
           ...page,
           language,
           status: "PUBLISHED",
-          seedLegacyId: page.legacy_id,
         });
       }
 
@@ -1685,7 +1684,9 @@ class RevivalBackend {
     const memories = this.store
       .listAllMemories(normalized, 500)
       .map((row) => adminMemory(row, normalized));
-    const pages = this.store.listPages(normalized).map(adminPage);
+    const pages = this.store.listPages(normalized).map((row) =>
+      adminPage(row, row.linked_memory_uid ? this.store.getMemoryByUid(row.linked_memory_uid) : null),
+    );
     const menu = this.store.listMenuItems(normalized).map(adminMenuItem);
     const attachments = this.store.listImages(80).map((row) => {
       return {
@@ -1822,12 +1823,9 @@ class RevivalBackend {
     });
 
     const existingMemory = this.store.getMemoryByUid(linkedMemoryUid);
-    const legacyId =
-      existingMemory?.legacy_id ||
-      Number(input.seedLegacyId || input.legacy_id) ||
-      this.store.nextLegacyId(language);
+    const legacyId = existingMemory?.legacy_id || this.store.nextLegacyId(language);
     const memoryStatus = page.status === "PUBLISHED" ? "NORMAL" : "ARCHIVED";
-    this.store.upsertMemory({
+    const linkedMemory = this.store.upsertMemory({
       ...(existingMemory || {}),
       uid: linkedMemoryUid,
       legacy_id: legacyId,
@@ -1853,10 +1851,7 @@ class RevivalBackend {
       created_at: existingMemory?.created_at || new Date().toISOString(),
     });
 
-    return {
-      ...adminPage(page),
-      linkedMemoryLegacyId: legacyId,
-    };
+    return adminPage(page, linkedMemory);
   }
 
   saveMenuItem(input = {}) {

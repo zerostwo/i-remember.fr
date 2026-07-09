@@ -17,21 +17,23 @@ assert.deepEqual(v1PagePayload({
   bodyMarkdown: "# About",
   status: "PUBLISHED",
   metadataJson: "{\"footer\":true}",
-}).metadata, { footer: true, legacyId: 7, legacyUid: "" });
+}).metadata, { footer: true, sourceRowId: 7, sourceUid: "" });
 assert.equal(v1PageMemory({
-  linkedMemoryLegacyId: 9002,
+  linkedMemoryPublicId: "m00000000000000009002",
   status: "PUBLISHED",
   metadataJson: "{\"footer\":true}",
 }).metadata.footer, true);
-assert.equal(v1PageMemory({ linkedMemoryLegacyId: 9002, status: "PUBLISHED" }).dbStatus, "NORMAL");
-assert.equal(v1PageMemory({ linkedMemoryLegacyId: 9002, status: "DRAFT" }).dbStatus, "ARCHIVED");
+assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "PUBLISHED" }).publicId, "m00000000000000009002");
+assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "PUBLISHED" }).legacyId, undefined);
+assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "PUBLISHED" }).dbStatus, "NORMAL");
+assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "DRAFT" }).dbStatus, "ARCHIVED");
 assert.equal(v1PageMemory({}), null);
 
-assert.equal(v1MenuItemPayload({ id: 2, label: "About", type: "PAGE" }).uid, "legacy-menu-2");
+assert.equal(v1MenuItemPayload({ id: 2, label: "About", type: "PAGE" }).uid, "menu-2");
 assert.equal(v1SettingsPayload({ defaultLanguage: "zh", tracking: { enabled: true } }).defaultLanguage, "zh");
 
 const calls = [];
-const menuItems = [{ id: "v1-menu", uid: "legacy-menu-2", metadata: { legacyId: 2 } }];
+const menuItems = [{ id: "v1-menu", uid: "menu-2", metadata: { sourceRowId: 2 } }];
 async function v1Api(path, options = {}) {
   calls.push({ path, options });
   if (path.startsWith("/api/v1/pages/")) throw new Error("not found");

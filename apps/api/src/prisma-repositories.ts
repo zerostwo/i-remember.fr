@@ -75,7 +75,6 @@ function memory(row: any): MemoryRecord {
   return {
     id: row.id,
     publicId: row.publicId,
-    legacyId: row.legacyId,
     title: row.title,
     content: row.content,
     excerpt: row.excerpt,

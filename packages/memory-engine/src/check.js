@@ -4,7 +4,6 @@ import { normalizeGalaxyMemories, normalizeGalaxyPosts } from "./normalize.js";
 const memories = normalizeGalaxyMemories([
   {
     public_id: "pub-1",
-    legacy_id: 42,
     name: "Ada",
     text: "I remember a precise coordinate.",
     latitude: "48.8566",
@@ -33,7 +32,7 @@ assert.equal(memories[1].imageUrl, "/uploads/second.jpg");
 
 const posts = normalizeGalaxyPosts(memories);
 assert.equal(posts.length, 2);
-assert.equal(posts[0].id, "42");
+assert.equal(posts[0].id, "900000");
 assert.equal(posts[0].public_id, "pub-1");
 assert.equal(posts[0].name, "Ada");
 assert.equal(posts[1].img, "revival-upload");

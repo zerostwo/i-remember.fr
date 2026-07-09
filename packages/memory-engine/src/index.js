@@ -6,4 +6,4 @@ export {
   normalizeGalaxyPosts,
 } from "./normalize.js";
 
-export const legacyRuntimePath = "/js/revival-runtime.js";
+export const runtimePath = "/js/revival-runtime.js";
