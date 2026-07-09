@@ -669,6 +669,12 @@ const assetsAfterUpload = await json("/api/v1/assets", {
 });
 assert.equal(assetsAfterUpload.body.data[0].url, "/uploads/asset-test.txt");
 
+const invalidAssetLimit = await json("/api/v1/assets?limit=abc", {
+  headers: { Authorization: "Bearer test-secret" },
+});
+assert.equal(invalidAssetLimit.response.status, 400);
+assert.equal(invalidAssetLimit.body.error.code, "invalid_asset_limit");
+
 const assetUrl = await json("/api/v1/assets/asset-test.txt", {
   headers: { Authorization: "Bearer test-secret" },
 });

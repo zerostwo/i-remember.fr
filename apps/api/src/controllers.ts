@@ -132,6 +132,14 @@ function userDto(user: UserRecord) {
   };
 }
 
+function assetListLimit(searchParams: URLSearchParams) {
+  const limit = Number(searchParams.get("limit") || 80);
+  if (!Number.isFinite(limit) || limit < 1) {
+    throw new ApiError(400, "Invalid asset limit", "invalid_asset_limit");
+  }
+  return Math.min(Math.floor(limit), 200);
+}
+
 export class MemoryController {
   constructor(private readonly memories: MemoryService) {}
 
@@ -353,8 +361,9 @@ export class AssetController {
   constructor(private readonly assets: AssetService) {}
 
   async list(context: RequestContext) {
-    const limit = Number(context.url.searchParams.get("limit") || 80);
-    const data = await this.assets.list(authenticate(context.req), limit);
+    const principal = authenticate(context.req);
+    const limit = assetListLimit(context.url.searchParams);
+    const data = await this.assets.list(principal, limit);
     return { success: true, data };
   }
 
