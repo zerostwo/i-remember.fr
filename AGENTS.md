@@ -9,7 +9,7 @@ When implementing from a selected generated mock, treat that image as the source
 Current backend/product decisions:
 
 - Keep the restored archive UI visually unchanged while modernizing the backend.
-- For the production architecture refactor requested on 2026-07-08, the pasted refactor document is the highest-priority product/engineering source. Implement the pnpm/turbo monorepo, TypeScript API app, PostgreSQL/Prisma database package, Docker web/admin/api/postgres services, and full verification plan from that document while keeping the archive frontend experience visually unchanged.
+- For the production architecture refactor requested on 2026-07-08, the pasted refactor document is the highest-priority product/engineering source except for Docker publishing: keep one production image. Implement the pnpm/turbo monorepo, TypeScript API app, PostgreSQL/Prisma database package, and full verification plan while keeping the archive frontend experience visually unchanged.
 - Use the admin-configured default language for `/`, missing `ln`, and bare `/memory/:id` routes; the initial default is English.
 - Preserve French support and add full Chinese support at `/zh` and `/zh/memory/:id`.
 - Because the project is still early, do not preserve previous legacy compatibility; remove compatibility fallbacks as production PostgreSQL/Prisma paths become available.

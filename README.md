@@ -5,8 +5,8 @@ frontend.
 
 This repository keeps the public archive UI visually close to the original site,
 while moving the engineering foundation toward a pnpm/turbo monorepo with a
-TypeScript API, PostgreSQL/Prisma persistence, shared packages, and Docker
-deployment paths for both one-image self-hosting and multi-service production.
+TypeScript API, PostgreSQL/Prisma persistence, shared packages, and one Docker
+image for self-hosted production.
 
 ## Current Scope
 
@@ -71,7 +71,7 @@ the generated auth secret. Runtime logs are written to
 `/var/opt/i-remember.fr/logs/` inside the container, which maps into the mounted
 volume as `logs/startup.log`, `logs/app.log`, and `logs/postgres.log`.
 
-The multi-service PostgreSQL deployment is still available:
+For local service-level debugging, Compose can still run the split services:
 
 ```bash
 docker compose up -d --build

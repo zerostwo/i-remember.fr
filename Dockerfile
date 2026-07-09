@@ -1,5 +1,4 @@
-# Single-image Postgres runtime for one-command self-hosted deployments. The
-# compose file still provides the split web/admin/api/postgres deployment.
+# Single-image Postgres runtime for self-hosted deployments.
 FROM node:22-slim AS deps
 ENV NPM_CONFIG_AUDIT=false
 ENV NPM_CONFIG_FUND=false

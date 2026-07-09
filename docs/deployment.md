@@ -20,19 +20,12 @@ generated auth secret. It also stores runtime logs:
 - `logs/app.log`: web, API, proxy, and admin request logs.
 - `logs/postgres.log`: internal PostgreSQL logs.
 
-The PostgreSQL deployment follows the refactor document's multi-service shape:
-
-- `web`: public archive experience.
-- `admin`: admin experience served separately.
-- `api`: TypeScript REST API.
-- `postgres`: PostgreSQL database for Prisma.
-
 ## Build
 
 ```bash
 pnpm install
 pnpm build
-docker compose build
+docker build -t "${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:-latest}" .
 ```
 
 The published image name uses:
@@ -40,9 +33,7 @@ The published image name uses:
 - `DOCKERHUB_IMAGE`
 - `TAG`
 
-The single-image runtime uses `DOCKERHUB_IMAGE` directly. The compose file
-still supports local multi-service builds, but GitHub publishes only
-`zerostwo/i-remember.fr`.
+GitHub publishes only the single image named by `DOCKERHUB_IMAGE`.
 
 Pushes to `main` publish `latest` and `sha-<commit>`. Pushing a `vX.Y.Z` Git tag
 publishes `X.Y.Z`, `latest`, and `sha-<commit>`.
