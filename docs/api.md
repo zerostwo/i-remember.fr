@@ -30,8 +30,8 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 - `PUT /api/v1/settings`
 - `GET /api/v1/assets`
 - `POST /api/v1/assets`
-- `GET /api/v1/assets/:key`
-- `DELETE /api/v1/assets/:key`
+- `GET /api/v1/assets/:key*`
+- `DELETE /api/v1/assets/:key*`
 - `POST /api/v1/auth/login`
 
 `POST /api/v1/assets` accepts an admin-authenticated JSON body:
@@ -47,8 +47,9 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 ```
 
 The storage layer returns a URL from the configured local filesystem adapter or
-an S3-compatible adapter. When `memoryId` is present, the upload is also stored
-as a Prisma `Attachment` for that memory.
+an S3-compatible adapter. Asset keys may include nested path segments such as
+`memory/example.jpg`. When `memoryId` is present, the upload is also stored as a
+Prisma `Attachment` for that memory.
 
 `POST /api/v1/agent` is the first-pass HTTP agent surface. It accepts an
 anonymous or authenticated JSON body like `{"query":"Paris","limit":5}` and
@@ -110,4 +111,9 @@ archive runtime:
 - `POST /api/post`
 - `GET /api/public/menu`
 - `GET /api/public/menu-target/:id`
+- `GET /api/admin/export`
 - `POST /api/admin/*`
+
+`GET /api/admin/export` is authenticated with the legacy admin cookie and
+downloads the current admin archive bundle for the Backups section while the
+admin compatibility layer is still active.
