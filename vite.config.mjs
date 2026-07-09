@@ -13,6 +13,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(rootDir, "src"),
+      "@i-remember/memory-engine": resolve(rootDir, "packages/memory-engine/src/index.js"),
       "@i-remember/ui": resolve(rootDir, "packages/ui/src/index.js"),
     },
   },

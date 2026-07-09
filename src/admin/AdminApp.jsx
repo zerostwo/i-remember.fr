@@ -53,6 +53,7 @@ import {
   TabsTrigger,
   Textarea,
 } from "@i-remember/ui";
+import { MemoryGalaxy } from "@i-remember/memory-engine";
 import { cn } from "@/lib/utils";
 import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload } from "./v1-assets.js";
 import { deleteV1MenuItem, syncV1MenuItem, syncV1Page, syncV1Settings, v1PageMemory } from "./v1-content.js";
@@ -1051,6 +1052,17 @@ function DashboardView({ data, navigate }) {
         <MetricCard label="Footer menu" value={counts.menuItems || 0} detail="lower-right navigation" icon={MenuIcon} />
         <MetricCard label="Attachments" value={counts.attachments || 0} detail="local and archive images" icon={ImageIcon} />
       </div>
+      <Card className="rounded-lg">
+        <CardHeader>
+          <CardTitle>Memory galaxy</CardTitle>
+          <CardDescription>Shared engine rendering the current Memory stream.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[360px] overflow-hidden rounded-lg border bg-black">
+            <MemoryGalaxy memories={data.memories} deterministic className="h-full w-full" />
+          </div>
+        </CardContent>
+      </Card>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
         <Card className="rounded-lg">
           <CardHeader>
