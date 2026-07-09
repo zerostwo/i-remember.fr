@@ -21,6 +21,7 @@ FROM node:22-slim AS runtime
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=7890
+ENV I_REMEMBER_ADMIN_ONLY=true
 ENV I_REMEMBER_DATA_DIR=/var/opt/i-remember.fr
 WORKDIR /app
 COPY --from=build --chown=node:node /app/package.json ./package.json

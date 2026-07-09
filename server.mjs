@@ -10,6 +10,7 @@ const distDir = resolve(rootDir, "dist");
 const host = process.env.HOST || "127.0.0.1";
 const port = Number.parseInt(process.env.PORT || "7890", 10);
 const apiBaseUrl = process.env.API_BASE_URL || "";
+const adminOnly = process.env.I_REMEMBER_ADMIN_ONLY === "true";
 const storagePublicBaseUrl = normalizeProxyPath(process.env.STORAGE_PUBLIC_BASE_URL || "/uploads");
 const packageJson = JSON.parse(readFileSync(resolve(rootDir, "package.json"), "utf8"));
 const hopByHopHeaders = new Set([
@@ -88,6 +89,16 @@ function apiProxyTarget(req) {
     !(storagePublicBaseUrl === "/uploads" && url.pathname.startsWith("/uploads/posts/"));
   if (!isApiPath && !isV1AssetPath) return null;
   return new URL(`${url.pathname}${url.search}`, apiBaseUrl);
+}
+
+function adminOnlyPath(pathname) {
+  return (
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
+    pathname.startsWith("/api/admin/") ||
+    pathname.startsWith("/assets/") ||
+    pathname.startsWith(`${storagePublicBaseUrl}/`)
+  );
 }
 
 async function proxyApi(req, res, target) {
@@ -224,6 +235,14 @@ const server = createServer((req, res) => {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.end(JSON.stringify({ name: packageJson.name, version: packageJson.version }));
     return;
+  }
+
+  if (adminOnly) {
+    const url = new URL(req.url || "/", "http://i-remember.local");
+    if (!adminOnlyPath(url.pathname)) {
+      sendStatus(res, 404, "Not found");
+      return;
+    }
   }
 
   revivalMiddleware(req, res, () => serveStatic(req, res));

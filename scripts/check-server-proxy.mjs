@@ -178,6 +178,45 @@ try {
   assert.equal(agentBody.method, "POST");
   assert.equal(agentBody.auth, "Bearer proxy-test");
   assert.equal(JSON.parse(agentBody.body).query, "test");
+
+  const adminOnlyDataDir = await mkdtemp(join(tmpdir(), "i-remember-admin-only-"));
+  const adminOnlyPort = await freePort();
+  const adminOnlyApp = spawn(process.execPath, ["server.mjs"], {
+    env: {
+      ...process.env,
+      HOST: "127.0.0.1",
+      PORT: String(adminOnlyPort),
+      API_BASE_URL: `http://127.0.0.1:${upstreamPort}`,
+      I_REMEMBER_ADMIN_ONLY: "true",
+      I_REMEMBER_DATA_DIR: adminOnlyDataDir,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  try {
+    const adminOnlyBaseUrl = `http://127.0.0.1:${adminOnlyPort}`;
+    let adminReady = false;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      try {
+        const response = await fetch(`${adminOnlyBaseUrl}/version`);
+        adminReady = response.ok;
+      } catch {
+        adminReady = false;
+      }
+      if (adminReady) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    assert.equal(adminReady, true, "admin-only server did not start");
+    assert.equal((await fetch(`${adminOnlyBaseUrl}/`)).status, 404);
+    const adminShell = await fetch(`${adminOnlyBaseUrl}/admin`, { redirect: "manual" });
+    assert.equal(adminShell.status, 200);
+    const adminOnlyApi = await fetch(`${adminOnlyBaseUrl}/api/v1/memories`, {
+      headers: { Authorization: "Bearer proxy-test" },
+    });
+    assert.equal(adminOnlyApi.status, 200);
+  } finally {
+    adminOnlyApp.kill("SIGTERM");
+    await rm(adminOnlyDataDir, { recursive: true, force: true });
+  }
   console.log("server api proxy ok");
 } finally {
   app.kill("SIGTERM");

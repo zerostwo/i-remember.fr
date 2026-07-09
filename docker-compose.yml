@@ -50,6 +50,7 @@ services:
       API_BASE_URL: ${API_BASE_URL:-http://api:7892}
       STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-/uploads}
       I_REMEMBER_DATA_DIR: /var/opt/i-remember.fr
+      I_REMEMBER_ADMIN_ONLY: "true"
     volumes:
       - web-data:/var/opt/i-remember.fr
     depends_on:

@@ -22,7 +22,8 @@ The published image names use:
 
 Compose appends `-web`, `-admin`, and `-api` to the configured image base.
 `web` and `admin` can share the archive runtime data volume during migration;
-production API state lives in PostgreSQL.
+the admin service runs in admin-only mode, and production API state lives in
+PostgreSQL.
 
 The GitHub workflow builds and pushes those same compose images instead of a
 single root image.
