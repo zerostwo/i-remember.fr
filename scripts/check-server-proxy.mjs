@@ -89,6 +89,48 @@ try {
   assert.equal(exportBody.data.format, "i-remember-admin-export-v1");
   assert.equal(exportBody.data.data.settings.account.email, "admin@example.com");
 
+  const settingsResponse = await fetch(`${baseUrl}/api/admin/settings`, {
+    method: "PUT",
+    headers: {
+      Cookie: adminCookie,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ defaultLanguage: "zh", anonymousSubmissions: true }),
+  });
+  assert.equal(settingsResponse.status, 200);
+
+  const memoryResponse = await fetch(`${baseUrl}/api/admin/memories`, {
+    method: "POST",
+    headers: {
+      Cookie: adminCookie,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      title: "Default language memory",
+      bodyMarkdown: "# Default language memory\n\nStored through the configured content language.",
+      status: "published",
+    }),
+  });
+  assert.equal(memoryResponse.status, 200);
+  const memoryBody = await memoryResponse.json();
+  const memory = memoryBody.data;
+
+  const publicMemoryResponse = await fetch(`${baseUrl}/memory/${memory.publicId}`);
+  assert.equal(publicMemoryResponse.status, 200);
+  const publicMemoryHtml = await publicMemoryResponse.text();
+  assert.match(publicMemoryHtml, /var LANG = 'zh';/);
+  assert.match(publicMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
+
+  const frenchMemoryResponse = await fetch(`${baseUrl}/fr/memory/${memory.publicId}`);
+  assert.equal(frenchMemoryResponse.status, 200);
+  const frenchMemoryHtml = await frenchMemoryResponse.text();
+  assert.match(frenchMemoryHtml, /var LANG = 'fr';/);
+  assert.match(frenchMemoryHtml, new RegExp(`"public_id":"${memory.publicId}"`));
+
+  const legacyMemoryResponse = await fetch(`${baseUrl}/memory/${Number(memory.legacyId) + 1248}`);
+  assert.equal(legacyMemoryResponse.status, 200);
+  assert.match(await legacyMemoryResponse.text(), new RegExp(`"public_id":"${memory.publicId}"`));
+
   const response = await fetch(`${baseUrl}/api/v1/memories?status=PENDING`, {
     headers: { Authorization: "Bearer proxy-test" },
   });
