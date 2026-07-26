@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sanitized and rebuilt forwarding headers at the one-image boundary so trusted
   reverse proxies can preserve visitor-specific limits without accepting spoofed
   forwarding chains.
+- Made type checking generate Prisma Client first so clean CI installations do
+  not race database generation against package type checks.
 - Moved 2FA password confirmation into the Security workflow and made all
   archive footer controls managed menu records.
 
