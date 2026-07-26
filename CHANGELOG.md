@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a four-phase `songqi.org` launch plan covering clean-room debranding,
+  the approved-admin design gate, workspace consolidation, and production
+  cutover verification.
 - Added persistent Memory view counts and one-level grouped Footer Menu items.
 - Added an independent first-administrator bootstrap token with an atomic
   PostgreSQL setup claim, two-stage setup throttling, and admin setup UI.
