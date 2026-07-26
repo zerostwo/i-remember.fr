@@ -9,6 +9,7 @@ import {
   MemoryController,
   PageController,
   PublicContentController,
+  ReadinessController,
   SearchController,
   SettingController,
   UserController,
@@ -20,6 +21,7 @@ import {
   PrismaMenuItemRepository,
   PrismaMemoryRepository,
   PrismaPageRepository,
+  PrismaReadinessRepository,
   PrismaSettingRepository,
   PrismaUserRepository,
 } from "./prisma-repositories.js";
@@ -29,6 +31,7 @@ import type {
   MenuItemRepository,
   MemoryRepository,
   PageRepository,
+  ReadinessRepository,
   SettingRepository,
   UserRepository,
 } from "./repositories.js";
@@ -42,6 +45,8 @@ import {
   MemoryService,
   PageService,
   PublicContentService,
+  ReadinessService,
+  RuntimeSettingsService,
   SettingService,
   UserService,
 } from "./services.js";
@@ -72,6 +77,7 @@ export type ApiDependencies = {
   pages?: PageRepository;
   menuItems?: MenuItemRepository;
   settings?: SettingRepository;
+  readiness?: ReadinessRepository;
   storage?: StorageAdapter;
 };
 
@@ -83,7 +89,9 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   const pageRepository = dependencies.pages || new PrismaPageRepository();
   const menuItemRepository = dependencies.menuItems || new PrismaMenuItemRepository();
   const settingRepository = dependencies.settings || new PrismaSettingRepository();
-  const memoryService = new MemoryService(memoryRepository);
+  const readinessRepository = dependencies.readiness || new PrismaReadinessRepository();
+  const runtimeSettingsService = new RuntimeSettingsService(settingRepository);
+  const memoryService = new MemoryService(memoryRepository, runtimeSettingsService);
   const userService = new UserService(userRepository);
   const assetService = new AssetService(assetRepository, dependencies.storage);
   const commentService = new CommentService(commentRepository);
@@ -94,7 +102,8 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
     pageRepository,
     memoryRepository,
   );
-  const settingService = new SettingService(settingRepository);
+  const settingService = new SettingService(runtimeSettingsService);
+  const readinessService = new ReadinessService(readinessRepository);
   const dashboardService = new DashboardService(memoryRepository, userRepository);
   const agentService = new AgentService(memoryService);
   const authService = new AuthService(userRepository);
@@ -109,6 +118,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   const menuItems = new MenuItemController(menuItemService);
   const publicContent = new PublicContentController(publicContentService);
   const settings = new SettingController(settingService);
+  const readiness = new ReadinessController(readinessService);
   const auth = new AuthController(authService);
   const router = new Router();
 
@@ -139,6 +149,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   router.add("GET", "/api/v1/public/menu-target/:id", (context) =>
     publicContent.menuTarget(context),
   );
+  router.add("GET", "/api/v1/public/settings", () => settings.publicSettings());
   router.add("GET", "/api/v1/settings", (context) => settings.list(context));
   router.add("PUT", "/api/v1/settings", (context) => settings.update(context));
   router.add("GET", "/api/v1/assets", (context) => assets.list(context));
@@ -153,6 +164,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   router.add("POST", "/api/v1/auth/2fa/setup", (context) => auth.setupTwoFactor(context));
   router.add("POST", "/api/v1/auth/2fa/enable", (context) => auth.enableTwoFactor(context));
   router.add("POST", "/api/v1/auth/2fa/disable", (context) => auth.disableTwoFactor(context));
+  router.add("GET", "/readyz", (context) => readiness.status(context));
 
   return router;
 }

@@ -73,7 +73,10 @@ function verifySignedToken(token: string, secret: string): Principal | null {
       .toLowerCase();
     if (!email || !isRole(payload.role) || payload.role === "ANONYMOUS") return null;
     const issuedAt = Number(payload.iat || 0);
-    if (!Number.isFinite(issuedAt) || Math.floor(Date.now() / 1000) - issuedAt > TOKEN_MAX_AGE_SECONDS) {
+    if (
+      !Number.isFinite(issuedAt) ||
+      Math.floor(Date.now() / 1000) - issuedAt > TOKEN_MAX_AGE_SECONDS
+    ) {
       return null;
     }
     const id = String(payload.id || "").trim();
@@ -210,7 +213,8 @@ export function totpUri(user: UserRecord, secret: string) {
 }
 
 export function protectTotpSecret(secret: string) {
-  if (!authSecret()) throw new ApiError(503, "Admin login is not configured", "auth_not_configured");
+  if (!authSecret())
+    throw new ApiError(503, "Admin login is not configured", "auth_not_configured");
   const key = createHash("sha256").update(authSecret()).digest();
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
@@ -224,7 +228,8 @@ export function protectTotpSecret(secret: string) {
 export function unprotectTotpSecret(value: string) {
   const stored = String(value || "");
   if (!stored.startsWith("enc:v1:")) return stored;
-  if (!authSecret()) throw new ApiError(503, "Admin login is not configured", "auth_not_configured");
+  if (!authSecret())
+    throw new ApiError(503, "Admin login is not configured", "auth_not_configured");
   const [, , ivText, tagText, encryptedText] = stored.split(":");
   try {
     const key = createHash("sha256").update(authSecret()).digest();

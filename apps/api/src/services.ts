@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
 import { createLocalStorage, type StorageAdapter } from "@i-remember/storage";
 import type {
@@ -40,19 +41,122 @@ import type {
   MemoryListQuery,
   MemoryRepository,
   PageRepository,
+  ReadinessRepository,
   SettingRepository,
   UserRepository,
 } from "./repositories.js";
 import { ApiError } from "./errors.js";
 
+export type RuntimeSettings = {
+  defaultLanguage: "en" | "fr" | "zh";
+  anonymousSubmissions: boolean;
+  tracking: {
+    enabled: boolean;
+    umamiSrc: string;
+    umamiWebsiteId: string;
+  };
+};
+
+function environmentBoolean(value: unknown, fallback: boolean) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
+function runtimeBoolean(value: unknown, fallback: boolean) {
+  if (typeof value === "boolean") return value;
+  return environmentBoolean(value, fallback);
+}
+
+function initialRuntimeSettings(): RuntimeSettings {
+  const configuredLanguage = String(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en").toLowerCase();
+  const defaultLanguage = ["en", "fr", "zh"].includes(configuredLanguage)
+    ? (configuredLanguage as RuntimeSettings["defaultLanguage"])
+    : "en";
+  const umamiSrc = String(process.env.UMAMI_SRC || "");
+  const umamiWebsiteId = String(process.env.UMAMI_WEBSITE_ID || "");
+  return {
+    defaultLanguage,
+    anonymousSubmissions: environmentBoolean(process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS, false),
+    tracking: {
+      enabled: Boolean(umamiSrc && umamiWebsiteId),
+      umamiSrc,
+      umamiWebsiteId,
+    },
+  };
+}
+
+function normalizedRuntimeSettings(values: Record<string, unknown>): RuntimeSettings {
+  const language = String(values.defaultLanguage || "").toLowerCase();
+  const tracking =
+    values.tracking && typeof values.tracking === "object" && !Array.isArray(values.tracking)
+      ? (values.tracking as Record<string, unknown>)
+      : {};
+  return {
+    defaultLanguage: ["en", "fr", "zh"].includes(language)
+      ? (language as RuntimeSettings["defaultLanguage"])
+      : "en",
+    anonymousSubmissions: runtimeBoolean(values.anonymousSubmissions, false),
+    tracking: {
+      enabled: runtimeBoolean(tracking.enabled, false),
+      umamiSrc: typeof tracking.umamiSrc === "string" ? tracking.umamiSrc : "",
+      umamiWebsiteId: typeof tracking.umamiWebsiteId === "string" ? tracking.umamiWebsiteId : "",
+    },
+  };
+}
+
+export class RuntimeSettingsService {
+  constructor(private readonly settings: SettingRepository) {}
+
+  private async ensureRecords() {
+    const records = await this.settings.list();
+    const existing = new Set(records.map((record) => record.key));
+    const defaults = initialRuntimeSettings();
+    const missing = Object.fromEntries(
+      Object.entries(defaults).filter(([key]) => !existing.has(key)),
+    );
+    if (Object.keys(missing).length) {
+      await this.settings.upsertMany(missing);
+      return this.settings.list();
+    }
+    return records;
+  }
+
+  async current() {
+    const records = await this.ensureRecords();
+    return normalizedRuntimeSettings(
+      Object.fromEntries(records.map((record) => [record.key, record.value])),
+    );
+  }
+
+  listRecords() {
+    return this.ensureRecords();
+  }
+
+  async upsertMany(values: Record<string, unknown>) {
+    await this.settings.upsertMany(values);
+    return this.ensureRecords();
+  }
+}
+
 function isRealPublicMemory(memory: MemoryRecord | null) {
   if (!memory || memory.status !== "NORMAL" || memory.visibility !== "PUBLIC") return false;
   const content = memory.content.trim();
-  return Boolean(content) && !/^#?\s*untitled memor(?:y|oy)\b/i.test(content) && !/^untitled memor(?:y|oy)$/i.test(memory.title.trim());
+  return (
+    Boolean(content) &&
+    !/^#?\s*untitled memor(?:y|oy)\b/i.test(content) &&
+    !/^untitled memor(?:y|oy)$/i.test(memory.title.trim())
+  );
 }
 
 export class MemoryService {
-  constructor(private readonly memories: MemoryRepository) {}
+  constructor(
+    private readonly memories: MemoryRepository,
+    private readonly runtimeSettings: RuntimeSettingsService,
+  ) {}
 
   async list(principal: Principal, query: MemoryListQuery) {
     if (
@@ -75,7 +179,27 @@ export class MemoryService {
     return memory;
   }
 
-  create(input: MemoryInput) {
+  async create(principal: Principal, input: MemoryInput) {
+    if (principal.role === "ANONYMOUS") {
+      const settings = await this.runtimeSettings.current();
+      if (!settings.anonymousSubmissions) {
+        throw new ApiError(
+          403,
+          "Anonymous memory submissions are disabled",
+          "anonymous_submissions_disabled",
+        );
+      }
+      return this.memories.create({
+        ...input,
+        publicId: undefined,
+        authorId: undefined,
+        visibility: "PUBLIC",
+        status: "NORMAL",
+        embedding: undefined,
+        aiSummary: undefined,
+        knowledgeGraph: undefined,
+      });
+    }
     return this.memories.create(input);
   }
 
@@ -110,7 +234,8 @@ export class AuthService {
   constructor(private readonly users: UserRepository) {}
 
   async status() {
-    return { needsSetup: (await this.users.count()) === 0 };
+    const needsSetup = (await this.users.count()) === 0;
+    return { needsSetup, bootstrapTokenRequired: needsSetup };
   }
 
   async login(input: Record<string, unknown>) {
@@ -144,10 +269,20 @@ export class AuthService {
     throw new ApiError(401, "Invalid two-factor code", "invalid_two_factor");
   }
 
-  async setup(input: Record<string, unknown>) {
-    if ((await this.users.count()) > 0) {
-      throw new ApiError(409, "Admin user already exists", "admin_exists");
+  assertBootstrapToken(providedBootstrapToken: string) {
+    const configuredBootstrapToken = String(process.env.I_REMEMBER_SETUP_TOKEN || "");
+    if (!configuredBootstrapToken) {
+      throw new ApiError(503, "First-admin setup is not configured", "setup_not_configured");
     }
+    const expectedDigest = createHash("sha256").update(configuredBootstrapToken).digest();
+    const providedDigest = createHash("sha256").update(providedBootstrapToken).digest();
+    if (!timingSafeEqual(expectedDigest, providedDigest)) {
+      throw new ApiError(401, "Invalid bootstrap token", "invalid_bootstrap_token");
+    }
+  }
+
+  async setup(input: Record<string, unknown>, providedBootstrapToken: string) {
+    this.assertBootstrapToken(providedBootstrapToken);
     const email = String(input.email || "")
       .trim()
       .toLowerCase();
@@ -158,7 +293,7 @@ export class AuthService {
     if (password.length < 12) {
       throw new ApiError(400, "Password must be at least 12 characters", "weak_password");
     }
-    const user = await this.users.create({
+    const user = await this.users.createFirstAdmin({
       email,
       passwordHash: hashPassword(password),
       role: "ADMIN",
@@ -367,16 +502,50 @@ export class PublicContentService {
 }
 
 export class SettingService {
-  constructor(private readonly settings: SettingRepository) {}
+  constructor(private readonly settings: RuntimeSettingsService) {}
 
   list(principal: Principal) {
     requireRole(principal, ["ADMIN"]);
-    return this.settings.list();
+    return this.settings.listRecords();
   }
 
   upsertMany(principal: Principal, values: Record<string, unknown>) {
     requireRole(principal, ["ADMIN"]);
     return this.settings.upsertMany(values);
+  }
+
+  publicSettings() {
+    return this.settings.current();
+  }
+}
+
+export class ReadinessService {
+  constructor(private readonly readiness: ReadinessRepository) {}
+
+  async status() {
+    const configuredTimeout = Number.parseInt(
+      String(process.env.API_READINESS_TIMEOUT_MS || ""),
+      10,
+    );
+    const timeoutMs =
+      Number.isFinite(configuredTimeout) && configuredTimeout >= 250 && configuredTimeout <= 10_000
+        ? configuredTimeout
+        : 2000;
+    let timeout: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        this.readiness.check(),
+        new Promise<never>((_resolve, reject) => {
+          timeout = setTimeout(() => reject(new Error("readiness timeout")), timeoutMs);
+          timeout.unref();
+        }),
+      ]);
+      return { ok: true, service: "api", database: "ready" as const };
+    } catch {
+      return { ok: false, service: "api", database: "unavailable" as const };
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 }
 

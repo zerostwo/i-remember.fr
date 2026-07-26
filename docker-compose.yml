@@ -3,41 +3,53 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:-latest}
+    image: ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:?Set TAG to an immutable sha-* or release version}
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 45s
     ports:
-      - "7890:7890"
+      - "127.0.0.1:${I_REMEMBER_HOST_PORT:-7892}:7890"
+    security_opt:
+      - no-new-privileges:true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       HOST: 0.0.0.0
       PORT: 7890
       API_HOST: 127.0.0.1
       API_PORT: 7892
       API_BASE_URL: http://127.0.0.1:7892
+      API_TRUST_PROXY: ${API_TRUST_PROXY:-true}
+      I_REMEMBER_TRUST_PROXY: ${I_REMEMBER_TRUST_PROXY:-false}
+      I_REMEMBER_TRUSTED_PROXY_PEERS: ${I_REMEMBER_TRUSTED_PROXY_PEERS:-host.docker.internal}
       AUTH_SECRET: ${AUTH_SECRET:-}
+      I_REMEMBER_SETUP_TOKEN: ${I_REMEMBER_SETUP_TOKEN:-}
+      POSTGRES_MAJOR: 15
       POSTGRES_DB: ${POSTGRES_DB:-i_remember}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
       STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-/uploads}
-      API_MAX_JSON_BODY_BYTES: ${API_MAX_JSON_BODY_BYTES:-12582912}
+      API_MAX_STANDARD_JSON_BODY_BYTES: ${API_MAX_STANDARD_JSON_BODY_BYTES:-262144}
+      API_MAX_ASSET_JSON_BODY_BYTES: ${API_MAX_ASSET_JSON_BODY_BYTES:-12582912}
       I_REMEMBER_DATA_DIR: /var/opt/i-remember.fr
       I_REMEMBER_DEFAULT_LANGUAGE: ${I_REMEMBER_DEFAULT_LANGUAGE:-en}
-      I_REMEMBER_ANONYMOUS_SUBMISSIONS: ${I_REMEMBER_ANONYMOUS_SUBMISSIONS:-true}
+      I_REMEMBER_ANONYMOUS_SUBMISSIONS: ${I_REMEMBER_ANONYMOUS_SUBMISSIONS:-false}
       I_REMEMBER_MAX_UPLOAD_BYTES: ${I_REMEMBER_MAX_UPLOAD_BYTES:-8388608}
       I_REMEMBER_MAX_IMAGE_PIXELS: ${I_REMEMBER_MAX_IMAGE_PIXELS:-30000000}
-      I_REMEMBER_SEED_ARCHIVE_DATA: ${I_REMEMBER_SEED_ARCHIVE_DATA:-false}
-      I_REMEMBER_SEED_STARTER_CONTENT: ${I_REMEMBER_SEED_STARTER_CONTENT:-false}
       UMAMI_SRC: ${UMAMI_SRC:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     volumes:
       - app-data:/var/opt/i-remember.fr
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'node -e "fetch(''http://127.0.0.1:7890/healthz'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
-        ]
+      test: ["CMD", "/usr/local/bin/i-remember-healthcheck"]
       interval: 30s
-      timeout: 5s
+      timeout: 8s
       retries: 3
-      start_period: 30s
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
 volumes:
   app-data:

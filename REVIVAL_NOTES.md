@@ -1,5 +1,9 @@
 # I Remember Revival Notes
 
+> Historical reconstruction record. Route and production behavior described
+> here may predate the current PostgreSQL/v1 product contract in `AGENTS.md`,
+> `BACKEND.md`, and `docs/deployment.md`.
+
 Source studied:
 
 - `https://web.archive.org/web/20140430235338/http://i-remember.fr/en/`

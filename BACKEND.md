@@ -48,14 +48,15 @@ compatibility should not be preserved.
 
 ## Public Safety Defaults
 
-- Anonymous public memory submission can be disabled through settings or
-  `I_REMEMBER_ANONYMOUS_SUBMISSIONS=false`.
-- Public archive submissions default to the site moderation policy controlled
-  by `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`.
+- Anonymous public memory submission is disabled by default and can be enabled
+  explicitly through settings or `I_REMEMBER_ANONYMOUS_SUBMISSIONS=true`.
+- Enabled public archive submissions publish immediately as `NORMAL` and
+  `PUBLIC`; there is no anonymous auto-approval configuration switch.
 - v1 anonymous memory creates are accepted, but pending/private management views
   require an admin bearer token.
-- Uploads are capped by `I_REMEMBER_MAX_UPLOAD_BYTES` or
-  `API_MAX_JSON_BODY_BYTES` depending on the runtime path.
+- Uploads are capped by `I_REMEMBER_MAX_UPLOAD_BYTES` and encoded asset request
+  bodies by `API_MAX_ASSET_JSON_BODY_BYTES`; ordinary JSON bodies use the much
+  smaller `API_MAX_STANDARD_JSON_BODY_BYTES` limit.
 - User content serialized into legacy inline scripts is escaped before it enters
   the page.
 - The restored archive still requires legacy inline/eval-compatible browser
@@ -71,9 +72,9 @@ pnpm start
 pnpm db:migrate
 ```
 
-Docker Compose provides `web`, `admin`, `api`, and `postgres` services. Compose
-syntax can be validated with:
+Docker Compose provides one `app` service containing Web, API, and embedded
+PostgreSQL 15 processes. Compose syntax can be validated with:
 
 ```bash
-docker compose config --quiet
+TAG=sha-0123456789ab docker compose config --quiet
 ```

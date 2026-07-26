@@ -22,8 +22,8 @@ image for self-hosted production.
 - `packages/database`: PostgreSQL Prisma schema, SQL migrations, and client.
 - `packages/storage`: local filesystem and S3-compatible `upload/delete/getUrl`
   adapter.
-- Anonymous public memory submission with moderation status; new submissions are
-  public immediately unless moderation is explicitly enabled.
+- Anonymous public memory submission; when enabled, valid submissions publish
+  immediately as public memories.
 - Admin modules for Dashboard, Memory, Pages, Comments, Attachments, Theme,
   Menus, Settings, and Backups.
 - Settings for default language, anonymous submissions, and self-hosted Umami
@@ -46,8 +46,10 @@ server still listens on `PORT` and `HOST`; the default local URL is
 
 Admin is available at `/admin/`.
 
-On a fresh database, the first visit redirects to `/admin/setup` so you can
-create the first administrator.
+On a fresh database, the first visit redirects to `/admin/setup`. The
+first-admin form requires the separate bootstrap token persisted as
+`/var/opt/i-remember.fr/setup-token`; see the production deployment guide for
+the trusted local retrieval command.
 
 The running app exposes its build version at `/version`.
 
@@ -58,43 +60,51 @@ Simple self-hosted deployment uses one image and one persistent volume:
 ```bash
 docker run -d \
   --name i-remember.fr \
-  -p 7892:7890 \
+  -p 127.0.0.1:7892:7890 \
   -v ~/.i-remember.fr:/var/opt/i-remember.fr \
-  zerostwo/i-remember.fr:latest
+  zerostwo/i-remember.fr@sha256:<verified-manifest-digest>
 ```
 
 Open `http://localhost:7892`.
 
 The single image starts the public web server, API server, and an internal
-PostgreSQL database. The mounted directory stores PostgreSQL data, uploads, and
-the generated auth secret. Runtime logs are written to
+PostgreSQL database. The mounted directory stores PostgreSQL data, uploads, the
+generated auth secret, and the first-admin setup token. Runtime logs are written to
 `/var/opt/i-remember.fr/logs/` inside the container, which maps into the mounted
 volume as `logs/startup.log`, `logs/app.log`, and `logs/postgres.log`.
 
-For local service-level debugging, Compose can still run the split services:
+Compose runs the same single-image topology, binds it to loopback port `7892`
+by default, monitors PostgreSQL/API/Web readiness, and restarts it unless
+explicitly stopped:
 
 ```bash
-docker compose up -d --build
+docker compose config --quiet
+docker compose up -d --no-build app
 ```
 
-Compose provides `web`, `admin`, `api`, and `postgres` services.
+See [Production deployment](docs/deployment.md) for immutable image selection,
+TLS/reverse-proxy setup, backups, blue-green restore, monitoring, and PostgreSQL
+major-version upgrades.
 
 ## Configuration
 
-Copy `.env.example` into your deployment environment and set at least:
+Copy `.env.example` into your deployment environment. The single-image runtime
+generates its internal PostgreSQL URL, storage path, and authentication secret;
+the auth and setup credentials are persisted in the data volume and included
+in protected backup bundles. Common production settings are:
 
-- `DATABASE_URL`: PostgreSQL connection string for `apps/api`.
-- `AUTH_SECRET`: bearer-token secret for admin API access.
-- `STORAGE_PATH`: local asset storage directory.
-- `I_REMEMBER_DATA_DIR`: public archive runtime data directory.
+- `I_REMEMBER_HOST_PORT`: loopback host port, default `7892`.
+- `I_REMEMBER_SETUP_TOKEN`: optional strong first-admin bootstrap credential;
+  leave empty to generate and persist one, then retrieve it locally.
+- `API_TRUST_PROXY`: `true` only for the supplied single-image topology, whose
+  loopback web proxy sanitizes forwarding headers before the private API.
+- `I_REMEMBER_TRUST_PROXY`: enable only when a trusted reverse proxy connects
+  over loopback and replaces client forwarding headers.
+- `I_REMEMBER_TRUSTED_PROXY_PEERS`: exact IPs or hostnames allowed to supply the
+  rebuilt visitor address; Compose resolves `host.docker.internal` to its host
+  gateway by default.
 - `I_REMEMBER_DEFAULT_LANGUAGE`: `en`, `fr`, or `zh`.
 - `I_REMEMBER_ANONYMOUS_SUBMISSIONS`: `true` or `false`.
-- `I_REMEMBER_AUTO_APPROVE_SUBMISSIONS`: `true` by default so public submissions
-  appear in search immediately; set `false` when you want manual moderation.
-- `I_REMEMBER_SEED_ARCHIVE_DATA`: set `true` only when you want to import the
-  restored public archive into a fresh database.
-- `I_REMEMBER_SEED_STARTER_CONTENT`: set `true` only when you want starter
-  pages and footer menu items in a fresh database.
 - `UMAMI_SRC` and `UMAMI_WEBSITE_ID` for self-hosted Umami tracking.
 
 ## Repository Hygiene
@@ -119,6 +129,8 @@ PostgreSQL migration source lives in `packages/database/prisma/migrations/`.
   `zerostwo/i-remember.fr` on pushes to `main`.
 - Pushes to `main` publish `latest` and `sha-<commit>`. Pushing a `vX.Y.Z` Git
   tag publishes `X.Y.Z`, `latest`, and `sha-<commit>`.
+- Production records the resolved digest and deploys that digest or its matching
+  `sha-<commit>` reference; `latest` is not a rollback target.
 
 ## License Position
 

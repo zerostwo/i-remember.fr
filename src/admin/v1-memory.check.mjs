@@ -24,6 +24,17 @@ assert.equal(payload.attachments[0].url, "/uploads/posts/photo-1/resized.jpg");
 assert.equal(v1MemoryPayload({}).title, "");
 assert.equal(v1MemoryPayload({}).content, "");
 assert.equal(v1MemoryPayload({ title: "Long", bodyMarkdown: "x".repeat(221) }).metadata.isLongForm, true);
+assert.equal(v1MemoryPayload({ status: "pending" }).status, "PENDING");
+assert.equal(v1MemoryPayload({ status: "draft" }).status, "PENDING");
+assert.equal(
+  v1MemoryPayload({ status: "pending", dbStatus: "NORMAL" }).status,
+  "PENDING",
+);
+assert.equal(
+  v1MemoryPayload({ status: "published", dbStatus: "PENDING" }).status,
+  "NORMAL",
+);
+assert.equal(v1MemoryPayload({ defaultLanguage: "zh" }).metadata.language, "zh");
 
 const patchedCalls = [];
 const patched = await syncV1Memory(async (path, options = {}) => {
@@ -54,6 +65,26 @@ assert.equal(JSON.parse(createdCalls[1].options.body).legacyId, undefined);
 assert.equal(createdCalls[2].options.method, "PATCH");
 assert.equal(JSON.parse(createdCalls[2].options.body).publicId, undefined);
 assert.equal(JSON.parse(createdCalls[2].options.body).legacyId, undefined);
+
+const defaultLanguageCalls = [];
+const pending = await syncV1Memory(async (path, options = {}) => {
+  defaultLanguageCalls.push({ path, options });
+  if (path === "/api/v1/settings") return { defaultLanguage: "zh" };
+  return { id: "pub_pending", status: "PENDING" };
+}, {
+  title: "Pending",
+  content: "Not published yet",
+  status: "pending",
+  language: "en",
+  metadata: {},
+});
+
+assert.equal(pending.status, "PENDING");
+assert.equal(defaultLanguageCalls[0].path, "/api/v1/settings");
+assert.equal(defaultLanguageCalls[1].path, "/api/v1/memories");
+assert.equal(JSON.parse(defaultLanguageCalls[1].options.body).status, "PENDING");
+assert.equal(JSON.parse(defaultLanguageCalls[1].options.body).metadata.language, "zh");
+assert.equal(defaultLanguageCalls.length, 2);
 
 const archivedCalls = [];
 await archiveV1Memory(async (path, options = {}) => {

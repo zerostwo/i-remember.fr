@@ -1,5 +1,7 @@
 import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { lookup } from "node:dns/promises";
 import { createServer } from "node:http";
+import { isIP } from "node:net";
 import { extname, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -11,6 +13,10 @@ const host = process.env.HOST || "127.0.0.1";
 const port = Number.parseInt(process.env.PORT || "7890", 10);
 const apiBaseUrl = process.env.API_BASE_URL || "";
 const adminOnly = process.env.I_REMEMBER_ADMIN_ONLY === "true";
+const trustOuterProxy = enabled(process.env.I_REMEMBER_TRUST_PROXY);
+const trustedOuterProxyPeers = trustOuterProxy
+  ? await resolveTrustedProxyPeers(process.env.I_REMEMBER_TRUSTED_PROXY_PEERS)
+  : new Set();
 const storagePublicBaseUrl = normalizeProxyPath(process.env.STORAGE_PUBLIC_BASE_URL || "/uploads");
 const packageJson = JSON.parse(readFileSync(resolve(rootDir, "package.json"), "utf8"));
 const hopByHopHeaders = new Set([
@@ -72,6 +78,74 @@ function normalizeProxyPath(value) {
   return normalized === "/" ? "/uploads" : normalized;
 }
 
+function enabled(value) {
+  return ["1", "true", "yes", "on"].includes(
+    String(value || "")
+      .trim()
+      .toLowerCase(),
+  );
+}
+
+function firstHeaderValue(value) {
+  return (Array.isArray(value) ? value[0] : value || "").split(",")[0]?.trim() || "";
+}
+
+function normalizedAddress(address) {
+  const normalized = String(address || "")
+    .trim()
+    .toLowerCase();
+  const mapped = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  return mapped ? mapped[1] : normalized;
+}
+
+function isLoopback(address) {
+  const normalized = normalizedAddress(address);
+  return normalized === "::1" || normalized === "127.0.0.1" || normalized.startsWith("127.");
+}
+
+async function resolveTrustedProxyPeers(value) {
+  const resolved = new Set();
+  for (const peer of String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)) {
+    if (isIP(peer)) {
+      resolved.add(normalizedAddress(peer));
+      continue;
+    }
+    try {
+      for (const address of await lookup(peer, { all: true, verbatim: true })) {
+        resolved.add(normalizedAddress(address.address));
+      }
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: "warn",
+          component: "web",
+          event: "trusted_proxy_resolution_failed",
+          peer,
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+  }
+  return resolved;
+}
+
+function trustedProxyPeer(req) {
+  const address = normalizedAddress(req.socket.remoteAddress);
+  return isLoopback(address) || trustedOuterProxyPeers.has(address);
+}
+
+function trustedForwardedAddress(req) {
+  if (!trustOuterProxy || !trustedProxyPeer(req)) return "";
+  const raw = firstHeaderValue(req.headers["x-forwarded-for"]);
+  if (!raw || raw.length > 64) return "";
+  const candidate = raw.startsWith("[") && raw.endsWith("]") ? raw.slice(1, -1) : raw;
+  return isIP(candidate) ? candidate : "";
+}
+
 function sendStatus(res, statusCode, message) {
   res.statusCode = statusCode;
   setSecurityHeaders(res);
@@ -109,9 +183,22 @@ async function proxyApi(req, res, target) {
   const url = new URL(req.url || "/", "http://i-remember.local");
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
-    if (value === undefined || hopByHopHeaders.has(name.toLowerCase())) continue;
+    const normalizedName = name.toLowerCase();
+    if (
+      value === undefined ||
+      hopByHopHeaders.has(normalizedName) ||
+      normalizedName === "forwarded" ||
+      normalizedName.startsWith("x-forwarded-")
+    ) {
+      continue;
+    }
     headers.set(name, Array.isArray(value) ? value.join(", ") : value);
   }
+  const clientAddress = trustedForwardedAddress(req) || req.socket.remoteAddress || "unknown";
+  const originalHost = String(req.headers.host || "").trim();
+  headers.set("X-Forwarded-For", clientAddress);
+  if (originalHost) headers.set("X-Forwarded-Host", originalHost);
+  headers.set("X-Forwarded-Proto", req.socket.encrypted ? "https" : "http");
 
   try {
     const upstream = await fetch(target, {

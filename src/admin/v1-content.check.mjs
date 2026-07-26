@@ -27,18 +27,23 @@ assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", statu
 assert.equal(v1PageMemory({ linkedMemoryId: "m00000000000000009003", status: "PUBLISHED" }).publicId, "m00000000000000009003");
 assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "PUBLISHED" }).legacyId, undefined);
 assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "PUBLISHED" }).dbStatus, "NORMAL");
-assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "DRAFT" }).dbStatus, "ARCHIVED");
+assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "published" }).dbStatus, "NORMAL");
+assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "DRAFT" }).dbStatus, "PENDING");
+assert.equal(v1PageMemory({ linkedMemoryPublicId: "m00000000000000009002", status: "ARCHIVED" }).dbStatus, "ARCHIVED");
 assert.equal(v1PageMemory({}), null);
 
 assert.equal(v1MenuItemPayload({ id: 2, label: "About", type: "PAGE" }).uid, "menu-2");
 assert.equal(v1MenuItemPayload({ id: 3, label: "More", type: "GROUP" }).type, "GROUP");
 assert.equal(v1MenuItemPayload({ id: 4, label: "About", parentId: "group-1" }).metadata.parentId, "group-1");
+assert.equal(v1PagePayload({ slug: "about", defaultLanguage: "zh" }).language, "zh");
+assert.equal(v1MenuItemPayload({ label: "About", siteDefaultLanguage: "fr" }).language, "fr");
 assert.equal(v1SettingsPayload({ defaultLanguage: "zh", tracking: { enabled: true } }).defaultLanguage, "zh");
 
 const calls = [];
 const menuItems = [{ id: "v1-menu", uid: "menu-2", metadata: { sourceRowId: 2 } }];
 async function v1Api(path, options = {}) {
   calls.push({ path, options });
+  if (path === "/api/v1/settings") return { defaultLanguage: "zh" };
   if (path.startsWith("/api/v1/pages/")) throw new Error("not found");
   if (path.startsWith("/api/v1/menu-items?")) return menuItems;
   return { id: "ok" };
@@ -46,10 +51,12 @@ async function v1Api(path, options = {}) {
 
 await syncV1Page(v1Api, { id: 7, slug: "about", title: "About" });
 assert.equal(calls.at(-1).path, "/api/v1/pages");
+assert.equal(JSON.parse(calls.at(-1).options.body).language, "zh");
 
 await syncV1MenuItem(v1Api, { id: 2, label: "About", type: "PAGE" });
 assert.equal(calls.at(-1).path, "/api/v1/menu-items/v1-menu");
 assert.equal(calls.at(-1).options.method, "PATCH");
+assert.equal(JSON.parse(calls.at(-1).options.body).language, "zh");
 
 await deleteV1MenuItem(v1Api, { id: 2, label: "About", type: "PAGE" });
 assert.equal(calls.at(-1).options.method, "DELETE");

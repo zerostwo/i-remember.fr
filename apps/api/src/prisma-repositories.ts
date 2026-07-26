@@ -30,6 +30,7 @@ import type {
   MemoryListQuery,
   MemoryRepository,
   PageRepository,
+  ReadinessRepository,
   SettingRepository,
   UserRepository,
 } from "./repositories.js";
@@ -460,6 +461,44 @@ export class PrismaUserRepository implements UserRepository {
     );
   }
 
+  async createFirstAdmin(input: UserCreateInput) {
+    try {
+      return await this.db.$transaction(
+        async (transaction) => {
+          await transaction.bootstrapClaim.create({
+            data: { key: "first-admin" },
+          });
+          if ((await transaction.user.count()) > 0) {
+            throw new ApiError(409, "Admin user already exists", "admin_exists");
+          }
+          const row = await transaction.user.create({
+            data: {
+              email: input.email,
+              passwordHash: input.passwordHash,
+              role: "ADMIN",
+            },
+          });
+          await transaction.bootstrapClaim.update({
+            where: { key: "first-admin" },
+            data: { userId: row.id },
+          });
+          return user(row);
+        },
+        { isolationLevel: "Serializable" },
+      );
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? String((error as { code?: unknown }).code || "")
+          : "";
+      if (code === "P2002" || code === "P2034") {
+        throw new ApiError(409, "Admin user already exists", "admin_exists");
+      }
+      throw error;
+    }
+  }
+
   async update(id: string, input: UserUpdateInput) {
     return user(
       await this.db.user.update({
@@ -612,6 +651,14 @@ export class PrismaSettingRepository implements SettingRepository {
       ),
     );
     return rows.map(setting);
+  }
+}
+
+export class PrismaReadinessRepository implements ReadinessRepository {
+  constructor(private readonly db = getPrismaClient()) {}
+
+  async check() {
+    await this.db.$queryRaw`SELECT 1`;
   }
 }
 

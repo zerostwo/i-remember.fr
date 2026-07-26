@@ -8,7 +8,13 @@ import type {
   UserRecord,
 } from "./domain.js";
 import { ApiError } from "./errors.js";
-import { readJson, type RequestContext } from "./http.js";
+import { JSON_BODY_LIMITS, readJson, type RequestContext } from "./http.js";
+import {
+  assertRateLimit,
+  assertSafeWriteOrigin,
+  requestClientAddress,
+  REQUEST_RATE_LIMITS,
+} from "./request-security.js";
 import {
   AgentService,
   AssetService,
@@ -19,6 +25,7 @@ import {
   MemoryService,
   PageService,
   PublicContentService,
+  ReadinessService,
   SettingService,
   UserService,
 } from "./services.js";
@@ -181,15 +188,22 @@ export class MemoryController {
   }
 
   async create(context: RequestContext) {
+    assertSafeWriteOrigin(context.req);
+    const principal = authenticate(context.req);
+    if (principal.role === "ANONYMOUS") {
+      assertRateLimit(context.res, {
+        bucket: "anonymous-memory",
+        identity: requestClientAddress(context.req),
+        ...REQUEST_RATE_LIMITS.anonymousSubmission,
+      });
+    }
     const input = memoryInput(await readJson(context.req));
     const hasAiFields =
       input.embedding !== undefined ||
       input.aiSummary !== undefined ||
       input.knowledgeGraph !== undefined;
-    let includePrivate = false;
+    const includePrivate = principal.role === "ADMIN";
     if (input.authorId || input.publicId !== undefined || hasAiFields) {
-      const principal = authenticate(context.req);
-      includePrivate = principal.role === "ADMIN";
       if (input.publicId !== undefined) {
         requireRole(principal, ["ADMIN"]);
       }
@@ -204,9 +218,9 @@ export class MemoryController {
       }
     }
     if (input.status && input.status !== "NORMAL") {
-      requireRole(authenticate(context.req), ["ADMIN"]);
+      requireRole(principal, ["ADMIN"]);
     }
-    const data = await this.memories.create(input);
+    const data = await this.memories.create(principal, input);
     context.res.statusCode = 201;
     return { success: true, data: memoryDto(data, includePrivate) };
   }
@@ -390,6 +404,20 @@ export class SettingController {
     );
     return { success: true, data: settingsDto(data) };
   }
+
+  async publicSettings() {
+    return { success: true, data: await this.settings.publicSettings() };
+  }
+}
+
+export class ReadinessController {
+  constructor(private readonly readiness: ReadinessService) {}
+
+  async status(context: RequestContext) {
+    const data = await this.readiness.status();
+    if (!data.ok) context.res.statusCode = 503;
+    return data;
+  }
 }
 
 export class CommentController {
@@ -449,7 +477,11 @@ export class AssetController {
   async upload(context: RequestContext) {
     const data = await this.assets.upload(
       authenticate(context.req),
-      assetUploadInput(await readJson(context.req)),
+      assetUploadInput(
+        await readJson(context.req, {
+          maxBytes: JSON_BODY_LIMITS.assetBytes,
+        }),
+      ),
     );
     context.res.statusCode = 201;
     return { success: true, data };
@@ -477,12 +509,48 @@ export class AuthController {
   }
 
   async login(context: RequestContext) {
-    return { success: true, data: await this.auth.login(await readJson(context.req)) };
+    assertSafeWriteOrigin(context.req);
+    const input = await readJson(context.req);
+    const client = requestClientAddress(context.req);
+    const email = String(input.email || "")
+      .trim()
+      .toLowerCase()
+      .slice(0, 320);
+    assertRateLimit(context.res, {
+      bucket: "auth-login-client",
+      identity: client,
+      ...REQUEST_RATE_LIMITS.loginClient,
+    });
+    assertRateLimit(context.res, {
+      bucket: "auth-login-account",
+      identity: `${client}:${email}`,
+      ...REQUEST_RATE_LIMITS.loginAccount,
+    });
+    return { success: true, data: await this.auth.login(input) };
   }
 
   async setup(context: RequestContext) {
+    assertSafeWriteOrigin(context.req);
+    const client = requestClientAddress(context.req);
+    assertRateLimit(context.res, {
+      bucket: "auth-setup-probe",
+      identity: client,
+      ...REQUEST_RATE_LIMITS.setupProbe,
+    });
+    const input = await readJson(context.req);
+    const headerToken = Array.isArray(context.req.headers["x-i-remember-setup-token"])
+      ? context.req.headers["x-i-remember-setup-token"][0]
+      : context.req.headers["x-i-remember-setup-token"];
+    const bootstrapToken = String(headerToken || input.bootstrapToken || "");
+    this.auth.assertBootstrapToken(bootstrapToken);
+    assertRateLimit(context.res, {
+      bucket: "auth-setup",
+      identity: "first-admin",
+      ...REQUEST_RATE_LIMITS.setup,
+    });
+    const data = await this.auth.setup(input, bootstrapToken);
     context.res.statusCode = 201;
-    return { success: true, data: await this.auth.setup(await readJson(context.req)) };
+    return { success: true, data };
   }
 
   async account(context: RequestContext) {
@@ -491,7 +559,10 @@ export class AuthController {
   }
 
   async updateAccount(context: RequestContext) {
-    const data = await this.auth.updateAccount(authenticate(context.req), await readJson(context.req));
+    const data = await this.auth.updateAccount(
+      authenticate(context.req),
+      await readJson(context.req),
+    );
     return { success: true, data: { account: accountDto(data.account), token: data.token } };
   }
 
@@ -503,7 +574,10 @@ export class AuthController {
   }
 
   async enableTwoFactor(context: RequestContext) {
-    const data = await this.auth.enableTwoFactor(authenticate(context.req), await readJson(context.req));
+    const data = await this.auth.enableTwoFactor(
+      authenticate(context.req),
+      await readJson(context.req),
+    );
     return {
       success: true,
       data: { account: accountDto(data.account), recoveryCodes: data.recoveryCodes },

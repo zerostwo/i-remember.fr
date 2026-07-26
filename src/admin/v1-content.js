@@ -3,9 +3,22 @@ function pageStatus(value) {
   return ["PUBLISHED", "DRAFT", "ARCHIVED"].includes(normalized) ? normalized : "DRAFT";
 }
 
-function language(value) {
-  const normalized = String(value || "en").toLowerCase();
-  return ["en", "fr", "zh"].includes(normalized) ? normalized : "en";
+function language(value, defaultLanguage = "en") {
+  const fallback = String(defaultLanguage || "en").toLowerCase();
+  const normalized = String(value || fallback).toLowerCase();
+  if (["en", "fr", "zh"].includes(normalized)) return normalized;
+  return ["en", "fr", "zh"].includes(fallback) ? fallback : "en";
+}
+
+async function contentLanguage(v1Api, record = {}) {
+  const configured = record.defaultLanguage || record.siteDefaultLanguage;
+  if (record.language || configured) return language(record.language, configured);
+  try {
+    const settings = await v1Api("/api/v1/settings");
+    return language(settings?.defaultLanguage);
+  } catch {
+    return "en";
+  }
 }
 
 function menuType(value) {
@@ -40,10 +53,13 @@ function pageMetadata(record = {}) {
   };
 }
 
-export function v1PagePayload(page = {}) {
+export function v1PagePayload(
+  page = {},
+  defaultLanguage = page.defaultLanguage || page.siteDefaultLanguage || "en",
+) {
   return {
     slug: String(page.slug || "page").trim(),
-    language: language(page.language),
+    language: language(page.language, defaultLanguage),
     title: String(page.title || "Untitled page").trim() || "Untitled page",
     excerpt: String(page.excerpt || "").slice(0, 600),
     bodyMarkdown: String(page.bodyMarkdown || page.body_markdown || ""),
@@ -59,14 +75,22 @@ export function v1PageMemory(page = {}) {
   return {
     publicId,
     uid: page.linkedMemoryUid,
-    language: page.language,
+    language: language(
+      page.language,
+      page.defaultLanguage || page.siteDefaultLanguage || "en",
+    ),
     source: "page",
     title: page.title,
     author: "I Remember",
     excerpt: page.excerpt,
     bodyMarkdown: page.bodyMarkdown,
     isLongForm: true,
-    dbStatus: page.status === "PUBLISHED" ? "NORMAL" : "ARCHIVED",
+    dbStatus:
+      pageStatus(page.status) === "PUBLISHED"
+        ? "NORMAL"
+        : pageStatus(page.status) === "ARCHIVED"
+          ? "ARCHIVED"
+          : "PENDING",
     metadata: {
       ...jsonObject(page.metadataJson ?? page.metadata_json ?? page.metadata),
       pageSlug: page.slug,
@@ -79,7 +103,8 @@ export function v1PageMemory(page = {}) {
 }
 
 export async function syncV1Page(v1Api, page) {
-  const payload = v1PagePayload(page);
+  const defaultLanguage = await contentLanguage(v1Api, page);
+  const payload = v1PagePayload(page, defaultLanguage);
   const path = `/api/v1/pages/${encodeURIComponent(page?.originalSlug || page?.slug || payload.slug)}?language=${encodeURIComponent(payload.language)}`;
   try {
     return await v1Api(path, {
@@ -94,11 +119,14 @@ export async function syncV1Page(v1Api, page) {
   }
 }
 
-export function v1MenuItemPayload(item = {}) {
+export function v1MenuItemPayload(
+  item = {},
+  defaultLanguage = item.defaultLanguage || item.siteDefaultLanguage || "en",
+) {
   const custom = jsonObject(item.metadataJson ?? item.metadata_json ?? item.metadata);
   return {
     uid: String(item.uid || `menu-${item.id || "item"}`),
-    language: language(item.language),
+    language: language(item.language, defaultLanguage),
     label: String(item.label || "Menu item").trim() || "Menu item",
     type: menuType(item.type),
     targetValue: item.targetValue || item.target_value || "",
@@ -114,8 +142,9 @@ export function v1MenuItemPayload(item = {}) {
   };
 }
 
-export async function findV1MenuItem(v1Api, item = {}) {
-  const payload = v1MenuItemPayload(item);
+export async function findV1MenuItem(v1Api, item = {}, defaultLanguage) {
+  const resolvedLanguage = defaultLanguage || await contentLanguage(v1Api, item);
+  const payload = v1MenuItemPayload(item, resolvedLanguage);
   const items = await v1Api(`/api/v1/menu-items?language=${encodeURIComponent(payload.language)}`);
   return (items || []).find((candidate) => {
     const metadata = candidate.metadata || {};
@@ -128,8 +157,9 @@ export async function findV1MenuItem(v1Api, item = {}) {
 }
 
 export async function syncV1MenuItem(v1Api, item) {
-  const payload = v1MenuItemPayload(item);
-  const existing = await findV1MenuItem(v1Api, item).catch(() => null);
+  const defaultLanguage = await contentLanguage(v1Api, item);
+  const payload = v1MenuItemPayload(item, defaultLanguage);
+  const existing = await findV1MenuItem(v1Api, item, defaultLanguage).catch(() => null);
   if (existing) {
     return v1Api(`/api/v1/menu-items/${encodeURIComponent(existing.id)}`, {
       method: "PATCH",

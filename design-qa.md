@@ -1,3 +1,7 @@
+> Historical archive-fidelity audit. Paths and runtime behavior recorded below
+> are evidence from the restoration phase, not the current production route
+> contract.
+
 **Findings**
 - [P2] WebGL particle terrain is still not pixel-identical frame-to-frame
   Location: original WebGL canvas in `public/js/main.js`, rendered inside `.base-3d-container`.

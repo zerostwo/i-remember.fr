@@ -1,12 +1,38 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ApiError, errorBody } from "./errors.js";
 
-const maxJsonBodyBytes = Number.parseInt(
-  process.env.API_MAX_JSON_BODY_BYTES ||
-    process.env.I_REMEMBER_MAX_UPLOAD_BYTES ||
-    `${12 * 1024 * 1024}`,
-  10,
+function boundedEnvironmentInteger(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum ? parsed : fallback;
+}
+
+const rawUploadBytes = boundedEnvironmentInteger(
+  process.env.I_REMEMBER_MAX_UPLOAD_BYTES,
+  12 * 1024 * 1024,
+  64 * 1024,
+  24 * 1024 * 1024,
 );
+
+export const JSON_BODY_LIMITS = {
+  standardBytes: boundedEnvironmentInteger(
+    process.env.API_MAX_STANDARD_JSON_BODY_BYTES,
+    256 * 1024,
+    16 * 1024,
+    2 * 1024 * 1024,
+  ),
+  assetBytes: boundedEnvironmentInteger(
+    process.env.API_MAX_ASSET_JSON_BODY_BYTES || process.env.API_MAX_JSON_BODY_BYTES,
+    Math.ceil((rawUploadBytes * 4) / 3) + 64 * 1024,
+    256 * 1024,
+    32 * 1024 * 1024,
+  ),
+  timeoutMs: boundedEnvironmentInteger(process.env.API_JSON_BODY_TIMEOUT_MS, 15_000, 1000, 60_000),
+} as const;
 
 export type RequestContext = {
   req: IncomingMessage;
@@ -59,21 +85,90 @@ export class Router {
   }
 }
 
-export async function readJson(req: IncomingMessage) {
-  const chunks: Buffer[] = [];
-  let size = 0;
-  for await (const chunk of req) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    size += buffer.length;
-    if (size > maxJsonBodyBytes) {
-      throw new ApiError(413, "Request body too large", "request_too_large");
-    }
-    chunks.push(buffer);
+export type ReadJsonOptions = {
+  maxBytes?: number;
+  timeoutMs?: number;
+};
+
+function contentLength(req: IncomingMessage) {
+  const raw = Array.isArray(req.headers["content-length"])
+    ? req.headers["content-length"][0]
+    : req.headers["content-length"];
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function readBody(req: IncomingMessage, maxBytes: number, timeoutMs: number) {
+  const declaredLength = contentLength(req);
+  if (declaredLength !== null && declaredLength > maxBytes) {
+    req.resume();
+    throw new ApiError(413, "Request body too large", "request_too_large");
   }
 
-  if (!chunks.length) return {};
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let settled = false;
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      req.off("data", onData);
+      req.off("end", onEnd);
+      req.off("aborted", onAborted);
+      req.off("error", onError);
+    };
+    const fail = (error: unknown, drain = false) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (drain) req.resume();
+      reject(error);
+    };
+    const onData = (chunk: Buffer | string) => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += buffer.length;
+      if (size > maxBytes) {
+        fail(new ApiError(413, "Request body too large", "request_too_large"), true);
+        return;
+      }
+      chunks.push(buffer);
+    };
+    const onEnd = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(Buffer.concat(chunks));
+    };
+    const onAborted = () => fail(new ApiError(400, "Request body was aborted", "request_aborted"));
+    const onError = (error: Error) => fail(error);
+    const timer = setTimeout(
+      () => fail(new ApiError(408, "Request body timed out", "request_timeout"), true),
+      timeoutMs,
+    );
+    timer.unref();
+
+    req.on("data", onData);
+    req.once("end", onEnd);
+    req.once("aborted", onAborted);
+    req.once("error", onError);
+  });
+}
+
+export async function readJson(req: IncomingMessage, options: ReadJsonOptions = {}) {
+  const maxBytes =
+    Number.isFinite(options.maxBytes) && Number(options.maxBytes) > 0
+      ? Math.floor(Number(options.maxBytes))
+      : JSON_BODY_LIMITS.standardBytes;
+  const timeoutMs =
+    Number.isFinite(options.timeoutMs) && Number(options.timeoutMs) > 0
+      ? Math.floor(Number(options.timeoutMs))
+      : JSON_BODY_LIMITS.timeoutMs;
+  const body = await readBody(req, maxBytes, timeoutMs);
+
+  if (!body.length) return {};
   try {
-    const value = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    const value = JSON.parse(body.toString("utf8"));
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       throw new Error("JSON object expected");
     }

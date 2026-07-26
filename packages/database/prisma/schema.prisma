@@ -192,3 +192,11 @@ model AppSetting {
 
   @@map("app_settings")
 }
+
+model BootstrapClaim {
+  key       String   @id
+  userId    String?  @map("user_id")
+  claimedAt DateTime @default(now()) @map("claimed_at")
+
+  @@map("bootstrap_claims")
+}

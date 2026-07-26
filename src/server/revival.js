@@ -15,6 +15,7 @@ const postIdOffset = 1248;
 const postSearchResultMax = 200;
 const colorMapStartupDelayMs = 1000;
 const apiFetchTimeoutMs = 2500;
+const siteSettingsCacheMs = 5000;
 const maxJsonBodyBytes = 64 * 1024;
 const maxFormBodyBytes = 256 * 1024;
 const maxUploadBodyBytes = Number.parseInt(
@@ -351,12 +352,39 @@ function autocompleteList(posts, fragment, language = "en") {
     .slice(0, 3);
 }
 
-function setSecurityHeaders(res, { html = false } = {}) {
+function trackingDetails(settings = {}) {
+  const tracking = settings?.tracking || settings;
+  if (!tracking?.enabled || !tracking.umamiSrc || !tracking.umamiWebsiteId) return null;
+
+  let scriptUrl;
+  try {
+    scriptUrl = new URL(String(tracking.umamiSrc));
+  } catch (_error) {
+    return null;
+  }
+  if (
+    !["http:", "https:"].includes(scriptUrl.protocol) ||
+    scriptUrl.username ||
+    scriptUrl.password
+  ) {
+    return null;
+  }
+
+  return {
+    origin: scriptUrl.origin,
+    src: scriptUrl.href,
+    websiteId: String(tracking.umamiWebsiteId),
+  };
+}
+
+function setSecurityHeaders(res, { html = false, tracking = null } = {}) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   if (html) {
+    const tracker = trackingDetails(tracking);
+    const trackingSource = tracker ? ` ${tracker.origin}` : "";
     res.setHeader(
       "Content-Security-Policy",
       [
@@ -367,8 +395,8 @@ function setSecurityHeaders(res, { html = false } = {}) {
         "img-src 'self' data: blob:",
         "media-src 'self'",
         "style-src 'self' 'unsafe-inline'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-        "connect-src 'self'",
+        `script-src 'self' 'unsafe-inline' 'unsafe-eval'${trackingSource}`,
+        `connect-src 'self'${trackingSource}`,
         "form-action 'self'",
       ].join("; "),
     );
@@ -405,9 +433,9 @@ function sendStatus(res, statusCode, message) {
   res.end(message);
 }
 
-function sendHtml(res, html) {
+function sendHtml(res, html, { tracking = null } = {}) {
   res.statusCode = 200;
-  setSecurityHeaders(res, { html: true });
+  setSecurityHeaders(res, { html: true, tracking });
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.end(html);
@@ -433,6 +461,9 @@ function assertRateLimit(req, bucketName, limit, windowMs) {
 function assertSameOrigin(req) {
   const origin = req.headers.origin;
   if (!origin) return;
+  if (typeof origin !== "string") {
+    throw new HttpError(403, "Invalid origin", "invalid_origin");
+  }
 
   let parsed;
   try {
@@ -441,8 +472,15 @@ function assertSameOrigin(req) {
     throw new HttpError(403, "Invalid origin", "invalid_origin");
   }
 
-  const host = req.headers.host;
-  if (!host || parsed.host !== host) {
+  const host = String(req.headers.host || "").trim().toLowerCase();
+  if (
+    !host ||
+    !["http:", "https:"].includes(parsed.protocol) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.origin !== origin ||
+    parsed.host.toLowerCase() !== host
+  ) {
     throw new HttpError(403, "Cross-origin writes are not allowed", "invalid_origin");
   }
 }
@@ -746,8 +784,10 @@ function publicMemoryUrl(post) {
   return publicId ? `/memory/${encodeURIComponent(publicId)}` : "";
 }
 
-function v1Language(memory) {
-  return normalizeLanguage(memory?.metadata?.language || memory?.metadata?.languageCode || "en");
+function v1Language(memory, defaultLanguage = "en") {
+  return normalizeLanguage(
+    memory?.metadata?.language || memory?.metadata?.languageCode || defaultLanguage,
+  );
 }
 
 function v1ImageKey(memory) {
@@ -806,12 +846,12 @@ function v1MenuItemToPublic(item = {}) {
   };
 }
 
-function v1PageToPublic(page = {}) {
+function v1PageToPublic(page = {}, defaultLanguage = "en") {
   const bodyMarkdown = String(page.bodyMarkdown || "");
   return {
     id: page.id,
     slug: page.slug,
-    language: normalizeLanguage(page.language),
+    language: normalizeLanguage(page.language || defaultLanguage),
     title: page.title,
     excerpt: page.excerpt || excerptFromMarkdown(bodyMarkdown),
     bodyMarkdown,
@@ -835,7 +875,7 @@ function v1MemoryToAdminMemory(memory = {}, language = "en") {
     uid: post.uid,
     title: memory.title || "I Remember",
     author: memory.authorName || "I Remember",
-    language: v1Language(memory),
+    language: v1Language(memory, language),
     status: memory.status === "NORMAL" ? "published" : String(memory.status || "").toLowerCase(),
     dbStatus: memory.status,
     source: memory.metadata?.source || "v1",
@@ -858,7 +898,7 @@ function v1MenuTargetToPublic(data = {}, language = "en") {
   const memory = data.memory ? v1MemoryToAdminMemory(data.memory, language) : null;
   return {
     item: data.item ? v1MenuItemToPublic(data.item) : null,
-    ...(data.page ? { page: v1PageToPublic(data.page) } : {}),
+    ...(data.page ? { page: v1PageToPublic(data.page, language) } : {}),
     ...(memory ? { memory, post: v1MemoryToPost(data.memory, 0, language) } : {}),
     ...(Array.isArray(data.results)
       ? { results: data.results.map((memory, index) => v1MemoryToPost(memory, index, language)) }
@@ -919,9 +959,47 @@ function validatedPostFields(fields = {}, defaultLanguage = "en") {
   };
 }
 
+function environmentSiteSettings() {
+  return {
+    defaultLanguage: normalizeLanguage(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en"),
+    anonymousSubmissions: process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS === "true",
+    tracking: {
+      enabled: Boolean(process.env.UMAMI_SRC && process.env.UMAMI_WEBSITE_ID),
+      umamiSrc: process.env.UMAMI_SRC || "",
+      umamiWebsiteId: process.env.UMAMI_WEBSITE_ID || "",
+    },
+  };
+}
+
+function normalizedSiteSettings(value, fallback) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  const tracking =
+    value.tracking && typeof value.tracking === "object" && !Array.isArray(value.tracking)
+      ? value.tracking
+      : null;
+  return {
+    defaultLanguage: normalizeLanguage(value.defaultLanguage || fallback.defaultLanguage),
+    anonymousSubmissions:
+      typeof value.anonymousSubmissions === "boolean"
+        ? value.anonymousSubmissions
+        : fallback.anonymousSubmissions,
+    tracking: tracking
+      ? {
+          enabled: tracking.enabled === true,
+          umamiSrc: typeof tracking.umamiSrc === "string" ? tracking.umamiSrc : "",
+          umamiWebsiteId:
+            typeof tracking.umamiWebsiteId === "string" ? tracking.umamiWebsiteId : "",
+        }
+      : fallback.tracking,
+  };
+}
+
 class RevivalBackend {
   constructor(options = {}) {
     this.apiBaseUrl = String(options.apiBaseUrl || "").replace(/\/+$/g, "");
+    this.cachedSiteSettings = environmentSiteSettings();
+    this.siteSettingsExpiresAt = 0;
+    this.siteSettingsRequest = null;
   }
 
   get mode() {
@@ -960,7 +1038,7 @@ class RevivalBackend {
     const data = await this.v1Data("/api/v1/memories?limit=200");
     if (!Array.isArray(data)) return null;
     return data
-      .filter((memory) => v1Language(memory) === normalizeLanguage(language))
+      .filter((memory) => v1Language(memory, language) === normalizeLanguage(language))
       .map((memory, index) => v1MemoryToPost(memory, index, language));
   }
 
@@ -989,15 +1067,48 @@ class RevivalBackend {
   }
 
   siteSettings() {
-    return {
-      defaultLanguage: normalizeLanguage(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en"),
-      anonymousSubmissions: process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS !== "false",
-      tracking: {
-        enabled: Boolean(process.env.UMAMI_SRC && process.env.UMAMI_WEBSITE_ID),
-        umamiSrc: process.env.UMAMI_SRC || "",
-        umamiWebsiteId: process.env.UMAMI_WEBSITE_ID || "",
-      },
-    };
+    return this.cachedSiteSettings;
+  }
+
+  async currentSiteSettings() {
+    if (Date.now() < this.siteSettingsExpiresAt) return this.siteSettings();
+    if (this.siteSettingsRequest) return this.siteSettingsRequest;
+
+    this.siteSettingsRequest = (async () => {
+      const configured = await this.v1Data("/api/v1/public/settings");
+      this.cachedSiteSettings = normalizedSiteSettings(configured, this.siteSettings());
+      this.siteSettingsExpiresAt = Date.now() + siteSettingsCacheMs;
+      return this.siteSettings();
+    })();
+    try {
+      return await this.siteSettingsRequest;
+    } finally {
+      this.siteSettingsRequest = null;
+    }
+  }
+
+  async readiness() {
+    if (!this.apiBaseUrl) {
+      return { ok: false, service: "web", api: "unavailable", database: "unknown" };
+    }
+
+    try {
+      const response = await fetch(new URL("/readyz", `${this.apiBaseUrl}/`), {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(apiFetchTimeoutMs),
+      });
+      const payload = await response.json().catch(() => null);
+      const apiReached = payload?.service === "api";
+      const ready = apiReached && response.ok && payload?.ok === true;
+      return {
+        ok: ready,
+        service: "web",
+        api: apiReached ? "ready" : "unavailable",
+        database: payload?.database === "ready" ? "ready" : "unavailable",
+      };
+    } catch (_error) {
+      return { ok: false, service: "web", api: "unavailable", database: "unknown" };
+    }
   }
 
   async needsAdminSetup() {
@@ -1160,8 +1271,8 @@ class RevivalBackend {
     };
   }
 
-  async createPost(fields = {}) {
-    const clean = validatedPostFields(fields, this.siteSettings().defaultLanguage);
+  async createPost(fields = {}, defaultLanguage = this.siteSettings().defaultLanguage) {
+    const clean = validatedPostFields(fields, defaultLanguage);
     const language = clean.language;
     const v1Memory = await this.v1Data("/api/v1/memories", {
       method: "POST",
@@ -1229,7 +1340,7 @@ function adminPageRequested(pathname) {
     normalized === "/admin" ||
     normalized === "/admin/index.html" ||
     normalized === "/admin/setup" ||
-    /^\/admin\/(?:dashboard|memory|pages|comments|attachments|theme|menus|settings|backups)$/.test(normalized)
+    /^\/admin\/(?:dashboard|memory(?:\/editor)?|pages|comments|attachments|theme|menus|settings|backups)$/.test(normalized)
   );
 }
 
@@ -1250,8 +1361,12 @@ function appShellRequested(pathname) {
   ].includes(pathname);
 }
 
+function publicMemoryPathMatch(pathname) {
+  return pathname.match(/^\/memory\/([^/?#]+)\/?$/);
+}
+
 function memoryShellRequested(pathname) {
-  return /^\/(?:en\/|fr\/|zh\/)?memory\/[^/?#]+/.test(pathname);
+  return Boolean(publicMemoryPathMatch(pathname));
 }
 
 function nonSiteArtifactRequested(pathname) {
@@ -1291,7 +1406,7 @@ function nonSiteArtifactRequested(pathname) {
 }
 
 function directPostPublicId(pathname) {
-  return pathname.match(/\/memory\/([^/?#]+)/)?.[1] || "";
+  return publicMemoryPathMatch(pathname)?.[1] || "";
 }
 
 function validPublicMemoryId(value) {
@@ -1301,6 +1416,7 @@ function validPublicMemoryId(value) {
 function shouldLogRequest(pathname) {
   return (
     pathname === "/healthz" ||
+    pathname === "/readyz" ||
     pathname === "/version" ||
     pathname === "/api" ||
     pathname.startsWith("/api/") ||
@@ -1317,6 +1433,7 @@ async function renderAppHtml(
   directPayload = null,
   pathname = "/",
   memoryLanguage = language,
+  siteSettings = backend.siteSettings(),
 ) {
   const normalized = normalizeLanguage(language);
   const normalizedMemoryLanguage = normalizeLanguage(memoryLanguage);
@@ -1324,7 +1441,7 @@ async function renderAppHtml(
   if (normalized === "zh") html = localizeChineseHtml(html);
 
   html = patchLanguageShell(html, normalized, pathname);
-  html = injectTracking(html, backend.siteSettings());
+  html = injectTracking(html, siteSettings);
 
   const defaultPosts = await backend.searchPosts(
     normalizedMemoryLanguage,
@@ -1357,9 +1474,9 @@ function htmlAttr(value) {
 }
 
 function injectTracking(html, settings) {
-  const tracking = settings?.tracking || {};
-  if (!tracking.enabled || !tracking.umamiSrc || !tracking.umamiWebsiteId) return html;
-  const script = `<script defer src="${htmlAttr(tracking.umamiSrc)}" data-website-id="${htmlAttr(tracking.umamiWebsiteId)}"></script>`;
+  const tracking = trackingDetails(settings);
+  if (!tracking) return html;
+  const script = `<script defer src="${htmlAttr(tracking.src)}" data-website-id="${htmlAttr(tracking.websiteId)}"></script>`;
   return html.includes("</head>") ? html.replace("</head>", `    ${script}\n</head>`) : `${script}\n${html}`;
 }
 
@@ -1511,7 +1628,19 @@ async function handleRequest(backend, req, res, next, options = {}) {
   const url = new URL(req.url || "/", "http://i-remember.local");
   const pathname = decodeURIComponent(url.pathname);
   const startedAt = Date.now();
-  const siteSettings = backend.siteSettings();
+  const needsRuntimeSettings =
+    appShellRequested(pathname) ||
+    memoryShellRequested(pathname) ||
+    pathname === "/api/public/menu" ||
+    pathname.startsWith("/api/public/menu-target/") ||
+    pathname === "/api/post" ||
+    pathname.startsWith("/api/related-post-count/") ||
+    pathname.startsWith("/api/auto-complete-tags/") ||
+    pathname.startsWith("/api/search-posts") ||
+    /^\/api(?:\/(?!v1(?:\/|$))[^/]+)?$/.test(pathname);
+  const siteSettings = needsRuntimeSettings
+    ? await backend.currentSiteSettings()
+    : backend.siteSettings();
   const defaultLanguage = siteSettings.defaultLanguage;
   const memoryLanguage = contentLanguage(defaultLanguage);
 
@@ -1528,7 +1657,13 @@ async function handleRequest(backend, req, res, next, options = {}) {
   }
 
   if (req.method === "GET" && pathname === "/healthz") {
-    sendJson(req, res, { ok: true });
+    sendJson(req, res, { ok: true, service: "web" });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/readyz") {
+    const readiness = await backend.readiness();
+    sendJson(req, res, readiness, readiness.ok ? 200 : 503);
     return;
   }
 
@@ -1620,13 +1755,35 @@ async function handleRequest(backend, req, res, next, options = {}) {
         data: post,
         input: { ln: language, id: String(numericPostId(post)) },
       };
-      sendHtml(res, await renderAppHtml(backend, language, payload, pathname, memoryLanguage));
+      sendHtml(
+        res,
+        await renderAppHtml(
+          backend,
+          language,
+          payload,
+          pathname,
+          memoryLanguage,
+          siteSettings,
+        ),
+        { tracking: siteSettings.tracking },
+      );
       return;
     }
 
     if (appShellRequested(pathname)) {
       const language = languageFromRequest(url, pathname, defaultLanguage);
-      sendHtml(res, await renderAppHtml(backend, language, null, pathname, memoryLanguage));
+      sendHtml(
+        res,
+        await renderAppHtml(
+          backend,
+          language,
+          null,
+          pathname,
+          memoryLanguage,
+          siteSettings,
+        ),
+        { tracking: siteSettings.tracking },
+      );
       return;
     }
   }
@@ -1667,13 +1824,13 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
   if (pathname === "/api/post" && req.method === "POST") {
     assertSameOrigin(req);
-    if (!backend.siteSettings().anonymousSubmissions) {
+    if (!siteSettings.anonymousSubmissions) {
       throw new HttpError(403, "Anonymous submissions are closed", "submissions_closed");
     }
     assertRateLimit(req, "post", 10, 10 * 60 * 1000);
     const body = await collectRequest(req, maxFormBodyBytes);
     const fields = parseFields(req, body);
-    const post = await backend.createPost(fields);
+    const post = await backend.createPost(fields, memoryLanguage);
     logInfo("memory_submitted", {
       language: memoryLanguage,
       memoryId: post.id,

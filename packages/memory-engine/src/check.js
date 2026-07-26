@@ -22,7 +22,11 @@ const memories = normalizeGalaxyMemories([
     attachments: [{ url: "/uploads/second.jpg", type: "image/jpeg" }],
   },
   { id: "empty", title: "Untitled memory", content: "" },
-  { id: "placeholder", title: "Untitled memory", content: "# Untitled memory\n\nWrite this memory in Markdown." },
+  {
+    id: "placeholder",
+    title: "Untitled memory",
+    content: "# Untitled memory\n\nWrite this memory in Markdown.",
+  },
   { id: "draft", content: "Not public", status: "PENDING" },
 ]);
 
@@ -41,8 +45,11 @@ assert.equal(posts[0].name, "Ada");
 assert.equal(posts[0].latitude, 48.8566);
 assert.equal(posts[1].img, "revival-upload");
 assert.equal(memoryFadePercent([], Date.parse("2026-07-10T00:00:00Z")), 100);
-assert.ok(memoryFadePercent([
-  { id: "recent", content: "A recent memory", createdAt: "2026-01-14T00:00:00Z" },
-], Date.parse("2026-01-15T00:00:00Z")) < 75);
+assert.ok(
+  memoryFadePercent(
+    [{ id: "recent", content: "A recent memory", createdAt: "2026-01-14T00:00:00Z" }],
+    Date.parse("2026-01-15T00:00:00Z"),
+  ) < 75,
+);
 
 console.log("memory engine ok");

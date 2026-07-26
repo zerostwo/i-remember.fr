@@ -10,7 +10,10 @@
       "esbuild",
       "prisma",
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "fast-uri": "3.1.4"
+    }
   },
   "scripts": {
     "dev": "turbo run dev --parallel --filter=@i-remember/web --filter=@i-remember/api",
@@ -20,13 +23,13 @@
     "format": "prettier --check .",
     "preview": "vite preview --host 127.0.0.1",
     "start": "node server.mjs",
-    "test": "turbo run test --filter=@i-remember/database --filter=@i-remember/api --filter=@i-remember/admin --filter=@i-remember/web --filter=@i-remember/memory-engine --filter=@i-remember/types --filter=@i-remember/storage --filter=@i-remember/ui --filter=@i-remember/config && node scripts/check-api-v1.mjs && node src/admin/v1-memory.check.mjs && node src/admin/v1-assets.check.mjs && node src/admin/v1-content.check.mjs && node scripts/check-server-proxy.mjs",
+    "test": "turbo run test --filter=@i-remember/database --filter=@i-remember/api --filter=@i-remember/admin --filter=@i-remember/web --filter=@i-remember/memory-engine --filter=@i-remember/types --filter=@i-remember/storage --filter=@i-remember/ui --filter=@i-remember/config && node scripts/check-api-v1.mjs && node src/admin/v1-auth.check.mjs && node src/admin/v1-memory.check.mjs && node src/admin/v1-assets.check.mjs && node src/admin/v1-content.check.mjs && node scripts/check-server-proxy.mjs",
     "web:dev": "vite --host 127.0.0.1",
     "web:build": "vite build",
     "db:generate": "pnpm --filter @i-remember/database generate",
     "db:migrate": "pnpm --filter @i-remember/database migrate",
-    "docker:build": "docker build -t ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:-latest} .",
-    "docker:push": "docker push ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:-latest}"
+    "docker:build": "docker build -t ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:?Set TAG to an immutable sha-* or release version} .",
+    "docker:push": "docker push ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:?Set TAG to an immutable sha-* or release version}"
   },
   "dependencies": {
     "sharp": "^0.35.3"

@@ -86,10 +86,20 @@ export function normalizeGalaxyMemories(memories = []) {
     const next = normalizeGalaxyMemory(memory);
     const identity = firstText(next.publicId, next.id);
     const hasContent = Boolean(firstText(next.content, next.excerpt));
-    const isPlaceholder = /^#?\s*untitled memor(?:y|oy)\b/i.test(next.content) || /^untitled memor(?:y|oy)$/i.test(next.title);
+    const isPlaceholder =
+      /^#?\s*untitled memor(?:y|oy)\b/i.test(next.content) ||
+      /^untitled memor(?:y|oy)$/i.test(next.title);
     const isPublished = !next.status || ["NORMAL", "PUBLISHED"].includes(next.status);
     const isPublic = !next.visibility || next.visibility === "PUBLIC";
-    if (!identity || !hasContent || isPlaceholder || !isPublished || !isPublic || seen.has(identity)) continue;
+    if (
+      !identity ||
+      !hasContent ||
+      isPlaceholder ||
+      !isPublished ||
+      !isPublic ||
+      seen.has(identity)
+    )
+      continue;
     seen.add(identity);
     normalized.push(next);
   }
@@ -112,7 +122,9 @@ export function normalizeGalaxyPost(memory = {}, index = 0) {
     img: image,
     img_offset_x: "0",
     img_offset_y: "0",
-    text: htmlText(isLongForm ? next.excerpt || next.content.slice(0, 220) : next.content || next.excerpt || ""),
+    text: htmlText(
+      isLongForm ? next.excerpt || next.content.slice(0, 220) : next.content || next.excerpt || "",
+    ),
     excerpt: htmlText(next.excerpt || next.content || ""),
     body_markdown: next.content || "",
     body_html: `<p>${htmlText(next.content || next.excerpt || "")}</p>`,

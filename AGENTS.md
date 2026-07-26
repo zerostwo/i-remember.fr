@@ -11,12 +11,14 @@ Current backend/product decisions:
 - Keep the restored archive UI visually unchanged while modernizing the backend.
 - For the production architecture refactor requested on 2026-07-08, the pasted refactor document is the highest-priority product/engineering source except for Docker publishing: keep one production image. Implement the pnpm/turbo monorepo, TypeScript API app, PostgreSQL/Prisma database package, and full verification plan while keeping the archive frontend experience visually unchanged.
 - Use the admin-configured default language for `/`, missing `ln`, and bare `/memory/:id` routes; the initial default is English.
-- Preserve French support and add full Chinese support at `/zh` and `/zh/memory/:id`.
+- Preserve French support and add full Chinese support at `/zh`; public memory
+  pages remain on `/memory/:id` and use `ln` only for display language.
 - Because the project is still early, do not preserve previous legacy compatibility; remove compatibility fallbacks as production PostgreSQL/Prisma paths become available.
 - Expose first-pass AI agent support through HTTP APIs, not MCP.
 - Keep Facebook and Instagram API modernization out of scope until explicitly requested.
 - Publish one Docker image only; do not split publishing into separate `web`, `admin`, and `api` images. DockerHub image name and tag must still come from `DOCKERHUB_IMAGE` and `TAG`.
 - For the admin experience, create and confirm Figma UI designs first; only build the clickable responsive backend prototype after the UI is approved.
+- Keep the admin experience concise, elegant, calm, and low-noise. Simplify navigation labels, route structure, information hierarchy, form density, and table presentation; avoid generic dashboard ornament and do not change the restored public archive visual language as part of the admin redesign.
 - The future admin should cover common personal-blog management modules while preserving anonymous public memory submission, and should include first-class support for self-hosted Umami tracking.
 - The admin prototype information architecture is: login, dashboard, content management with Memory/Page/Comment/Attachment sections, appearance with Theme/Menu sections, and system with Settings/Backup sections. Blog posts are folded into Memory; long-form Memory entries use a Read more affordance instead of a separate Posts module.
 - The admin Menu section manages the public home page's original lower-right footer navigation, not the admin sidebar. Menu items can target editable pages, memories, searches, or external URLs.

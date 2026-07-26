@@ -49,6 +49,7 @@ export interface UserRepository {
   findById(id: string): Promise<UserRecord | null>;
   findByEmail(email: string): Promise<UserRecord | null>;
   create(input: UserCreateInput): Promise<UserRecord>;
+  createFirstAdmin(input: UserCreateInput): Promise<UserRecord>;
   update(id: string, input: UserUpdateInput): Promise<UserRecord>;
 }
 
@@ -83,4 +84,8 @@ export interface AssetRepository {
   list(limit: number): Promise<AssetRecord[]>;
   create(input: AssetCreateInput): Promise<AssetRecord>;
   deleteByUrl(url: string): Promise<void>;
+}
+
+export interface ReadinessRepository {
+  check(): Promise<void>;
 }

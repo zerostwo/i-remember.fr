@@ -56,6 +56,7 @@ import {
 } from "@i-remember/ui";
 import { MemoryGalaxy, memoryFadePercent } from "@i-remember/memory-engine";
 import { cn } from "@/lib/utils";
+import { v1AuthPayload } from "./v1-auth.js";
 import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload } from "./v1-assets.js";
 import { deleteV1MenuItem, syncV1MenuItem, syncV1Page, syncV1Settings, v1PageMemory } from "./v1-content.js";
 import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
@@ -153,11 +154,7 @@ async function rememberV1Token(credentials, options = {}) {
   const path = options.setup ? "/api/v1/auth/setup" : "/api/v1/auth/login";
   const session = await api(path, {
     method: "POST",
-    body: JSON.stringify({
-      email: credentials.email,
-      password: credentials.password,
-      totp: credentials.totp,
-    }),
+    body: JSON.stringify(v1AuthPayload(credentials, options)),
   });
   if (session.token) adminToken(session.token);
   return session;
@@ -223,7 +220,7 @@ function v1MenuAdmin(item = {}) {
 function settingsFromV1(settings = {}, account = {}) {
   return {
     defaultLanguage: settings.defaultLanguage || "en",
-    anonymousSubmissions: settings.anonymousSubmissions !== false,
+    anonymousSubmissions: settings.anonymousSubmissions === true,
     autoApproveSubmissions: true,
     tracking: {
       enabled: Boolean(settings.tracking?.enabled),
@@ -498,6 +495,7 @@ function MarkdownPreview({ value }) {
 export function AdminApp() {
   const [authenticated, setAuthenticated] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [bootstrapTokenRequired, setBootstrapTokenRequired] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [route, setRoute] = useState(routeFromLocation);
   const [data, setData] = useState(null);
@@ -519,6 +517,7 @@ export function AdminApp() {
       .then(([status, hasSession]) => {
         if (active) {
           setNeedsSetup(Boolean(status.needsSetup));
+          setBootstrapTokenRequired(Boolean(status.bootstrapTokenRequired));
           setAuthenticated(Boolean(hasSession));
         }
       })
@@ -885,7 +884,15 @@ export function AdminApp() {
   }
 
   if (!authenticated) {
-    if (needsSetup) return <SetupScreen loading={loading} onSetup={handleSetup} />;
+    if (needsSetup) {
+      return (
+        <SetupScreen
+          bootstrapTokenRequired={bootstrapTokenRequired}
+          loading={loading}
+          onSetup={handleSetup}
+        />
+      );
+    }
     return <LoginScreen loading={loading} onLogin={handleLogin} />;
   }
 
@@ -1038,16 +1045,17 @@ function LoginScreen({ loading, onLogin }) {
   );
 }
 
-function SetupScreen({ loading, onSetup }) {
+function SetupScreen({ bootstrapTokenRequired, loading, onSetup }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [bootstrapToken, setBootstrapToken] = useState("");
   const [setupError, setSetupError] = useState("");
 
   async function submitSetup(event) {
     event.preventDefault();
     setSetupError("");
     try {
-      await onSetup({ email, password });
+      await onSetup({ email, password, bootstrapToken });
     } catch (error) {
       setSetupError(error.message);
     }
@@ -1082,6 +1090,17 @@ function SetupScreen({ loading, onSetup }) {
                 <FieldGroup>
                   <TextField label="Username or email" value={email} onChange={setEmail} autoComplete="username" />
                   <TextField label="Password" value={password} onChange={setPassword} type="password" autoComplete="new-password" />
+                  {bootstrapTokenRequired ? (
+                    <TextField
+                      label="One-time setup token"
+                      description="Read this value from the protected setup-token file in the server data directory."
+                      value={bootstrapToken}
+                      onChange={setBootstrapToken}
+                      type="password"
+                      autoComplete="off"
+                      required
+                    />
+                  ) : null}
                 </FieldGroup>
                 {setupError ? <StatusMessage variant="error" message={setupError} /> : null}
                 <Button className="w-full" disabled={loading} type="submit" size="lg">

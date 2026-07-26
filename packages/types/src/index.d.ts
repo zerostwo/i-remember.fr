@@ -4,7 +4,17 @@ export type MemoryStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
 export type CommentStatus = "NORMAL" | "PENDING" | "ARCHIVED" | "REJECTED";
 export type PageStatus = "PUBLISHED" | "DRAFT" | "ARCHIVED";
 export type MenuItemType =
-  "PAGE" | "MEMORY" | "SEARCH" | "EXTERNAL" | "GROUP" | "TERMS" | "CREDITS" | "LANGUAGE" | "SOUND" | "SHARE" | "LOGO";
+  | "PAGE"
+  | "MEMORY"
+  | "SEARCH"
+  | "EXTERNAL"
+  | "GROUP"
+  | "TERMS"
+  | "CREDITS"
+  | "LANGUAGE"
+  | "SOUND"
+  | "SHARE"
+  | "LOGO";
 
 export interface Tag {
   id: string;

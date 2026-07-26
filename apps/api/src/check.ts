@@ -23,6 +23,8 @@ import type {
   UserRecord,
 } from "./domain.js";
 import { createApiV1Middleware } from "./index.js";
+import { JSON_BODY_LIMITS } from "./http.js";
+import { REQUEST_RATE_LIMITS, resetRequestSecurityState } from "./request-security.js";
 import { serveLocalAsset } from "./static-assets.js";
 import { AuthService } from "./services.js";
 import { totpCode } from "./auth.js";
@@ -34,11 +36,12 @@ import type {
   MemoryListQuery,
   MemoryRepository,
   PageRepository,
+  ReadinessRepository,
   SettingRepository,
   UserRepository,
 } from "./repositories.js";
 import { ApiError } from "./errors.js";
-import { createPublicMemoryId } from "./prisma-repositories.js";
+import { createPublicMemoryId, PrismaUserRepository } from "./prisma-repositories.js";
 import type { StorageAdapter } from "@i-remember/storage";
 
 function tag(name: string) {
@@ -204,6 +207,17 @@ class UserRepo implements UserRepository {
     return user;
   }
 
+  async createFirstAdmin(input: {
+    email: string;
+    passwordHash: string;
+    role: "ADMIN" | "USER" | "ANONYMOUS";
+  }) {
+    if (this.users.length) {
+      throw new ApiError(409, "Admin user already exists", "admin_exists");
+    }
+    return this.create({ ...input, role: "ADMIN" });
+  }
+
   async update(id: string, input: Partial<UserRecord>) {
     const user = await this.findById(id);
     assert.ok(user);
@@ -308,6 +322,14 @@ class SettingRepo implements SettingRepository {
       });
     }
     return this.list();
+  }
+}
+
+class ReadinessRepo implements ReadinessRepository {
+  available = true;
+
+  async check() {
+    if (!this.available) throw new Error("database unavailable");
   }
 }
 
@@ -418,10 +440,17 @@ class Storage implements StorageAdapter {
 }
 
 process.env.AUTH_SECRET = "test-secret";
+process.env.I_REMEMBER_SETUP_TOKEN = "setup-test-token";
+delete process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS;
+process.env.I_REMEMBER_DEFAULT_LANGUAGE = "en";
+delete process.env.UMAMI_SRC;
+delete process.env.UMAMI_WEBSITE_ID;
 process.env.ADMIN_EMAIL = "admin@example.com";
 process.env.ADMIN_PASSWORD = "password123456";
 const storage = new Storage();
 const userRepository = new UserRepo();
+const settingRepository = new SettingRepo();
+const readinessRepository = new ReadinessRepo();
 const seedAdminSession = await new AuthService(userRepository).login({
   email: "admin@example.com",
   password: "password123456",
@@ -438,7 +467,8 @@ const middleware = createApiV1Middleware({
   comments: new CommentRepo(),
   pages: new PageRepo(),
   menuItems: new MenuItemRepo(),
-  settings: new SettingRepo(),
+  settings: settingRepository,
+  readiness: readinessRepository,
   storage,
 });
 const server = createServer((req, res) => {
@@ -466,6 +496,110 @@ assert.equal(generatedPublicIds.size, 32);
 for (const publicId of generatedPublicIds) {
   assert.match(publicId, /^m[a-f0-9]{20}$/);
 }
+
+const firstAdminTransactionSteps: string[] = [];
+let firstAdminTransactionIsolation = "";
+const transactionalUsers = new PrismaUserRepository({
+  $transaction: async (
+    task: (transaction: Record<string, unknown>) => Promise<unknown>,
+    options: { isolationLevel: string },
+  ) => {
+    firstAdminTransactionIsolation = options.isolationLevel;
+    return task({
+      bootstrapClaim: {
+        create: async () => {
+          firstAdminTransactionSteps.push("claim:create");
+        },
+        update: async () => {
+          firstAdminTransactionSteps.push("claim:update");
+        },
+      },
+      user: {
+        count: async () => {
+          firstAdminTransactionSteps.push("user:count");
+          return 0;
+        },
+        create: async () => {
+          firstAdminTransactionSteps.push("user:create");
+          return {
+            id: "transaction-admin",
+            email: "transaction@example.com",
+            passwordHash: "hash",
+            role: "ADMIN",
+            twoFactorSecret: null,
+            twoFactorEnabled: false,
+            twoFactorRecoveryCodes: null,
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+          };
+        },
+      },
+    });
+  },
+} as never);
+const transactionAdmin = await transactionalUsers.createFirstAdmin({
+  email: "transaction@example.com",
+  passwordHash: "hash",
+  role: "ADMIN",
+});
+assert.equal(transactionAdmin.id, "transaction-admin");
+assert.equal(firstAdminTransactionIsolation, "Serializable");
+assert.deepEqual(firstAdminTransactionSteps, [
+  "claim:create",
+  "user:count",
+  "user:create",
+  "claim:update",
+]);
+const duplicateClaimUsers = new PrismaUserRepository({
+  $transaction: async () => {
+    throw Object.assign(new Error("duplicate claim"), { code: "P2002" });
+  },
+} as never);
+await assert.rejects(
+  duplicateClaimUsers.createFirstAdmin({
+    email: "duplicate@example.com",
+    passwordHash: "hash",
+    role: "ADMIN",
+  }),
+  (error: unknown) => error instanceof ApiError && error.code === "admin_exists",
+);
+
+const ready = await json("/readyz");
+assert.equal(ready.response.status, 200);
+assert.deepEqual(ready.body, { ok: true, service: "api", database: "ready" });
+readinessRepository.available = false;
+const notReady = await json("/readyz");
+assert.equal(notReady.response.status, 503);
+assert.equal(notReady.body.database, "unavailable");
+readinessRepository.available = true;
+
+const publicSettings = await json("/api/v1/public/settings");
+assert.equal(publicSettings.response.status, 200);
+assert.equal(publicSettings.body.data.defaultLanguage, "en");
+assert.equal(publicSettings.body.data.anonymousSubmissions, false);
+assert.deepEqual(publicSettings.body.data.tracking, {
+  enabled: false,
+  umamiSrc: "",
+  umamiWebsiteId: "",
+});
+
+const defaultDisabledSubmission = await json("/api/v1/memories", {
+  method: "POST",
+  body: JSON.stringify({ title: "Disabled by default", content: "Must not publish" }),
+});
+assert.equal(defaultDisabledSubmission.response.status, 403);
+assert.equal(defaultDisabledSubmission.body.error.code, "anonymous_submissions_disabled");
+await json("/api/v1/settings", {
+  method: "PUT",
+  headers: adminHeaders,
+  body: JSON.stringify({ anonymousSubmissions: true }),
+});
+
+const oversizedJson = await json("/api/v1/agent", {
+  method: "POST",
+  body: JSON.stringify({ query: "x".repeat(JSON_BODY_LIMITS.standardBytes) }),
+});
+assert.equal(oversizedJson.response.status, 413);
+assert.equal(oversizedJson.body.error.code, "request_too_large");
 
 assert.equal((await json("/api/v1/memories")).body.data[0].id, "pub_1");
 assert.equal((await json("/api/v1/search?q=first")).body.data.length, 1);
@@ -523,16 +657,26 @@ const anonymousAiFields = await json("/api/v1/memories", {
 });
 assert.equal(anonymousAiFields.response.status, 401);
 
+const crossSiteSubmission = await json("/api/v1/memories", {
+  method: "POST",
+  headers: { Origin: "https://attacker.example" },
+  body: JSON.stringify({ title: "Cross site", content: "Nope" }),
+});
+assert.equal(crossSiteSubmission.response.status, 403);
+assert.equal(crossSiteSubmission.body.error.code, "cross_site_request");
+
 const anonymousSubmission = await json("/api/v1/memories", {
   method: "POST",
   body: JSON.stringify({
     title: "Anonymous",
     content: "Anonymous submission publishes immediately.",
     authorName: "Visitor",
+    visibility: "PRIVATE",
   }),
 });
 assert.equal(anonymousSubmission.response.status, 201);
 assert.equal(anonymousSubmission.body.data.status, "NORMAL");
+assert.equal(anonymousSubmission.body.data.visibility, "PUBLIC");
 assert.equal(anonymousSubmission.body.data.authorName, "Visitor");
 const publicAfterAnonymous = await json("/api/v1/memories");
 assert.equal(
@@ -549,6 +693,25 @@ const anonymousPendingCreate = await json("/api/v1/memories", {
   body: JSON.stringify({ title: "Pending", content: "Nope", status: "PENDING" }),
 });
 assert.equal(anonymousPendingCreate.response.status, 401);
+
+await json("/api/v1/settings", {
+  method: "PUT",
+  headers: adminHeaders,
+  body: JSON.stringify({ anonymousSubmissions: false }),
+});
+const disabledAnonymousSubmission = await json("/api/v1/memories", {
+  method: "POST",
+  body: JSON.stringify({ title: "Disabled", content: "No anonymous posts" }),
+});
+assert.equal(disabledAnonymousSubmission.response.status, 403);
+assert.equal(disabledAnonymousSubmission.body.error.code, "anonymous_submissions_disabled");
+const disabledPublicSettings = await json("/api/v1/public/settings");
+assert.equal(disabledPublicSettings.body.data.anonymousSubmissions, false);
+await json("/api/v1/settings", {
+  method: "PUT",
+  headers: adminHeaders,
+  body: JSON.stringify({ anonymousSubmissions: true }),
+});
 
 const created = await json("/api/v1/memories", {
   method: "POST",
@@ -643,6 +806,12 @@ const authorized = await json("/api/v1/users", {
 assert.equal(authorized.response.status, 200);
 assert.equal(authorized.body.data[0].role, "ADMIN");
 assert.equal(authorized.body.data[0].passwordHash, undefined);
+
+const configuredAuthStatus = await json("/api/v1/auth/status");
+assert.deepEqual(configuredAuthStatus.body.data, {
+  needsSetup: false,
+  bootstrapTokenRequired: false,
+});
 
 const loggedIn = await json("/api/v1/auth/login", {
   method: "POST",
@@ -788,23 +957,119 @@ const failedLogin = await json("/api/v1/auth/login", {
 });
 assert.equal(failedLogin.response.status, 401);
 
-const setupConflict = await json("/api/v1/auth/setup", {
+const setupWithoutToken = await json("/api/v1/auth/setup", {
   method: "POST",
   body: JSON.stringify({ email: "new-admin@example.com", password: "password123456" }),
+});
+assert.equal(setupWithoutToken.response.status, 401);
+assert.equal(setupWithoutToken.body.error.code, "invalid_bootstrap_token");
+
+const setupHeaderConflict = await json("/api/v1/auth/setup", {
+  method: "POST",
+  headers: { "X-I-Remember-Setup-Token": "setup-test-token" },
+  body: JSON.stringify({ email: "new-admin@example.com", password: "password123456" }),
+});
+assert.equal(setupHeaderConflict.response.status, 409);
+assert.equal(setupHeaderConflict.body.error.code, "admin_exists");
+
+const setupConflict = await json("/api/v1/auth/setup", {
+  method: "POST",
+  body: JSON.stringify({
+    email: "new-admin@example.com",
+    password: "password123456",
+    bootstrapToken: "setup-test-token",
+  }),
 });
 assert.equal(setupConflict.response.status, 409);
 assert.equal(setupConflict.body.error.code, "admin_exists");
 
+resetRequestSecurityState();
+for (let attempt = 0; attempt < REQUEST_RATE_LIMITS.setup.limit; attempt += 1) {
+  const invalidSetupToken = await json("/api/v1/auth/setup", {
+    method: "POST",
+    body: JSON.stringify({
+      email: "new-admin@example.com",
+      password: "password123456",
+      bootstrapToken: "wrong-token",
+    }),
+  });
+  assert.equal(invalidSetupToken.response.status, 401);
+}
+for (let attempt = 0; attempt < REQUEST_RATE_LIMITS.setup.limit; attempt += 1) {
+  const validSetupAttempt = await json("/api/v1/auth/setup", {
+    method: "POST",
+    body: JSON.stringify({
+      email: "new-admin@example.com",
+      password: "password123456",
+      bootstrapToken: "setup-test-token",
+    }),
+  });
+  assert.equal(validSetupAttempt.response.status, 409);
+}
+const rateLimitedSetup = await json("/api/v1/auth/setup", {
+  method: "POST",
+  body: JSON.stringify({
+    email: "new-admin@example.com",
+    password: "password123456",
+    bootstrapToken: "setup-test-token",
+  }),
+});
+assert.equal(rateLimitedSetup.response.status, 429);
+assert.equal(rateLimitedSetup.body.error.code, "rate_limited");
+resetRequestSecurityState();
+
 const emptyUsers = new UserRepo();
 emptyUsers.users = [];
-const firstAdmin = await new AuthService(emptyUsers).setup({
-  email: "First-Admin@Example.com",
-  password: "correct horse battery staple",
-});
+const emptyAuth = new AuthService(emptyUsers);
+await assert.rejects(
+  emptyAuth.setup(
+    {
+      email: "First-Admin@Example.com",
+      password: "correct horse battery staple",
+    },
+    "wrong-token",
+  ),
+  (error: unknown) => error instanceof ApiError && error.code === "invalid_bootstrap_token",
+);
+const emptyStatus = await emptyAuth.status();
+assert.deepEqual(emptyStatus, { needsSetup: true, bootstrapTokenRequired: true });
+const firstAdmin = await emptyAuth.setup(
+  {
+    email: "First-Admin@Example.com",
+    password: "correct horse battery staple",
+  },
+  "setup-test-token",
+);
 assert.equal(firstAdmin.user.email, "first-admin@example.com");
 assert.equal(firstAdmin.user.role, "ADMIN");
 assert.equal(emptyUsers.users.length, 1);
 assert.equal(emptyUsers.users[0].passwordHash.startsWith("pbkdf2$210000$"), true);
+await assert.rejects(
+  emptyAuth.setup(
+    {
+      email: "second-admin@example.com",
+      password: "correct horse battery staple",
+    },
+    "setup-test-token",
+  ),
+  (error: unknown) => error instanceof ApiError && error.code === "admin_exists",
+);
+
+const savedSetupToken = process.env.I_REMEMBER_SETUP_TOKEN;
+delete process.env.I_REMEMBER_SETUP_TOKEN;
+const setupDisabledUsers = new UserRepo();
+setupDisabledUsers.users = [];
+await assert.rejects(
+  new AuthService(setupDisabledUsers).setup(
+    {
+      email: "disabled@example.com",
+      password: "correct horse battery staple",
+    },
+    "setup-test-token",
+  ),
+  (error: unknown) => error instanceof ApiError && error.code === "setup_not_configured",
+);
+process.env.I_REMEMBER_SETUP_TOKEN = savedSetupToken;
 
 const userLogin = await json("/api/v1/auth/login", {
   method: "POST",
@@ -943,6 +1208,18 @@ const createdMenuItem = await json("/api/v1/menu-items", {
 assert.equal(createdMenuItem.response.status, 201);
 assert.equal(createdMenuItem.body.data.type, "PAGE");
 
+const createdSoundItem = await json("/api/v1/menu-items", {
+  method: "POST",
+  headers: adminHeaders,
+  body: JSON.stringify({
+    label: "Sound",
+    type: "SOUND",
+    position: 20,
+  }),
+});
+assert.equal(createdSoundItem.response.status, 201);
+assert.equal(createdSoundItem.body.data.type, "SOUND");
+
 const updatedMenuItem = await json(`/api/v1/menu-items/${createdMenuItem.body.data.id}`, {
   method: "PATCH",
   headers: adminHeaders,
@@ -983,6 +1260,11 @@ const deletedMenuItem = await json(`/api/v1/menu-items/${createdMenuItem.body.da
   headers: adminHeaders,
 });
 assert.equal(deletedMenuItem.body.data.deleted, true);
+const deletedSoundItem = await json(`/api/v1/menu-items/${createdSoundItem.body.data.id}`, {
+  method: "DELETE",
+  headers: adminHeaders,
+});
+assert.equal(deletedSoundItem.body.data.deleted, true);
 
 const unauthorizedDashboard = await json("/api/v1/dashboard");
 assert.equal(unauthorizedDashboard.response.status, 401);
@@ -1136,6 +1418,29 @@ assert.equal(
   ),
   false,
 );
+
+resetRequestSecurityState();
+for (let attempt = 0; attempt < REQUEST_RATE_LIMITS.loginAccount.limit; attempt += 1) {
+  const rejectedLogin = await json("/api/v1/auth/login", {
+    method: "POST",
+    body: JSON.stringify({
+      email: "rate-limit@example.com",
+      password: "incorrect-password",
+    }),
+  });
+  assert.equal(rejectedLogin.response.status, 401);
+}
+const rateLimitedLogin = await json("/api/v1/auth/login", {
+  method: "POST",
+  body: JSON.stringify({
+    email: "rate-limit@example.com",
+    password: "incorrect-password",
+  }),
+});
+assert.equal(rateLimitedLogin.response.status, 429);
+assert.equal(rateLimitedLogin.body.error.code, "rate_limited");
+assert.equal(rateLimitedLogin.response.headers.has("retry-after"), true);
+resetRequestSecurityState();
 
 await new Promise<void>((resolve, reject) => {
   server.close((error) => (error ? reject(error) : resolve()));

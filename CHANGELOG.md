@@ -10,11 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added persistent Memory view counts and one-level grouped Footer Menu items.
+- Added an independent first-administrator bootstrap token with an atomic
+  PostgreSQL setup claim, two-stage setup throttling, and admin setup UI.
+- Added database-aware public readiness, request-size/origin safeguards, trusted
+  proxy peer handling, and per-client authentication/submission limits.
+- Added checksum-verified PostgreSQL/assets/credential backup and empty-volume
+  restore commands plus fresh-volume, restart, backup, and restore smoke tests.
 
 ### Changed
 
 - Reduced the production image by installing only runtime dependencies after
   the monorepo build instead of copying the full development dependency tree.
+- Pinned the production Node and PostgreSQL runtimes, bound Compose to loopback,
+  required immutable release tags, and made pull requests exercise the complete
+  one-image container lifecycle before merge.
+- Made anonymous submission and Umami tracking opt-in on fresh installations,
+  and removed the legacy FRM footer seed from new databases.
 - Moved Memory editing to `/admin/memory/editor`, made long-form expansion
   automatic, and split Settings into Site, Account, and Security tabs.
 - Made published Pages create and maintain their linked long-form Memory.
@@ -23,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed Untitled placeholder memories from the public galaxy and replaced the
   static fade value with recent published-memory activity.
+- Restricted public Memory detail routes to language-free `/memory/:id`, fixed
+  admin editor deep links, and made runtime Settings drive both public and admin
+  behavior without stale compatibility fallbacks.
+- Sanitized and rebuilt forwarding headers at the one-image boundary so trusted
+  reverse proxies can preserve visitor-specific limits without accepting spoofed
+  forwarding chains.
 - Moved 2FA password confirmation into the Security workflow and made all
   archive footer controls managed menu records.
 
