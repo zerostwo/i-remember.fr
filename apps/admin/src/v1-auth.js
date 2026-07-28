@@ -1,11 +1,7 @@
-export function v1AuthPayload(credentials = {}, options = {}) {
-  const payload = {
+export function v1AuthPayload(credentials = {}) {
+  return {
     email: String(credentials.email || "").trim(),
     password: String(credentials.password || ""),
+    ...(credentials.totp ? { totp: String(credentials.totp) } : {}),
   };
-
-  if (credentials.totp) payload.totp = String(credentials.totp);
-  if (options.setup) payload.bootstrapToken = String(credentials.bootstrapToken || "");
-
-  return payload;
 }

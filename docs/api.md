@@ -63,19 +63,17 @@ returns a deterministic answer plus `/memory/:id` citations from public,
 published memories. It does not expose MCP or call an external model yet.
 
 `POST /api/v1/auth/setup` creates the first Prisma `ADMIN` user only when the
-user table is empty. It requires the dedicated `I_REMEMBER_SETUP_TOKEN` value
-in the `x-i-remember-setup-token` header (or `bootstrapToken` JSON field);
-`AUTH_SECRET` is never accepted as a bootstrap credential. The admin shell
-calls this during first setup so later admin writes authenticate against the
-v1 API directly.
+user table is empty. It accepts a valid email and a password of at least eight
+characters. The endpoint is globally rate limited and becomes unavailable as
+soon as the first user exists. Complete setup on a trusted network before
+exposing the deployment publicly.
 
 `POST /api/v1/auth/login` checks Prisma users first using the stored
 `pbkdf2$iterations$salt$hash` password format and issues a signed bearer token
 with the user's role. `AUTH_SECRET` signs those tokens and encrypts persisted
 two-factor secrets; it is not itself an API bearer token. The single-image
 entrypoint generates and persists this secret when the deployment does not
-supply one. It separately generates and persists `I_REMEMBER_SETUP_TOKEN` for
-first-admin setup.
+supply one.
 
 `PATCH /api/v1/memories/:id` is admin-only and accepts partial edits, including
 moderation status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`.

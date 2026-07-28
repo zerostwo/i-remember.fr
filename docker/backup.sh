@@ -27,7 +27,6 @@ fi
 data_dir="${I_REMEMBER_DATA_DIR:-/var/opt/i-remember.fr}"
 storage_path="${STORAGE_PATH:-$data_dir/assets}"
 auth_secret_file="$data_dir/auth-secret"
-setup_token_file="$data_dir/setup-token"
 postgres_db="${POSTGRES_DB:-i_remember}"
 postgres_port="${POSTGRES_PORT:-5432}"
 postgres_major="${POSTGRES_MAJOR:-15}"
@@ -63,11 +62,6 @@ fi
 
 if [ ! -s "$auth_secret_file" ]; then
   printf 'Missing persisted auth secret: %s\n' "$auth_secret_file" >&2
-  exit 66
-fi
-
-if [ ! -s "$setup_token_file" ]; then
-  printf 'Missing persisted setup token: %s\n' "$setup_token_file" >&2
   exit 66
 fi
 
@@ -133,12 +127,10 @@ printf 'Archiving uploaded assets...\n' >&2
 tar -C "$storage_path" -czf "$stage_dir/assets.tar.gz" .
 cp "$auth_secret_file" "$stage_dir/auth-secret"
 chmod 600 "$stage_dir/auth-secret"
-cp "$setup_token_file" "$stage_dir/setup-token"
-chmod 600 "$stage_dir/setup-token"
 
 (
   cd "$stage_dir"
-  sha256sum database.dump assets.tar.gz auth-secret setup-token > SHA256SUMS
+  sha256sum database.dump assets.tar.gz auth-secret > SHA256SUMS
 )
 
 BACKUP_CREATED_AT="$created_at" \
@@ -166,7 +158,7 @@ process.stdout.write(
   `${JSON.stringify(
     {
       format: "i-remember-backup",
-      formatVersion: 1,
+      formatVersion: 2,
       createdAt: process.env.BACKUP_CREATED_AT,
       app: {
         name: process.env.APP_NAME,
@@ -193,8 +185,7 @@ tar -C "$stage_dir" \
   SHA256SUMS \
   database.dump \
   assets.tar.gz \
-  auth-secret \
-  setup-token
+  auth-secret
 chmod 600 "$partial_path"
 ln "$partial_path" "$output_path"
 

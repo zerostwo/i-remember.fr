@@ -538,17 +538,12 @@ export class AuthController {
       ...REQUEST_RATE_LIMITS.setupProbe,
     });
     const input = await readJson(context.req);
-    const headerToken = Array.isArray(context.req.headers["x-i-remember-setup-token"])
-      ? context.req.headers["x-i-remember-setup-token"][0]
-      : context.req.headers["x-i-remember-setup-token"];
-    const bootstrapToken = String(headerToken || input.bootstrapToken || "");
-    this.auth.assertBootstrapToken(bootstrapToken);
     assertRateLimit(context.res, {
       bucket: "auth-setup",
       identity: "first-admin",
       ...REQUEST_RATE_LIMITS.setup,
     });
-    const data = await this.auth.setup(input, bootstrapToken);
+    const data = await this.auth.setup(input);
     context.res.statusCode = 201;
     return { success: true, data };
   }

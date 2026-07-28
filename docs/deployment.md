@@ -40,8 +40,6 @@ TAG=sha-0123456789ab
 I_REMEMBER_HOST_PORT=7892
 I_REMEMBER_DEFAULT_LANGUAGE=en
 I_REMEMBER_ANONYMOUS_SUBMISSIONS=false
-# Optional: pre-generate with `openssl rand -base64 32`
-I_REMEMBER_SETUP_TOKEN=
 ```
 
 Leave `AUTH_SECRET` empty on a new deployment. The entrypoint generates a
@@ -49,13 +47,6 @@ random secret and persists it as `/var/opt/i-remember.fr/auth-secret`. If an
 operator supplies `AUTH_SECRET`, the entrypoint persists it and later refuses
 to start if the environment value differs from the persisted value. This
 prevents accidental token and two-factor-encryption key rotation.
-
-`I_REMEMBER_SETUP_TOKEN` is a separate, one-purpose credential for creating
-the first administrator. It must never fall back to or reuse `AUTH_SECRET`.
-Leave it empty to have the entrypoint generate and persist a random value as
-`/var/opt/i-remember.fr/setup-token`, or supply a strong random value on the
-first start. A later environment value that differs from the persisted file
-causes startup to fail rather than silently rotating the credential.
 
 Validate and start the selected image:
 
@@ -78,20 +69,10 @@ curl --fail --show-error http://127.0.0.1:7892/version
 docker compose exec -T app /usr/local/bin/i-remember-healthcheck
 ```
 
-On a new volume, retrieve the generated token only through the trusted local
-operator path:
-
-```bash
-docker compose exec -T app sh -c \
-  'cat /var/opt/i-remember.fr/setup-token'
-```
-
 Create the first administrator at `/admin/setup` before opening the public
-route, providing that value as the bootstrap token, then enable two-factor
-authentication. The API also accepts it in the
-`x-i-remember-setup-token` request header. Setup is disabled by the database
-once the first user exists, but the token remains in the protected data volume
-so backup/restore state is complete.
+route, then enable two-factor authentication. Setup requires a password of at
+least eight characters, is rate limited, and is disabled by the database once
+the first user exists.
 
 ## Domain, reverse proxy, and TLS
 
@@ -136,7 +117,6 @@ containing:
 - a custom-format `pg_dump`;
 - uploaded assets;
 - the persisted `auth-secret`;
-- the persisted one-time `setup-token`;
 - a JSON manifest and SHA-256 checksums.
 
 Pause or block public/admin writes while the command runs so database and asset

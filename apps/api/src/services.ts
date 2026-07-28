@@ -1,4 +1,3 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { join } from "node:path";
 import { createLocalStorage, type StorageAdapter } from "@i-remember/storage";
 import type {
@@ -253,7 +252,7 @@ export class AuthService {
 
   async status() {
     const needsSetup = (await this.users.count()) === 0;
-    return { needsSetup, bootstrapTokenRequired: needsSetup };
+    return { needsSetup };
   }
 
   async login(input: Record<string, unknown>) {
@@ -287,20 +286,7 @@ export class AuthService {
     throw new ApiError(401, "Invalid two-factor code", "invalid_two_factor");
   }
 
-  assertBootstrapToken(providedBootstrapToken: string) {
-    const configuredBootstrapToken = String(process.env.I_REMEMBER_SETUP_TOKEN || "");
-    if (!configuredBootstrapToken) {
-      throw new ApiError(503, "First-admin setup is not configured", "setup_not_configured");
-    }
-    const expectedDigest = createHash("sha256").update(configuredBootstrapToken).digest();
-    const providedDigest = createHash("sha256").update(providedBootstrapToken).digest();
-    if (!timingSafeEqual(expectedDigest, providedDigest)) {
-      throw new ApiError(401, "Invalid bootstrap token", "invalid_bootstrap_token");
-    }
-  }
-
-  async setup(input: Record<string, unknown>, providedBootstrapToken: string) {
-    this.assertBootstrapToken(providedBootstrapToken);
+  async setup(input: Record<string, unknown>) {
     const email = String(input.email || "")
       .trim()
       .toLowerCase();
@@ -308,8 +294,8 @@ export class AuthService {
     if (!email || !email.includes("@")) {
       throw new ApiError(400, "Valid email is required", "invalid_email");
     }
-    if (password.length < 12) {
-      throw new ApiError(400, "Password must be at least 12 characters", "weak_password");
+    if (password.length < 8) {
+      throw new ApiError(400, "Password must be at least 8 characters", "weak_password");
     }
     const user = await this.users.createFirstAdmin({
       email,
@@ -348,8 +334,8 @@ export class AuthService {
     if (!email || !email.includes("@")) {
       throw new ApiError(400, "Valid email is required", "invalid_email");
     }
-    if (newPassword && newPassword.length < 12) {
-      throw new ApiError(400, "Password must be at least 12 characters", "weak_password");
+    if (newPassword && newPassword.length < 8) {
+      throw new ApiError(400, "Password must be at least 8 characters", "weak_password");
     }
 
     const updated = await this.users.update(user.id, {

@@ -13,27 +13,16 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  v1AuthPayload(
-    {
-      email: "owner@example.com",
-      password: "correct horse battery staple",
-      bootstrapToken: "one-time-setup-token",
-    },
-    { setup: true },
-  ),
+  v1AuthPayload({
+    email: "owner@example.com",
+    password: "correct horse battery staple",
+    totp: "123456",
+  }),
   {
     email: "owner@example.com",
     password: "correct horse battery staple",
-    bootstrapToken: "one-time-setup-token",
+    totp: "123456",
   },
-);
-
-assert.equal(
-  Object.hasOwn(
-    v1AuthPayload({ email: "owner@example.com", password: "secret" }),
-    "bootstrapToken",
-  ),
-  false,
 );
 
 console.log("admin v1 auth payload ok");

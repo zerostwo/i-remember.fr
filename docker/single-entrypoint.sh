@@ -12,7 +12,6 @@ app_log="$log_dir/app.log"
 startup_log="$log_dir/startup.log"
 postgres_log="$log_dir/postgres.log"
 auth_secret_file="$data_dir/auth-secret"
-setup_token_file="$data_dir/setup-token"
 pg_bin="/usr/lib/postgresql/$postgres_major/bin"
 api_pid=""
 web_pid=""
@@ -155,27 +154,6 @@ else
 fi
 chmod 600 "$auth_secret_file"
 export AUTH_SECRET="$(cat "$auth_secret_file")"
-
-if [ -n "${I_REMEMBER_SETUP_TOKEN:-}" ]; then
-  if [ -s "$setup_token_file" ]; then
-    if [ "$(cat "$setup_token_file")" != "$I_REMEMBER_SETUP_TOKEN" ]; then
-      log "setup_token_mismatch" "I_REMEMBER_SETUP_TOKEN does not match the persisted setup token"
-      printf 'I_REMEMBER_SETUP_TOKEN does not match %s; refusing an implicit credential rotation.\n' \
-        "$setup_token_file" >&2
-      exit 65
-    fi
-  else
-    umask 077
-    printf '%s\n' "$I_REMEMBER_SETUP_TOKEN" > "$setup_token_file"
-  fi
-else
-  if [ ! -s "$setup_token_file" ]; then
-    umask 077
-    node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))" > "$setup_token_file"
-  fi
-fi
-chmod 600 "$setup_token_file"
-export I_REMEMBER_SETUP_TOKEN="$(cat "$setup_token_file")"
 
 export DATABASE_URL="${DATABASE_URL:-postgresql://postgres@127.0.0.1:$postgres_port/$postgres_db?schema=public}"
 export STORAGE_PATH="$storage_path"

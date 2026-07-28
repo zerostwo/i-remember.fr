@@ -29,7 +29,6 @@ data_dir="${I_REMEMBER_DATA_DIR:-/var/opt/i-remember.fr}"
 pgdata="${POSTGRES_DATA_DIR:-$data_dir/postgres}"
 storage_path="${STORAGE_PATH:-$data_dir/assets}"
 auth_secret_file="$data_dir/auth-secret"
-setup_token_file="$data_dir/setup-token"
 postgres_db="${POSTGRES_DB:-i_remember}"
 postgres_port="${POSTGRES_PORT:-5432}"
 postgres_major="${POSTGRES_MAJOR:-15}"
@@ -111,7 +110,7 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-expected_entries="$(printf '%s\n' SHA256SUMS assets.tar.gz auth-secret database.dump manifest.json setup-token | sort)"
+expected_entries="$(printf '%s\n' SHA256SUMS assets.tar.gz auth-secret database.dump manifest.json | sort)"
 actual_entries="$(tar -tzf "$bundle_path" | sed 's#^\./##' | sort)"
 if [ "$actual_entries" != "$expected_entries" ]; then
   printf 'Backup bundle contains an unexpected file set.\n' >&2
@@ -130,7 +129,7 @@ node --input-type=module - "$stage_dir/manifest.json" <<'NODE'
 import { readFileSync } from "node:fs";
 
 const manifest = JSON.parse(readFileSync(process.argv[2], "utf8"));
-if (manifest.format !== "i-remember-backup" || manifest.formatVersion !== 1) {
+if (manifest.format !== "i-remember-backup" || manifest.formatVersion !== 2) {
   throw new Error("Unsupported backup manifest");
 }
 if (manifest.database?.engine !== "postgresql") {
@@ -194,8 +193,6 @@ printf 'Restoring assets and authentication secret...\n' >&2
 tar --no-same-owner --no-same-permissions -xzf "$stage_dir/assets.tar.gz" -C "$storage_path"
 cp "$stage_dir/auth-secret" "$auth_secret_file"
 chmod 600 "$auth_secret_file"
-cp "$stage_dir/setup-token" "$setup_token_file"
-chmod 600 "$setup_token_file"
 cp "$stage_dir/manifest.json" "$data_dir/restore-manifest.json"
 chmod 600 "$data_dir/restore-manifest.json"
 

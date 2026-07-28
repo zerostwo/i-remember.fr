@@ -47,9 +47,8 @@ server still listens on `PORT` and `HOST`; the default local URL is
 Admin is available at `/admin/`.
 
 On a fresh database, the first visit redirects to `/admin/setup`. The
-first-admin form requires the separate bootstrap token persisted as
-`/var/opt/i-remember.fr/setup-token`; see the production deployment guide for
-the trusted local retrieval command.
+first-admin form creates the single owner directly; finish this step before
+opening the deployment to untrusted traffic.
 
 The running app exposes its build version at `/version`.
 
@@ -69,7 +68,7 @@ Open `http://localhost:7892`.
 
 The single image starts the public web server, API server, and an internal
 PostgreSQL database. The mounted directory stores PostgreSQL data, uploads, the
-generated auth secret, and the first-admin setup token. Runtime logs are written to
+generated auth secret. Runtime logs are written to
 `/var/opt/i-remember.fr/logs/` inside the container, which maps into the mounted
 volume as `logs/startup.log`, `logs/app.log`, and `logs/postgres.log`.
 
@@ -90,12 +89,10 @@ major-version upgrades.
 
 Copy `.env.example` into your deployment environment. The single-image runtime
 generates its internal PostgreSQL URL, storage path, and authentication secret;
-the auth and setup credentials are persisted in the data volume and included
-in protected backup bundles. Common production settings are:
+the authentication secret is persisted in the data volume and included in
+protected backup bundles. Common production settings are:
 
 - `I_REMEMBER_HOST_PORT`: loopback host port, default `7892`.
-- `I_REMEMBER_SETUP_TOKEN`: optional strong first-admin bootstrap credential;
-  leave empty to generate and persist one, then retrieve it locally.
 - `API_TRUST_PROXY`: `true` only for the supplied single-image topology, whose
   loopback web proxy sanitizes forwarding headers before the private API.
 - `I_REMEMBER_TRUST_PROXY`: enable only when a trusted reverse proxy connects

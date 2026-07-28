@@ -120,22 +120,9 @@ if [[ "$(printf '%s' "$status_json" | json_value data.needsSetup)" != "true" ]];
 fi
 curl -fsS "$original_url/version" >/dev/null
 
-setup_token="$(docker exec "$original_name" cat /var/opt/i-remember.fr/setup-token)"
-auth_secret="$(docker exec "$original_name" cat /var/opt/i-remember.fr/auth-secret)"
-fallback_status="$(curl -sS -o /dev/null -w '%{http_code}' \
-  -H 'Content-Type: application/json' \
-  -H "x-i-remember-setup-token: $auth_secret" \
-  -d '{"email":"forbidden@example.invalid","password":"Smoke-test-password-2026!"}' \
-  "$original_url/api/v1/auth/setup")"
-if [[ "$fallback_status" != "401" ]]; then
-  echo "AUTH_SECRET was not rejected as a first-admin bootstrap credential." >&2
-  exit 1
-fi
-
 setup_json="$(curl -fsS \
   -H 'Content-Type: application/json' \
-  -H "x-i-remember-setup-token: $setup_token" \
-  -d '{"email":"smoke@example.invalid","password":"Smoke-test-password-2026!"}' \
+  -d '{"email":"smoke@example.invalid","password":"981211@Dd"}' \
   "$original_url/api/v1/auth/setup")"
 admin_token="$(printf '%s' "$setup_json" | json_value data.token)"
 
@@ -157,8 +144,6 @@ docker exec "$original_name" sh -c \
   'test "$(cat /var/opt/i-remember.fr/postgres/PG_VERSION)" = "15"'
 docker exec "$original_name" sh -c \
   'test "$(stat -c %a /var/opt/i-remember.fr/auth-secret)" = "600"'
-docker exec "$original_name" sh -c \
-  'test "$(stat -c %a /var/opt/i-remember.fr/setup-token)" = "600"'
 docker exec "$original_name" \
   /usr/lib/postgresql/15/bin/psql \
   -h 127.0.0.1 \
@@ -205,7 +190,6 @@ curl -fsS -H "Authorization: Bearer $admin_token" \
   "$restored_url/api/v1/auth/account" >/dev/null
 curl -fsS "$restored_url/api/v1/memories/$memory_id" >/dev/null
 curl -fsS "$restored_url/uploads/smoke/persistence.txt" | grep -qx 'smoke-persistence'
-test "$(docker exec "$restored_name" cat /var/opt/i-remember.fr/setup-token)" = "$setup_token"
 docker exec "$restored_name" /usr/local/bin/i-remember-healthcheck
 
 echo "Fresh-volume, readiness, restart, backup, and restore checks passed."

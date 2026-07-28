@@ -440,7 +440,6 @@ class Storage implements StorageAdapter {
 }
 
 process.env.AUTH_SECRET = "test-secret";
-process.env.I_REMEMBER_SETUP_TOKEN = "setup-test-token";
 delete process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS;
 process.env.I_REMEMBER_DEFAULT_LANGUAGE = "en";
 delete process.env.UMAMI_SRC;
@@ -813,7 +812,6 @@ assert.equal(authorized.body.data[0].passwordHash, undefined);
 const configuredAuthStatus = await json("/api/v1/auth/status");
 assert.deepEqual(configuredAuthStatus.body.data, {
   needsSetup: false,
-  bootstrapTokenRequired: false,
 });
 
 const loggedIn = await json("/api/v1/auth/login", {
@@ -960,61 +958,37 @@ const failedLogin = await json("/api/v1/auth/login", {
 });
 assert.equal(failedLogin.response.status, 401);
 
-const setupWithoutToken = await json("/api/v1/auth/setup", {
+const setupConflict = await json("/api/v1/auth/setup", {
   method: "POST",
   body: JSON.stringify({ email: "new-admin@example.com", password: "password123456" }),
 });
-assert.equal(setupWithoutToken.response.status, 401);
-assert.equal(setupWithoutToken.body.error.code, "invalid_bootstrap_token");
+assert.equal(setupConflict.response.status, 409);
+assert.equal(setupConflict.body.error.code, "admin_exists");
 
 const setupHeaderConflict = await json("/api/v1/auth/setup", {
   method: "POST",
-  headers: { "X-I-Remember-Setup-Token": "setup-test-token" },
+  headers: { "X-I-Remember-Setup-Token": "ignored-legacy-value" },
   body: JSON.stringify({ email: "new-admin@example.com", password: "password123456" }),
 });
 assert.equal(setupHeaderConflict.response.status, 409);
 assert.equal(setupHeaderConflict.body.error.code, "admin_exists");
 
-const setupConflict = await json("/api/v1/auth/setup", {
-  method: "POST",
-  body: JSON.stringify({
-    email: "new-admin@example.com",
-    password: "password123456",
-    bootstrapToken: "setup-test-token",
-  }),
-});
-assert.equal(setupConflict.response.status, 409);
-assert.equal(setupConflict.body.error.code, "admin_exists");
-
 resetRequestSecurityState();
 for (let attempt = 0; attempt < REQUEST_RATE_LIMITS.setup.limit; attempt += 1) {
-  const invalidSetupToken = await json("/api/v1/auth/setup", {
+  const existingAdminSetup = await json("/api/v1/auth/setup", {
     method: "POST",
     body: JSON.stringify({
       email: "new-admin@example.com",
       password: "password123456",
-      bootstrapToken: "wrong-token",
     }),
   });
-  assert.equal(invalidSetupToken.response.status, 401);
-}
-for (let attempt = 0; attempt < REQUEST_RATE_LIMITS.setup.limit; attempt += 1) {
-  const validSetupAttempt = await json("/api/v1/auth/setup", {
-    method: "POST",
-    body: JSON.stringify({
-      email: "new-admin@example.com",
-      password: "password123456",
-      bootstrapToken: "setup-test-token",
-    }),
-  });
-  assert.equal(validSetupAttempt.response.status, 409);
+  assert.equal(existingAdminSetup.response.status, 409);
 }
 const rateLimitedSetup = await json("/api/v1/auth/setup", {
   method: "POST",
   body: JSON.stringify({
     email: "new-admin@example.com",
     password: "password123456",
-    bootstrapToken: "setup-test-token",
   }),
 });
 assert.equal(rateLimitedSetup.response.status, 429);
@@ -1025,54 +999,34 @@ const emptyUsers = new UserRepo();
 emptyUsers.users = [];
 const emptyAuth = new AuthService(emptyUsers);
 await assert.rejects(
-  emptyAuth.setup(
-    {
-      email: "First-Admin@Example.com",
-      password: "correct horse battery staple",
-    },
-    "wrong-token",
-  ),
-  (error: unknown) => error instanceof ApiError && error.code === "invalid_bootstrap_token",
+  emptyAuth.setup({
+    email: "First-Admin@Example.com",
+    password: "1234567",
+  }),
+  (error: unknown) => error instanceof ApiError && error.code === "weak_password",
 );
 const emptyStatus = await emptyAuth.status();
-assert.deepEqual(emptyStatus, { needsSetup: true, bootstrapTokenRequired: true });
-const firstAdmin = await emptyAuth.setup(
-  {
-    email: "First-Admin@Example.com",
-    password: "correct horse battery staple",
-  },
-  "setup-test-token",
-);
+assert.deepEqual(emptyStatus, { needsSetup: true });
+const firstAdmin = await emptyAuth.setup({
+  email: "First-Admin@Example.com",
+  password: "981211@Dd",
+});
 assert.equal(firstAdmin.user.email, "first-admin@example.com");
 assert.equal(firstAdmin.user.role, "ADMIN");
 assert.equal(emptyUsers.users.length, 1);
 assert.equal(emptyUsers.users[0].passwordHash.startsWith("pbkdf2$210000$"), true);
+const supportedPasswordLogin = await emptyAuth.login({
+  email: "first-admin@example.com",
+  password: "981211@Dd",
+});
+assert.equal("token" in supportedPasswordLogin, true);
 await assert.rejects(
-  emptyAuth.setup(
-    {
-      email: "second-admin@example.com",
-      password: "correct horse battery staple",
-    },
-    "setup-test-token",
-  ),
+  emptyAuth.setup({
+    email: "second-admin@example.com",
+    password: "correct horse battery staple",
+  }),
   (error: unknown) => error instanceof ApiError && error.code === "admin_exists",
 );
-
-const savedSetupToken = process.env.I_REMEMBER_SETUP_TOKEN;
-delete process.env.I_REMEMBER_SETUP_TOKEN;
-const setupDisabledUsers = new UserRepo();
-setupDisabledUsers.users = [];
-await assert.rejects(
-  new AuthService(setupDisabledUsers).setup(
-    {
-      email: "disabled@example.com",
-      password: "correct horse battery staple",
-    },
-    "setup-test-token",
-  ),
-  (error: unknown) => error instanceof ApiError && error.code === "setup_not_configured",
-);
-process.env.I_REMEMBER_SETUP_TOKEN = savedSetupToken;
 
 const userLogin = await json("/api/v1/auth/login", {
   method: "POST",

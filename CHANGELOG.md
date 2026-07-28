@@ -18,15 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the approved-admin design gate, workspace consolidation, and production
   cutover verification.
 - Added persistent Memory view counts and one-level grouped Footer Menu items.
-- Added an independent first-administrator bootstrap token with an atomic
-  PostgreSQL setup claim, two-stage setup throttling, and admin setup UI.
+- Added an atomic PostgreSQL first-administrator claim, global setup
+  throttling, and admin setup UI.
 - Added database-aware public readiness, request-size/origin safeguards, trusted
   proxy peer handling, and per-client authentication/submission limits.
-- Added checksum-verified PostgreSQL/assets/credential backup and empty-volume
+- Added checksum-verified PostgreSQL/assets/auth-secret backup and empty-volume
   restore commands plus fresh-volume, restart, backup, and restore smoke tests.
 
 ### Changed
 
+- Removed the installation-token requirement from first-owner setup and lowered
+  the administrator password minimum to eight characters.
 - Moved all admin implementation and v1 adapter sources into the
   `apps/admin` package boundary, and removed hidden Comments, Theme, and
   standalone Backup destinations from the launch navigation.

@@ -554,7 +554,6 @@ function MarkdownPreview({ value }) {
 export function AdminApp() {
   const [authenticated, setAuthenticated] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
-  const [bootstrapTokenRequired, setBootstrapTokenRequired] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [route, setRoute] = useState(routeFromLocation);
   const [data, setData] = useState(null);
@@ -591,7 +590,6 @@ export function AdminApp() {
       .then(([status, hasSession]) => {
         if (active) {
           setNeedsSetup(Boolean(status.needsSetup));
-          setBootstrapTokenRequired(Boolean(status.bootstrapTokenRequired));
           setAuthenticated(Boolean(hasSession));
         }
       })
@@ -1009,13 +1007,7 @@ export function AdminApp() {
 
   if (!authenticated) {
     if (needsSetup) {
-      return (
-        <SetupScreen
-          bootstrapTokenRequired={bootstrapTokenRequired}
-          loading={loading}
-          onSetup={handleSetup}
-        />
-      );
+      return <SetupScreen loading={loading} onSetup={handleSetup} />;
     }
     return <LoginScreen loading={loading} onLogin={handleLogin} />;
   }
@@ -1212,11 +1204,10 @@ function LoginScreen({ loading, onLogin }) {
   );
 }
 
-function SetupScreen({ bootstrapTokenRequired, loading, onSetup }) {
+function SetupScreen({ loading, onSetup }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [bootstrapToken, setBootstrapToken] = useState("");
   const [setupError, setSetupError] = useState("");
 
   async function submitSetup(event) {
@@ -1227,7 +1218,7 @@ function SetupScreen({ bootstrapTokenRequired, loading, onSetup }) {
       return;
     }
     try {
-      await onSetup({ email, password, bootstrapToken });
+      await onSetup({ email, password });
     } catch (error) {
       setSetupError(error.message);
     }
@@ -1266,6 +1257,7 @@ function SetupScreen({ bootstrapTokenRequired, loading, onSetup }) {
                 />
                 <TextField
                   label="Password"
+                  description="Use at least 8 characters."
                   value={password}
                   onChange={setPassword}
                   type="password"
@@ -1278,17 +1270,6 @@ function SetupScreen({ bootstrapTokenRequired, loading, onSetup }) {
                   type="password"
                   autoComplete="new-password"
                 />
-                {bootstrapTokenRequired ? (
-                  <TextField
-                    label="One-time setup token"
-                    description="Read this value from the protected setup-token file in the server data directory."
-                    value={bootstrapToken}
-                    onChange={setBootstrapToken}
-                    type="password"
-                    autoComplete="off"
-                    required
-                  />
-                ) : null}
               </FieldGroup>
               {setupError ? <StatusMessage variant="error" message={setupError} /> : null}
               <Button className="w-full" disabled={loading} type="submit" size="lg">
@@ -2906,7 +2887,7 @@ function SettingsView({
                 />
                 <TextField
                   label="New password"
-                  description="Use at least 12 characters and a password manager."
+                  description="Use at least 8 characters and a password manager."
                   value={accountDraft.newPassword}
                   onChange={(value) => updateAccount("newPassword", value)}
                   type="password"

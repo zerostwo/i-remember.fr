@@ -86,5 +86,10 @@ Current backend/product decisions:
   security-boundary descriptions belong in deployment documentation or a
   clearly read-only status surface, not among editable settings. Do not show
   inert `Runtime behavior` or `Security boundary` setting cards.
+- First-owner setup does not use an installation or bootstrap token. Keep it
+  reachable only while the user table is empty, retain global setup rate
+  limiting, and complete owner creation before exposing a fresh instance to
+  untrusted traffic. Admin passwords must accept values of at least eight
+  characters, including `981211@Dd`.
 - Do not commit generated QA artifacts, imported data snapshots, runtime database directories, SQLite files, or `db/`; SQLite runtime and migration paths are removed and must not be reintroduced.
 - After modifying this repository, create a clean ccc-style Conventional Commit before handing work back.
