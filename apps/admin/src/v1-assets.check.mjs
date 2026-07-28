@@ -4,7 +4,9 @@ import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload } from "./v1-ass
 const merged = mergeV1Assets(
   {
     counts: { attachments: 1 },
-    attachments: [{ imageKey: "legacy", thumbUrl: "/uploads/legacy.jpg", resizedUrl: "/uploads/legacy.jpg" }],
+    attachments: [
+      { imageKey: "legacy", thumbUrl: "/uploads/legacy.jpg", resizedUrl: "/uploads/legacy.jpg" },
+    ],
   },
   [
     {

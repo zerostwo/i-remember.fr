@@ -25,6 +25,9 @@ Current backend/product decisions:
 - Keep Facebook and Instagram API modernization out of scope until explicitly requested.
 - Publish one Docker image only; do not split publishing into separate `web`, `admin`, and `api` images. DockerHub image name and tag must still come from `DOCKERHUB_IMAGE` and `TAG`.
 - For the admin experience, create and confirm Figma UI designs first; only build the clickable responsive backend prototype after the UI is approved.
+- Use the approved Figma V2 file
+  `cFsmOQaPKot04xwNci0vyt` (`i-remember.fr Admin Refresh 2026-07-26`,
+  starting at node `18:60`) as the admin implementation source of truth.
 - Keep the admin experience concise, elegant, calm, and low-noise. Simplify
   navigation labels, route structure, information hierarchy, form density, and
   table presentation; avoid generic dashboard ornament. Treat the public

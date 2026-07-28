@@ -5,11 +5,14 @@
   "scripts": {
     "dev": "vite --config ../../vite.config.mjs --host 127.0.0.1",
     "build": "vite build --config ../../vite.config.mjs",
-    "test": "node -e \"await import('@i-remember/memory-engine'); const fs = await import('node:fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); if (!fs.existsSync('src/main.tsx')) process.exit(1); if (!pkg.dependencies['@i-remember/ui']) process.exit(1); console.log('admin app entry ok')\"",
+    "test": "node -e \"const fs = await import('node:fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); if (!fs.existsSync('src/main.jsx')) process.exit(1); if (!fs.existsSync('src/AdminApp.jsx')) process.exit(1); if (!pkg.dependencies['@i-remember/ui']) process.exit(1); console.log('admin app entry ok')\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@i-remember/memory-engine": "workspace:*",
-    "@i-remember/ui": "workspace:*"
+    "@i-remember/ui": "workspace:*",
+    "lucide-react": "^1.23.0",
+    "qrcode": "^1.5.4",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
   }
 }

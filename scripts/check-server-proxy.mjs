@@ -305,7 +305,7 @@ try {
     `${baseUrl}/admin/memory/editor?id=${encodeURIComponent(v1PublicId)}`,
   );
   assert.equal(memoryEditorResponse.status, 200);
-  assert.match(await memoryEditorResponse.text(), /<title>I Remember Admin<\/title>/);
+  assert.match(await memoryEditorResponse.text(), /<title>songqi\.org — Admin<\/title>/);
 
   const removedAdminResponse = await fetch(`${baseUrl}/api/admin/setup`, {
     method: "POST",

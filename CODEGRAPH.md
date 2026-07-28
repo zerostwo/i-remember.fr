@@ -42,8 +42,9 @@ apps/api
 
 ## Public Archive Surface
 
-Treat these as preserved visual/runtime assets unless the user explicitly
-approves a visual change:
+These files still contain the archive-derived public implementation. They are
+temporary migration inputs, not a visual contract; the public surface must move
+to the separate clean-room `songqi.org` design before launch:
 
 - `index.html`
 - `fr.html`
@@ -56,8 +57,9 @@ approves a visual change:
 - `public/fonts/*`
 - `public/uploads/posts/revival-upload/*.jpg`
 
-The public memory galaxy, particle behavior, card layout, search UI, add-memory
-UI, navigation ball, and responsive behavior should remain visually unchanged.
+Preserve the memory-galaxy interaction model and the public search,
+add-memory, exploration, and opened-memory task sequence. Do not preserve the
+archive's brand skin, copy, assets, trade dress, or exact geometry.
 
 ## Public Visual Adapter
 
@@ -82,12 +84,12 @@ UI, navigation ball, and responsive behavior should remain visually unchanged.
 ## Admin App
 
 - `admin.html`: root Vite entry for admin.
-- `apps/admin/src/main.tsx`: workspace entry that mounts the admin app.
-- `src/admin/AdminApp.jsx`: admin routes, data loading, CRUD screens, login,
+- `apps/admin/src/main.jsx`: workspace entry that mounts the admin app.
+- `apps/admin/src/AdminApp.jsx`: admin routes, data loading, CRUD screens, login,
   settings, 2FA, backup export, and v1 mirroring.
-- `src/admin/v1-*.js`: bridge helpers that mirror legacy admin actions into
+- `apps/admin/src/v1-*.js`: bridge helpers that mirror admin actions into
   the v1 API.
-- `src/admin/admin.css`: admin-specific layout and polish.
+- `apps/admin/src/admin.css`: Figma V2 admin layout and visual system.
 - `src/components/ui/*.jsx`: local shadcn-style primitives re-exported by
   `packages/ui`.
 - `src/index.css`: Tailwind/shadcn theme tokens.
@@ -99,9 +101,9 @@ UI, navigation ball, and responsive behavior should remain visually unchanged.
 - `pnpm-workspace.yaml`: workspace package list.
 - `turbo.json`: task graph for build, test, typecheck, and dev.
 - `vite.config.mjs`: React/Tailwind build plus revival dev middleware.
-- `docker-compose.yml`: `web`, `admin`, `api`, and `postgres` services; image
-  names use `DOCKERHUB_IMAGE` and `TAG`.
-- `docker/*.Dockerfile`: per-app container builds.
+- `docker-compose.yml`: one application image plus PostgreSQL; the application
+  image name and tag use `DOCKERHUB_IMAGE` and `TAG`.
+- `Dockerfile`: one-image production build.
 - `.github/workflows/docker.yml`: DockerHub publishing workflow.
 - `.dockerignore`: excludes generated/runtime material from Docker context.
 - `.gitignore`: excludes generated/runtime material from Git while allowing
@@ -140,9 +142,9 @@ UI, navigation ball, and responsive behavior should remain visually unchanged.
   `public/js/revival-runtime.js`.
 - v1 API behavior: start in `apps/api/src/services.ts`,
   `apps/api/src/controllers.ts`, and `apps/api/src/prisma-repositories.ts`.
-- Admin UI behavior: start in `src/admin/AdminApp.jsx`; reuse
+- Admin UI behavior: start in `apps/admin/src/AdminApp.jsx`; reuse
   `packages/ui`/`src/components/ui` primitives.
 - Public visual shell: prefer `public/js/revival-runtime.js` or server HTML
   patches; edit `public/js/main.js` only as a last resort.
-- Docker publish issues: `docker-compose.yml`, `docker/*.Dockerfile`,
+- Docker publish issues: `Dockerfile`, `docker-compose.yml`,
   `.github/workflows/docker.yml`, and `.env.example`.

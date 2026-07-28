@@ -5,6 +5,7 @@ node_modules
 .revival-storage
 public/uploads
 /public
+/output
 /index.html
 /fr.html
 /legal.html

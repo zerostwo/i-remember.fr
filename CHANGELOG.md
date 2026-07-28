@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the approved Figma V2 admin experience with responsive navigation,
+  a keyboard-accessible Spotlight search, first-run setup, login, Dashboard,
+  content management, and Site, Account, Security, and Backup settings.
+- Added saveable site title, canonical URL, and timezone settings across the
+  admin UI, shared contracts, API defaults, and one-image deployment config.
 - Added a four-phase `songqi.org` launch plan covering clean-room debranding,
   the approved-admin design gate, workspace consolidation, and production
   cutover verification.
@@ -22,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved all admin implementation and v1 adapter sources into the
+  `apps/admin` package boundary, and removed hidden Comments, Theme, and
+  standalone Backup destinations from the launch navigation.
 - Reduced the production image by installing only runtime dependencies after
   the monorepo build instead of copying the full development dependency tree.
 - Pinned the production Node and PostgreSQL runtimes, bound Compose to loopback,

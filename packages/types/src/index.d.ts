@@ -146,6 +146,9 @@ export interface MenuItem {
 }
 
 export interface AppSettings {
+  siteTitle?: string;
+  canonicalUrl?: string;
+  timezone?: string;
   defaultLanguage?: "en" | "fr" | "zh";
   anonymousSubmissions?: boolean;
   tracking?: {

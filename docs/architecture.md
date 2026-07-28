@@ -1,13 +1,16 @@
 # Architecture
 
-The refactor keeps the public memory galaxy visually unchanged while separating
-the engineering foundation into apps and packages.
+The production foundation is separated into applications and shared packages.
+Admin and public presentation are independent delivery stages: the Figma V2
+admin is implemented as a private owner control surface, while the public site
+must cross the clean-room replacement gate before launch.
 
 ## Apps
 
 - `apps/web`: public website boundary and `MemoryGalaxy` export.
-- `apps/admin`: admin dashboard boundary. The active entry is
-  `apps/admin/src/main.tsx`, which reuses the existing approved admin UI.
+- `apps/admin`: complete Figma V2 admin application. The active entry is
+  `apps/admin/src/main.jsx`; UI, API adapters, and adapter checks are package
+  local.
 - `apps/api`: standalone TypeScript REST API with controller, service,
   repository, validation, and auth layers.
 
@@ -20,9 +23,9 @@ the engineering foundation into apps and packages.
 - `packages/ui`: shared shadcn-style component exports.
 - `packages/config`: shared route, language, and role constants.
 
-## Preserved Visual Surface
+## Public clean-room boundary
 
-Do not redesign or rewrite these files during backend migration:
+The following files still form the temporary archive migration shell:
 
 - `index.html`
 - `fr.html`
@@ -33,6 +36,8 @@ Do not redesign or rewrite these files during backend migration:
 - `public/audio/*`
 - `public/fonts/*`
 
-The public visual surface now reads and writes through the v1 PostgreSQL API.
-SQLite-backed runtime and legacy compatibility paths are intentionally removed
-for this early prototype.
+They are not a launch design contract and must not be treated as approved
+`songqi.org` branding. Public launch requires replacing operator identity, copy,
+legal text, media, fonts, and trade dress while preserving the memory-galaxy
+interaction model and current PostgreSQL API behavior. SQLite-backed runtime
+and compatibility paths remain removed.

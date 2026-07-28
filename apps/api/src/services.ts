@@ -48,6 +48,9 @@ import type {
 import { ApiError } from "./errors.js";
 
 export type RuntimeSettings = {
+  siteTitle: string;
+  canonicalUrl: string;
+  timezone: string;
   defaultLanguage: "en" | "fr" | "zh";
   anonymousSubmissions: boolean;
   tracking: {
@@ -79,6 +82,9 @@ function initialRuntimeSettings(): RuntimeSettings {
   const umamiSrc = String(process.env.UMAMI_SRC || "");
   const umamiWebsiteId = String(process.env.UMAMI_WEBSITE_ID || "");
   return {
+    siteTitle: String(process.env.I_REMEMBER_SITE_TITLE || "Songqi"),
+    canonicalUrl: String(process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org"),
+    timezone: String(process.env.TZ || "Asia/Shanghai"),
     defaultLanguage,
     anonymousSubmissions: environmentBoolean(process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS, false),
     tracking: {
@@ -96,6 +102,18 @@ function normalizedRuntimeSettings(values: Record<string, unknown>): RuntimeSett
       ? (values.tracking as Record<string, unknown>)
       : {};
   return {
+    siteTitle:
+      typeof values.siteTitle === "string" && values.siteTitle.trim()
+        ? values.siteTitle.trim().slice(0, 120)
+        : "Songqi",
+    canonicalUrl:
+      typeof values.canonicalUrl === "string" && values.canonicalUrl.trim()
+        ? values.canonicalUrl.trim().slice(0, 500)
+        : "https://songqi.org",
+    timezone:
+      typeof values.timezone === "string" && values.timezone.trim()
+        ? values.timezone.trim().slice(0, 120)
+        : "Asia/Shanghai",
     defaultLanguage: ["en", "fr", "zh"].includes(language)
       ? (language as RuntimeSettings["defaultLanguage"])
       : "en",

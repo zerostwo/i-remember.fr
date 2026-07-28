@@ -574,6 +574,9 @@ readinessRepository.available = true;
 
 const publicSettings = await json("/api/v1/public/settings");
 assert.equal(publicSettings.response.status, 200);
+assert.equal(publicSettings.body.data.siteTitle, "Songqi");
+assert.equal(publicSettings.body.data.canonicalUrl, "https://songqi.org");
+assert.equal(publicSettings.body.data.timezone, "Asia/Shanghai");
 assert.equal(publicSettings.body.data.defaultLanguage, "en");
 assert.equal(publicSettings.body.data.anonymousSubmissions, false);
 assert.deepEqual(publicSettings.body.data.tracking, {

@@ -52,8 +52,7 @@ function memoryAttachments(memory) {
 function memoryMetadata(memory = {}, defaultLanguage = "en") {
   let custom = {};
   const raw = memory.metadataJson ?? memory.metadata_json ?? memory.metadata;
-  const hasObjectMetadata =
-    raw && typeof raw === "object" && !Array.isArray(raw);
+  const hasObjectMetadata = raw && typeof raw === "object" && !Array.isArray(raw);
   if (hasObjectMetadata) {
     custom = raw;
   } else if (raw) {
@@ -70,7 +69,9 @@ function memoryMetadata(memory = {}, defaultLanguage = "en") {
       defaultLanguage,
     ),
     source: memory.source || "admin",
-    isLongForm: String(memory.bodyMarkdown || memory.body_markdown || memory.content || memory.text || "").length > 220,
+    isLongForm:
+      String(memory.bodyMarkdown || memory.body_markdown || memory.content || memory.text || "")
+        .length > 220,
     imageKey: memory.imageKey,
   };
 }
@@ -81,13 +82,18 @@ export function v1MemoryPayload(
 ) {
   const publicId = String(memory.publicId || memory.public_id || "").trim();
   const content = String(
-    memory.bodyMarkdown || memory.body_markdown || memory.content || memory.text || memory.excerpt || "",
+    memory.bodyMarkdown ||
+      memory.body_markdown ||
+      memory.content ||
+      memory.text ||
+      memory.excerpt ||
+      "",
   );
   return {
     ...(publicId ? { publicId } : {}),
     title: String(memory.title || "").trim(),
     content: content.trim(),
-    authorName: String(memory.authorName || memory.author || memory.name || "I Remember"),
+    authorName: String(memory.authorName || memory.author || memory.name || "Songqi"),
     visibility: "PUBLIC",
     status: v1Status(memory.status || memory.dbStatus),
     metadata: memoryMetadata(memory, defaultLanguage),

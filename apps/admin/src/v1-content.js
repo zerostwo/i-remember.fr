@@ -23,7 +23,19 @@ async function contentLanguage(v1Api, record = {}) {
 
 function menuType(value) {
   const normalized = String(value || "").toUpperCase();
-  return ["PAGE", "MEMORY", "SEARCH", "EXTERNAL", "GROUP", "TERMS", "CREDITS", "LANGUAGE", "SOUND", "SHARE", "LOGO"].includes(normalized)
+  return [
+    "PAGE",
+    "MEMORY",
+    "SEARCH",
+    "EXTERNAL",
+    "GROUP",
+    "TERMS",
+    "CREDITS",
+    "LANGUAGE",
+    "SOUND",
+    "SHARE",
+    "LOGO",
+  ].includes(normalized)
     ? normalized
     : "PAGE";
 }
@@ -70,18 +82,21 @@ export function v1PagePayload(
 }
 
 export function v1PageMemory(page = {}) {
-  const publicId = String(page.linkedMemoryPublicId || page.linked_memory_public_id || page.linkedMemoryId || page.linked_memory_id || "").trim();
+  const publicId = String(
+    page.linkedMemoryPublicId ||
+      page.linked_memory_public_id ||
+      page.linkedMemoryId ||
+      page.linked_memory_id ||
+      "",
+  ).trim();
   if (!publicId) return null;
   return {
     publicId,
     uid: page.linkedMemoryUid,
-    language: language(
-      page.language,
-      page.defaultLanguage || page.siteDefaultLanguage || "en",
-    ),
+    language: language(page.language, page.defaultLanguage || page.siteDefaultLanguage || "en"),
     source: "page",
     title: page.title,
-    author: "I Remember",
+    author: "Songqi",
     excerpt: page.excerpt,
     bodyMarkdown: page.bodyMarkdown,
     isLongForm: true,
@@ -143,7 +158,7 @@ export function v1MenuItemPayload(
 }
 
 export async function findV1MenuItem(v1Api, item = {}, defaultLanguage) {
-  const resolvedLanguage = defaultLanguage || await contentLanguage(v1Api, item);
+  const resolvedLanguage = defaultLanguage || (await contentLanguage(v1Api, item));
   const payload = v1MenuItemPayload(item, resolvedLanguage);
   const items = await v1Api(`/api/v1/menu-items?language=${encodeURIComponent(payload.language)}`);
   return (items || []).find((candidate) => {
@@ -182,6 +197,9 @@ export async function deleteV1MenuItem(v1Api, item) {
 
 export function v1SettingsPayload(settings = {}) {
   return {
+    siteTitle: String(settings.siteTitle || "Songqi").trim() || "Songqi",
+    canonicalUrl: String(settings.canonicalUrl || "https://songqi.org").trim(),
+    timezone: String(settings.timezone || "Asia/Shanghai").trim() || "Asia/Shanghai",
     defaultLanguage: language(settings.defaultLanguage),
     anonymousSubmissions: Boolean(settings.anonymousSubmissions),
     tracking: {

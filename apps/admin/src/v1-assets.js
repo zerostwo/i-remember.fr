@@ -41,7 +41,8 @@ export function v1AssetUploadPayload(file = {}, contentBase64 = "", memoryId, st
 }
 
 export function v1AssetDeletePath(attachment = {}) {
-  const key = attachment.imageKey || assetKey({ url: attachment.resizedUrl || attachment.thumbUrl });
+  const key =
+    attachment.imageKey || assetKey({ url: attachment.resizedUrl || attachment.thumbUrl });
   return `/api/v1/assets/${encodeURIComponent(key)}`;
 }
 

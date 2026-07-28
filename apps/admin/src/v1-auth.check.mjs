@@ -29,7 +29,10 @@ assert.deepEqual(
 );
 
 assert.equal(
-  Object.hasOwn(v1AuthPayload({ email: "owner@example.com", password: "secret" }), "bootstrapToken"),
+  Object.hasOwn(
+    v1AuthPayload({ email: "owner@example.com", password: "secret" }),
+    "bootstrapToken",
+  ),
   false,
 );
 
