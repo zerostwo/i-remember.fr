@@ -1453,6 +1453,7 @@ function TopBarAction({
     if (settingsTab === "security") return null;
     return (
       <Button variant="outline" form={`settings-${settingsTab}-form`} type="submit">
+        <Save data-icon="inline-start" />
         {settingsTab === "account" ? "Save account" : "Save changes"}
       </Button>
     );

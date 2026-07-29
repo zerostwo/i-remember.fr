@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and tutorial controls, and Chinese IME composition leaving raw pinyin
   characters in public contenteditable fields.
 - Increased the admin Settings tab hit areas to the 44 px mobile touch minimum.
+- Restored a visible Save icon for the mobile Settings top-bar action.
 - Fixed iOS Safari input zoom, safe-area overlap, virtual-keyboard occlusion,
   modal scroll/focus handling, and unintended horizontal overflow across the
   public and admin experiences.
