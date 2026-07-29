@@ -83,6 +83,11 @@ assert.match(adminCss, /env\(safe-area-inset-top/);
 assert.match(adminCss, /env\(safe-area-inset-bottom/);
 assert.match(adminCss, /font-size:\s*16px/);
 assert.match(adminCss, /min-height:\s*44px/);
+assert.match(
+  adminCss,
+  /\.admin-settings-tabs \[data-slot="tabs-trigger"\]\s*\{[^}]*min-height:\s*44px/s,
+  "admin settings tabs: touch targets must be at least 44px high",
+);
 assert.match(adminCss, /-webkit-overflow-scrolling:\s*touch/);
 
 const adminApp = await read("apps/admin/src/AdminApp.jsx");

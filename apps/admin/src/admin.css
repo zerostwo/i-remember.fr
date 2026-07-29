@@ -854,7 +854,7 @@ body {
 
 .admin-settings-tabs [data-slot="tabs-trigger"] {
   min-width: 104px;
-  min-height: 38px;
+  min-height: 44px;
   border-radius: 8px;
   color: #969aa3;
 }
