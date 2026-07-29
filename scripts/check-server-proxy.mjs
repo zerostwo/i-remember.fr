@@ -7,6 +7,7 @@ import { join } from "node:path";
 
 const dataDir = await mkdtemp(join(tmpdir(), "i-remember-proxy-"));
 const v1PublicId = "m11111111111111111111";
+const v1ChinesePublicId = "m33333333333333333333";
 const v1SubmittedId = "m22222222222222222222";
 const v1MenuId = "menu-v1-about";
 const v1CreateBodies = [];
@@ -78,6 +79,20 @@ const upstream = createServer(async (req, res) => {
             attachments: [],
             createdAt: "2026-07-09T00:00:00.000Z",
             updatedAt: "2026-07-09T00:00:00.000Z",
+          },
+          {
+            id: v1ChinesePublicId,
+            title: "Chinese memory on every UI language",
+            content: "The display language must not select a separate content collection.",
+            excerpt: "The display language must not select a separate content collection.",
+            authorName: "Songqi",
+            visibility: "PUBLIC",
+            status: "NORMAL",
+            metadata: { imageKey: "revival-upload", language: "zh" },
+            tags: [],
+            attachments: [],
+            createdAt: "2021-01-01T00:00:00.000Z",
+            updatedAt: "2021-01-01T00:00:00.000Z",
           },
           ...v1CreatedMemories,
         ],
@@ -319,6 +334,13 @@ try {
   const homeAfterSetupHtml = await homeAfterSetupResponse.text();
   assert.match(homeAfterSetupHtml, /Prisma public memory/);
   assert.match(homeAfterSetupHtml, new RegExp(`"public_id":"${v1PublicId}"`));
+
+  const englishUiHomeResponse = await fetch(`${baseUrl}/?ln=en`);
+  assert.equal(englishUiHomeResponse.status, 200);
+  const englishUiHomeHtml = await englishUiHomeResponse.text();
+  assert.match(englishUiHomeHtml, /var LANG = 'en';/);
+  assert.match(englishUiHomeHtml, /Chinese memory on every UI language/);
+  assert.match(englishUiHomeHtml, new RegExp(`"public_id":"${v1ChinesePublicId}"`));
 
   const menuResponse = await fetch(`${baseUrl}/api/public/menu`);
   assert.equal(menuResponse.status, 200);

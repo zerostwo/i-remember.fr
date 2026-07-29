@@ -1037,9 +1037,7 @@ class RevivalBackend {
   async v1PublicMemories(language) {
     const data = await this.v1Data("/api/v1/memories?limit=200");
     if (!Array.isArray(data)) return null;
-    return data
-      .filter((memory) => v1Language(memory, language) === normalizeLanguage(language))
-      .map((memory, index) => v1MemoryToPost(memory, index, language));
+    return data.map((memory, index) => v1MemoryToPost(memory, index, language));
   }
 
   async v1PublicMemory(publicId, language, trackView = false) {
