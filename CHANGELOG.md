@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed duplicate touch/mouse map movement on phones, overlapping mobile search
+  and tutorial controls, and Chinese IME composition leaving raw pinyin
+  characters in public contenteditable fields.
 - Fixed iOS Safari input zoom, safe-area overlap, virtual-keyboard occlusion,
   modal scroll/focus handling, and unintended horizontal overflow across the
   public and admin experiences.

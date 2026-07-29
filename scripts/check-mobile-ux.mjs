@@ -97,5 +97,14 @@ assert.match(publicRuntime, /safe-area-inset-bottom/);
 assert.match(publicRuntime, /min-height:\s*44px/);
 assert.match(publicRuntime, /role["']?,\s*["']dialog/);
 assert.match(publicRuntime, /prefers-reduced-motion/);
+assert.match(publicRuntime, /installImeCompositionSupport/);
+assert.match(publicRuntime, /data-revival-composing/);
+assert.match(publicRuntime, /revival-search-open/);
+assert.match(publicRuntime, /\.tutorials\{display:none!important/);
+assert.doesNotMatch(
+  publicRuntime,
+  /dispatchMouseFromTouch/,
+  "public runtime: touch input must not be converted to duplicate mouse events",
+);
 
 console.log("Mobile UX guardrails passed.");

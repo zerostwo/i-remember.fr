@@ -89,6 +89,7 @@
       tutorialMoveTouch: '<span class="font-italic">Touch and drag</span><br/><span>to move</span>',
       tutorialZoomTouch: '<span class="font-italic">Pinch or double tap</span><br/><span>to zoom in</span>',
       tutorialWatchTouch: '<span class="font-italic">Tap to watch</span><br/><span>a memory</span>',
+      mobileMapHint: "Drag to explore · Pinch to zoom · Tap a memory",
       exploreMemory: "Explore this memory"
     },
     fr: {
@@ -107,6 +108,7 @@
       tutorialMoveTouch: '<span class="font-italic">Touchez et glissez</span><br/>pour vous <span class="font-italic">deplacer</span>',
       tutorialZoomTouch: '<span class="font-italic">Pincez ou touchez deux fois</span><br/><span class="font-italic">pour zoomer</span>',
       tutorialWatchTouch: '<span class="font-italic">Touchez</span> un souvenir<br/>pour <span class="font-italic">le voir</span>',
+      mobileMapHint: "Glissez pour explorer · Pincez pour zoomer · Touchez un souvenir",
       exploreMemory: "Explorer ce souvenir"
     },
     zh: {
@@ -125,6 +127,7 @@
       tutorialMoveTouch: '<span class="font-italic">触摸并拖动</span><br/><span>探索回忆</span>',
       tutorialZoomTouch: '<span class="font-italic">双指缩放或双击</span><br/><span>放大</span>',
       tutorialWatchTouch: '<span class="font-italic">轻点查看</span><br/><span>一段回忆</span>',
+      mobileMapHint: "拖动探索 · 双指缩放 · 轻点查看回忆",
       exploreMemory: "继续探索这段回忆"
     }
   };
@@ -1248,6 +1251,109 @@
     window.addEventListener("orientationchange", update, { passive: true });
   }
 
+  function installImeCompositionSupport() {
+    Array.prototype.forEach.call(
+      document.querySelectorAll("[contenteditable='true']"),
+      function (element) {
+        var composing = false;
+        var pendingCommit = false;
+        if (element.getAttribute("data-revival-ime-ready") === "true") return;
+        element.setAttribute("data-revival-ime-ready", "true");
+
+        element.addEventListener("compositionstart", function () {
+          composing = true;
+          pendingCommit = false;
+          element.setAttribute("data-revival-composing", "true");
+        }, true);
+
+        element.addEventListener("compositionend", function () {
+          composing = false;
+          pendingCommit = true;
+          element.removeAttribute("data-revival-composing");
+          window.setTimeout(function () {
+            var inputEvent;
+            if (!pendingCommit) return;
+            pendingCommit = false;
+            inputEvent = new Event("input", { bubbles: true });
+            inputEvent.revivalCompositionCommit = true;
+            element.dispatchEvent(inputEvent);
+          }, 0);
+        }, true);
+
+        element.addEventListener("input", function (event) {
+          if (composing || event.isComposing) {
+            event.stopImmediatePropagation();
+            return;
+          }
+          if (pendingCommit) pendingCommit = false;
+        }, true);
+
+        ["keydown", "keypress", "keyup"].forEach(function (type) {
+          element.addEventListener(type, function (event) {
+            if (!composing && !event.isComposing && event.keyCode !== 229) return;
+            event.stopImmediatePropagation();
+          }, true);
+        });
+      }
+    );
+  }
+
+  function installLegacySearchState() {
+    var search = document.querySelector(".search");
+    var notFound = document.querySelector(".search-not-found");
+    var observer;
+    if (!search || window.I_REMEMBER_REVIVAL.searchStateReady) return;
+    window.I_REMEMBER_REVIVAL.searchStateReady = true;
+
+    function update() {
+      var style = window.getComputedStyle(search);
+      var visible = style.display !== "none" && parseFloat(style.opacity || "1") > 0.02;
+      document.documentElement.classList.toggle("revival-search-open", visible);
+      if (notFound) {
+        var hasNoResults = search.classList.contains("not-found");
+        notFound.hidden = !hasNoResults;
+        notFound.setAttribute("aria-hidden", hasNoResults ? "false" : "true");
+      }
+    }
+
+    observer = new MutationObserver(update);
+    observer.observe(search, { attributes: true, attributeFilter: ["class", "style"] });
+    update();
+  }
+
+  function showMobileMapHint() {
+    var copy;
+    var hint;
+    if (!isTouchDevice() || window.innerWidth > 760) return;
+    copy = uiCopy[siteLanguage()] || uiCopy.en;
+    hint = document.querySelector(".revival-mobile-map-hint");
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "revival-mobile-map-hint";
+      hint.setAttribute("role", "status");
+      hint.setAttribute("aria-live", "polite");
+      document.body.appendChild(hint);
+    }
+    hint.textContent = copy.mobileMapHint;
+    hint.classList.remove("is-visible");
+    window.requestAnimationFrame(function () {
+      hint.classList.add("is-visible");
+    });
+    window.clearTimeout(window.I_REMEMBER_REVIVAL.mobileMapHintTimer);
+    window.I_REMEMBER_REVIVAL.mobileMapHintTimer = window.setTimeout(function () {
+      hint.classList.remove("is-visible");
+    }, 5200);
+  }
+
+  function installMobileMapHint() {
+    if (window.I_REMEMBER_REVIVAL.mobileMapHintReady) return;
+    window.I_REMEMBER_REVIVAL.mobileMapHintReady = true;
+    document.addEventListener("click", function (event) {
+      if (!closest(event.target, ".add-steps-add-options-look")) return;
+      window.setTimeout(showMobileMapHint, 350);
+    }, true);
+  }
+
   function setTermsVisible(visible) {
     var terms = document.querySelector(".terms");
     var wrapper = document.querySelector(".terms-wrapper");
@@ -1307,6 +1413,8 @@
       ".credit-title,.credit-item,.credit-item-text{max-width:100%!important}",
       ".revival-panel-resize{position:absolute;left:0;top:0;width:12px;height:100%;cursor:ew-resize;z-index:2}",
       "html.is-touch-device .base-3d-container{touch-action:none}",
+      ".revival-mobile-map-hint{position:fixed;z-index:35;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));max-width:calc(100% - 32px);border:1px solid rgba(255,255,255,.26);border-radius:999px;background:rgba(8,9,11,.9);color:#fff;font:16px/1.35 Helvetica,Arial,sans-serif;padding:12px 16px;text-align:center;transform:translate3d(-50%,12px,0);opacity:0;pointer-events:none;transition:opacity .22s linear,transform .22s ease;white-space:nowrap}",
+      ".revival-mobile-map-hint.is-visible{opacity:1;transform:translate3d(-50%,0,0)}",
       "html.revival-empty-memory .add-steps-add-options-look,html.revival-empty-memory .nav-map-wrapper{display:none!important;pointer-events:none!important}",
       "@media(max-width:760px){.header-description{display:none!important}.header-logo{left:22px!important;top:28px!important;transform:scale(.72)!important;transform-origin:left top!important}.header-fade-container{right:16px!important;top:12px!important;transform:scale(.76)!important;transform-origin:right top!important}.nav{left:8px!important;width:72px!important;margin-top:-78px!important}.nav-map-wrapper{left:0!important;width:62px!important;height:62px!important;margin:8px 0 8px auto!important}.nav-map-btn{width:62px!important;height:62px!important}.nav-search-wrapper,.nav-add-wrapper{margin:8px 0 8px auto!important}.nav-text,.nav-search-item{left:52px!important}.search-center-wrapper{left:20px!important;right:20px!important;width:auto!important;margin-left:0!important;margin-top:-58px!important}.search-input-wrapper,.search-line{width:100%!important}.search-input,.search-input-placeholder{font-size:50px!important;line-height:58px!important;max-width:100%!important;white-space:nowrap!important}.search-not-found{left:0!important;width:100%!important;font-size:15px!important;line-height:22px!important}.search-btn{right:0!important}.footer{height:132px!important}.footer-content{height:132px!important;display:flex!important;align-items:flex-end!important;justify-content:flex-end!important;gap:8px 12px!important;flex-wrap:wrap!important;padding:0 16px 18px 16px!important}.footer-content>*{float:none!important;margin:0!important}.footer-logo-wrapper{order:20;width:46px!important;height:54px!important}.footer-share,.footer-sound-btn{width:24px!important;height:24px!important}.footer-link-item{font-size:9px!important;line-height:14px!important;white-space:nowrap!important}.footer-link-lang-list{bottom:18px!important}.terms-wrapper,.credit-wrapper{width:100vw!important;max-width:100vw!important}.revival-panel-resize{display:none!important}}",
       ".nav{left:0!important;width:100px!important;margin-top:-100px!important}",
@@ -1328,7 +1436,7 @@
       ".revival-menu-actions button,.revival-menu-actions a,.revival-memory-explore{min-height:44px;font-size:16px}",
       ".revival-menu-close{display:grid;width:44px;height:44px;place-items:center;right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top))}",
       ".terms-close-btn,.credit-close-btn{min-width:44px!important;min-height:44px!important}",
-      "@media(max-width:760px){.header-logo{top:calc(20px + env(safe-area-inset-top))!important;left:max(18px,env(safe-area-inset-left))!important}.header-fade-container{top:calc(8px + env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}.nav{left:max(8px,env(safe-area-inset-left))!important}.nav-search-wrapper,.nav-add-wrapper,.search-btn,.circle-btn,[role='button']{min-width:44px;min-height:44px}.search-btn{width:44px!important;height:44px!important;top:57px!important}.search-hint{display:inline-flex;min-height:44px;align-items:center;padding:0 8px;font-size:16px}.footer{height:calc(132px + env(safe-area-inset-bottom))!important}.footer-content{height:calc(132px + env(safe-area-inset-bottom))!important;padding:0 max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))!important}.footer-content>.footer-managed-item,.footer-link-item{display:inline-flex!important;min-height:44px;align-items:center;padding:0 6px;font-size:16px!important;line-height:20px!important}.footer-share,.footer-sound-btn,.add-steps-congrats-share{display:inline-flex!important;width:44px!important;height:44px!important;align-items:center;justify-content:center}.footer-link-lang-list,.footer-menu-group-list{bottom:44px!important}.terms-wrapper,.credit-wrapper{width:100%!important;max-width:100%!important;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}.add-steps-back-btn,.add-steps-validate-btn,.add-steps-message-terms{min-height:44px;font-size:16px!important}.add-steps-message-terms{display:flex;align-items:center;justify-content:center;white-space:normal}.revival-menu-body p{font-size:16px}.revival-menu-image{min-height:150px}.revival-menu-body{padding:20px}.revival-menu-body h2{font-size:24px}}",
+      "@media(max-width:760px){.tutorials{display:none!important;pointer-events:none!important}.base-3d-container,.base-3d-container canvas{touch-action:none!important}.header-logo{top:calc(20px + env(safe-area-inset-top))!important;left:max(18px,env(safe-area-inset-left))!important}.header-fade-container{top:calc(8px + env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}.nav{left:max(8px,env(safe-area-inset-left))!important}.nav-search-wrapper,.nav-add-wrapper,.search-btn,.circle-btn,[role='button']{min-width:44px;min-height:44px}.search-btn{width:44px!important;height:44px!important;top:57px!important}.search-hint{display:inline-flex;min-height:44px;align-items:center;padding:0 8px;font-size:16px}.footer{height:calc(132px + env(safe-area-inset-bottom))!important}.footer-content{height:calc(132px + env(safe-area-inset-bottom))!important;padding:0 max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))!important}.footer-content>.footer-managed-item,.footer-link-item{display:inline-flex!important;min-height:44px;align-items:center;padding:0 6px;font-size:16px!important;line-height:20px!important}.footer-share,.footer-sound-btn,.add-steps-congrats-share{display:inline-flex!important;width:44px!important;height:44px!important;align-items:center;justify-content:center}.footer-link-lang-list,.footer-menu-group-list{bottom:44px!important}.terms-wrapper,.credit-wrapper{width:100%!important;max-width:100%!important;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}.add-steps-back-btn,.add-steps-validate-btn,.add-steps-message-terms{min-height:44px;font-size:16px!important}.add-steps-message-terms{display:flex;align-items:center;justify-content:center;white-space:normal}.revival-menu-body p{font-size:16px}.revival-menu-image{min-height:150px}.revival-menu-body{padding:20px}.revival-menu-body h2{font-size:24px}html.revival-search-open .nav{opacity:0!important;pointer-events:none!important}.revival-mobile-map-hint{white-space:normal}}",
       "html.revival-keyboard-open .header,html.revival-keyboard-open .footer{opacity:0!important;pointer-events:none!important}",
       "html.revival-keyboard-open .search-center-wrapper{margin-top:-42px!important}",
       "@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.revival-menu-card{transform:none!important}}"
@@ -1888,66 +1996,10 @@
     }, true);
   }
 
-  function touchBridgeIgnored(target) {
-    return closest(
-      target,
-      "a,button,input,textarea,select,[contenteditable],.footer,.search,.terms,.credit,.add-steps,.revival-menu-memory"
-    );
-  }
-
-  function dispatchMouseFromTouch(type, touch, target, detail) {
-    var event;
-    if (!touch || !target || typeof window.MouseEvent !== "function") return;
-    event = new MouseEvent(type, {
-      bubbles: true,
-      cancelable: true,
-      view: window,
-      detail: detail || 1,
-      screenX: touch.screenX,
-      screenY: touch.screenY,
-      clientX: touch.clientX,
-      clientY: touch.clientY
-    });
-    target.dispatchEvent(event);
-  }
-
   function installTouchInteraction() {
-    var activeTarget = null;
-    var lastTap = 0;
     if (!isTouchDevice() || window.I_REMEMBER_REVIVAL.touchInteractionReady) return;
     window.I_REMEMBER_REVIVAL.touchInteractionReady = true;
     document.documentElement.classList.add("is-touch-device");
-
-    document.addEventListener("touchstart", function (event) {
-      var touch = event.touches && event.touches[0];
-      var now = +(new Date());
-      var detail = now - lastTap < 320 ? 2 : 1;
-      if (!touch || touchBridgeIgnored(event.target)) return;
-      activeTarget = event.target;
-      lastTap = now;
-      dispatchMouseFromTouch("mousedown", touch, activeTarget, detail);
-      if (detail === 2) dispatchMouseFromTouch("dblclick", touch, activeTarget, detail);
-      event.preventDefault();
-    }, { capture: true, passive: false });
-
-    document.addEventListener("touchmove", function (event) {
-      var touch = event.touches && event.touches[0];
-      if (!activeTarget || !touch) return;
-      dispatchMouseFromTouch("mousemove", touch, activeTarget, 1);
-      event.preventDefault();
-    }, { capture: true, passive: false });
-
-    document.addEventListener("touchend", function (event) {
-      var touch = event.changedTouches && event.changedTouches[0];
-      if (!activeTarget || !touch) return;
-      dispatchMouseFromTouch("mouseup", touch, activeTarget, 1);
-      dispatchMouseFromTouch("click", touch, activeTarget, 1);
-      activeTarget = null;
-    }, true);
-
-    document.addEventListener("touchcancel", function () {
-      activeTarget = null;
-    }, true);
   }
 
   function enhanceLegacyAccessibility() {
@@ -2000,6 +2052,9 @@
 
     var intro = document.querySelector(".preloader");
     if (intro) intro.setAttribute("aria-live", "polite");
+
+    var searchDummy = document.querySelector(".search-input-dummy");
+    if (searchDummy) searchDummy.setAttribute("aria-hidden", "true");
   }
 
   function installLegacyKeyboardActivation() {
@@ -2079,7 +2134,7 @@
     button = document.createElement("button");
     button.type = "button";
     button.className = "revival-memory-explore";
-    button.textContent = (uiCopy[currentLanguage()] || uiCopy.en).exploreMemory;
+    button.textContent = (uiCopy[siteLanguage()] || uiCopy.en).exploreMemory;
     wrapper.appendChild(button);
     activeLongMemory = {
       title: memory.title,
@@ -2138,6 +2193,9 @@
 
   ensureManagedMenuStyles();
   installMobileViewportSupport();
+  installImeCompositionSupport();
+  installLegacySearchState();
+  installMobileMapHint();
   enhanceLegacyAccessibility();
   installLegacyKeyboardActivation();
   applyLanguagePreference();
@@ -2149,6 +2207,9 @@
   document.addEventListener("DOMContentLoaded", function () {
     ensureManagedMenuStyles();
     installMobileViewportSupport();
+    installImeCompositionSupport();
+    installLegacySearchState();
+    installMobileMapHint();
     enhanceLegacyAccessibility();
     applyLanguagePreference();
     installPanelResizers();
@@ -2156,6 +2217,8 @@
     applyEmptyMemoryState();
   });
   window.setTimeout(enhanceLegacyAccessibility, 800);
+  window.setTimeout(installImeCompositionSupport, 800);
+  window.setTimeout(installLegacySearchState, 800);
   window.setTimeout(applyLanguagePreference, 800);
   window.setTimeout(applyLanguagePreference, 1800);
   installIntroFastForward();
