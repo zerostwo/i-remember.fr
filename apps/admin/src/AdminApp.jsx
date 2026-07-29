@@ -504,16 +504,17 @@ function TextareaField({ label, description, value, onChange, rows = 5, ...props
 }
 
 function ToggleField({ label, description, checked, onCheckedChange, className }) {
+  const inputId = useId();
   return (
     <Field
       orientation="horizontal"
       className={cn("items-start justify-between rounded-lg border bg-card/40 p-3", className)}
     >
       <div className="space-y-1">
-        <FieldLabel>{label}</FieldLabel>
+        <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
         {description ? <FieldDescription>{description}</FieldDescription> : null}
       </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch id={inputId} aria-label={label} checked={checked} onCheckedChange={onCheckedChange} />
     </Field>
   );
 }
@@ -551,6 +552,117 @@ function MarkdownPreview({ value }) {
   );
 }
 
+function useVisualViewportVariables() {
+  useEffect(() => {
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+    const update = () => {
+      const viewportHeight = viewport?.height || window.innerHeight;
+      const viewportOffset = viewport?.offsetTop || 0;
+      root.style.setProperty("--admin-visual-viewport-height", `${viewportHeight}px`);
+      root.style.setProperty("--admin-visual-viewport-offset", `${viewportOffset}px`);
+      root.classList.toggle(
+        "admin-keyboard-open",
+        Boolean(viewport && window.innerHeight - viewport.height > 120),
+      );
+    };
+
+    update();
+    viewport?.addEventListener("resize", update, { passive: true });
+    viewport?.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update, { passive: true });
+    window.addEventListener("orientationchange", update, { passive: true });
+
+    return () => {
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+      root.style.removeProperty("--admin-visual-viewport-height");
+      root.style.removeProperty("--admin-visual-viewport-offset");
+      root.classList.remove("admin-keyboard-open");
+    };
+  }, []);
+}
+
+function useBodyScrollLock(active) {
+  useEffect(() => {
+    if (!active) return undefined;
+
+    const body = document.body;
+    const scrollY = window.scrollY;
+    const previous = {
+      overflow: body.style.overflow,
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+    };
+
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+
+    return () => {
+      body.style.overflow = previous.overflow;
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.width = previous.width;
+      window.scrollTo(0, scrollY);
+    };
+  }, [active]);
+}
+
+function useDialogFocusTrap(open, containerRef, initialFocusRef, onClose) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const previouslyFocused = document.activeElement;
+    const focusFrame = window.requestAnimationFrame(() => {
+      (initialFocusRef.current || containerRef.current)?.focus?.();
+    });
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRef.current?.();
+        return;
+      }
+      if (event.key !== "Tab" || !containerRef.current) return;
+
+      const focusable = [
+        ...containerRef.current.querySelectorAll(
+          'a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((element) => !element.hidden && element.getClientRects().length > 0);
+      if (!focusable.length) {
+        event.preventDefault();
+        containerRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("keydown", handleKeyDown, true);
+      previouslyFocused?.focus?.();
+    };
+  }, [open, containerRef, initialFocusRef]);
+}
+
 export function AdminApp() {
   const [authenticated, setAuthenticated] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -576,6 +688,9 @@ export function AdminApp() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const searchTriggerRef = useRef(null);
+
+  useVisualViewportVariables();
+  useBodyScrollLock(mobileNavOpen || spotlightOpen);
 
   useEffect(() => {
     let active = true;
@@ -1433,22 +1548,36 @@ function AdminSidebar({ route, navigate, collapsed, toggleCollapsed, openSearch,
 }
 
 function MobileNavigationSheet({ open, route, navigate, openSearch, close, onLogout }) {
+  const sheetRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  useDialogFocusTrap(open, sheetRef, closeButtonRef, close);
+
   if (!open) return null;
   return (
     <div
       className="admin-mobile-overlay"
       role="presentation"
-      onMouseDown={(event) => {
+      onPointerDown={(event) => {
         if (event.target === event.currentTarget) close();
       }}
     >
-      <aside className="admin-mobile-sheet" aria-label="Mobile admin navigation">
+      <aside
+        ref={sheetRef}
+        className="admin-mobile-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-mobile-navigation-title"
+        tabIndex={-1}
+      >
+        <h2 id="admin-mobile-navigation-title" className="sr-only">
+          Admin navigation
+        </h2>
         <div className="admin-mobile-brand">
           <div>
             <strong>songqi.org</strong>
             <span>private admin</span>
           </div>
-          <button type="button" onClick={close} aria-label="Close navigation">
+          <button ref={closeButtonRef} type="button" onClick={close} aria-label="Close navigation">
             <X />
           </button>
         </div>
@@ -1508,9 +1637,11 @@ function NavButton({ item, active, collapsed = false, onClick }) {
 }
 
 function Spotlight({ open, data, close, navigate, createMemory, createPage, editMemory }) {
+  const dialogRef = useRef(null);
   const inputRef = useRef(null);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  useDialogFocusTrap(open, dialogRef, inputRef, close);
 
   const normalizedQuery = query.trim().toLowerCase();
   const matches = (value) =>
@@ -1575,15 +1706,17 @@ function Spotlight({ open, data, close, navigate, createMemory, createPage, edit
     <div
       className="admin-spotlight-scrim"
       role="presentation"
-      onMouseDown={(event) => {
+      onPointerDown={(event) => {
         if (event.target === event.currentTarget) close();
       }}
     >
       <section
+        ref={dialogRef}
         className="admin-spotlight"
         role="dialog"
         aria-modal="true"
         aria-label="Search admin content"
+        tabIndex={-1}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
             event.preventDefault();
@@ -1614,7 +1747,7 @@ function Spotlight({ open, data, close, navigate, createMemory, createPage, edit
             placeholder="Search memories, pages, or actions…"
             aria-label="Search memories, pages, or actions"
           />
-          <button type="button" onClick={close}>
+          <button type="button" onClick={close} aria-label="Close search">
             esc
           </button>
         </div>
@@ -1652,6 +1785,8 @@ function Spotlight({ open, data, close, navigate, createMemory, createPage, edit
 function StatusMessage({ message, variant = "success" }) {
   return (
     <div
+      role={variant === "error" ? "alert" : "status"}
+      aria-live={variant === "error" ? "assertive" : "polite"}
       className={cn(
         "mb-4 rounded-lg border px-3 py-2 text-sm",
         variant === "error" ? "border-destructive/40 text-destructive" : "text-muted-foreground",
@@ -2648,9 +2783,12 @@ function AttachmentsView({ data, search, selectedMemoryId, uploadAttachment, del
       </Card>
       {attachments.map((attachment) => (
         <Card key={attachment.imageKey} className="rounded-lg">
-          <div
-            className="aspect-[4/3] bg-cover bg-center"
-            style={{ backgroundImage: `url("${attachment.thumbUrl}")` }}
+          <img
+            className="aspect-[4/3] w-full object-cover"
+            src={attachment.thumbUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
           />
           <CardHeader>
             <CardTitle className="truncate text-sm">{attachment.imageKey}</CardTitle>

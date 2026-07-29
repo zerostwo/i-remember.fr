@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added an installable standalone web app manifest, iPhone home-screen icons,
+  theme/status-bar metadata, and automated mobile UX guardrails.
 - Added the approved Figma V2 admin experience with responsive navigation,
   a keyboard-accessible Spotlight search, first-run setup, login, Dashboard,
   content management, and Site, Account, Security, and Backup settings.
@@ -27,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Raised mobile form, button, navigation, and modal typography and touch targets
+  to iOS-friendly 16 px and 44 px minimums, lazy-loaded admin attachment
+  thumbnails, and reduced the bundled ambient audio transfer size.
 - Removed the installation-token requirement from first-owner setup and lowered
   the administrator password minimum to eight characters.
 - Moved all admin implementation and v1 adapter sources into the
@@ -45,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed iOS Safari input zoom, safe-area overlap, virtual-keyboard occlusion,
+  modal scroll/focus handling, and unintended horizontal overflow across the
+  public and admin experiences.
 - Kept every real public Memory visible in the home galaxy and search when the
   UI display language changes, instead of treating language as a content filter.
 - Assigned stable internal legacy IDs from each Memory public ID so direct
