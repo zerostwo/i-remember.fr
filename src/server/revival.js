@@ -797,13 +797,19 @@ function v1ImageKey(memory) {
   return url.match(/\/uploads\/posts\/([^/]+)\//)?.[1] || "revival-upload";
 }
 
+function v1LegacyPostId(memory, index = 0) {
+  const publicId = String(memory?.id || memory?.publicId || "");
+  const match = publicId.match(/^m([0-9a-f]{20})$/);
+  return match ? String(Number.parseInt(match[1].slice(0, 13), 16)) : String(900000 - index);
+}
+
 function v1MemoryToPost(memory, index = 0, language = "en") {
   const content = String(memory?.content || "");
   const excerpt = String(memory?.excerpt || content.slice(0, 220));
   const imageKey = v1ImageKey(memory);
   const isLongForm = content.length > 220;
   return {
-    id: String(900000 - index),
+    id: v1LegacyPostId(memory, index),
     uid: String(memory?.id || memory?.publicId || `v1_memory_${index}`),
     public_id: String(memory?.id || memory?.publicId || ""),
     name: htmlText(memory?.authorName || "I Remember"),

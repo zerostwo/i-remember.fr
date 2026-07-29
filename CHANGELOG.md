@@ -47,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Kept every real public Memory visible in the home galaxy and search when the
   UI display language changes, instead of treating language as a content filter.
+- Assigned stable internal legacy IDs from each Memory public ID so direct
+  Memory routes cannot collide with a different home-galaxy entry.
 - Removed Untitled placeholder memories from the public galaxy and replaced the
   static fade value with recent published-memory activity.
 - Restricted public Memory detail routes to language-free `/memory/:id`, fixed

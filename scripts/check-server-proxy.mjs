@@ -361,6 +361,17 @@ try {
   assert.match(v1PublicMemoryHtml, /var LANG = 'zh';/);
   assert.match(v1PublicMemoryHtml, /Rendered from the v1 direct memory API/);
   assert.match(v1PublicMemoryHtml, new RegExp(`"public_id":"${v1PublicId}"`));
+  const directListPayload = JSON.parse(
+    v1PublicMemoryHtml.match(/var DEFAULT_POSTS = ([\s\S]*?);\n\s*var DEFAULT_POST =/)?.[1] ||
+      "null",
+  );
+  const directPostPayload = JSON.parse(
+    v1PublicMemoryHtml.match(/var DEFAULT_POST = (\{[^\n]*\});/)?.[1] || "null",
+  );
+  assert.equal(
+    directPostPayload.data.id,
+    directListPayload.data.posts.find((post) => post.public_id === v1PublicId).id,
+  );
 
   const frenchV1PublicMemoryResponse = await fetch(`${baseUrl}/fr/memory/${v1PublicId}`);
   assert.equal(frenchV1PublicMemoryResponse.status, 404);
