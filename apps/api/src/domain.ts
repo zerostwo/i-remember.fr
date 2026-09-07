@@ -47,6 +47,7 @@ export type MemoryRecord = {
 };
 
 export type AttachmentInput = {
+  id?: string;
   url: string;
   type?: string;
   metadata?: Record<string, unknown>;

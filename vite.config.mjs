@@ -5,8 +5,13 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createViteRevivalPlugin } from "./src/server/revival.js";
 import { precompressAssets } from "./src/server/asset-compression.js";
+import { viteApiProxy } from "./src/server/api-proxy-paths.js";
 
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
+const apiProxy = viteApiProxy(
+  process.env.API_BASE_URL || "http://127.0.0.1:7892",
+  process.env.STORAGE_PUBLIC_BASE_URL || "/uploads",
+);
 
 export default defineConfig({
   root: rootDir,
@@ -19,28 +24,10 @@ export default defineConfig({
     },
   },
   server: {
-    proxy: {
-      "/api/v1": {
-        target: process.env.API_BASE_URL || "http://127.0.0.1:7892",
-        changeOrigin: false,
-      },
-      "/uploads/admin": {
-        target: process.env.API_BASE_URL || "http://127.0.0.1:7892",
-        changeOrigin: false,
-      },
-    },
+    proxy: apiProxy,
   },
   preview: {
-    proxy: {
-      "/api/v1": {
-        target: process.env.API_BASE_URL || "http://127.0.0.1:7892",
-        changeOrigin: false,
-      },
-      "/uploads/admin": {
-        target: process.env.API_BASE_URL || "http://127.0.0.1:7892",
-        changeOrigin: false,
-      },
-    },
+    proxy: apiProxy,
   },
   build: {
     rollupOptions: {

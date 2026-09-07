@@ -113,8 +113,8 @@ const upstream = createServer(async (req, res) => {
         success: true,
         data: {
           id: v1PublicId,
-          title: "Prisma public memory",
-          content: "Rendered from the v1 direct memory API.",
+          title: "Prisma public memory & notes",
+          content: "# Prisma public memory & notes\n\nRendered from the v1 direct memory API. **A & B**.",
           excerpt: "Rendered from the v1 direct memory API.",
           authorName: "Prisma",
           visibility: "PUBLIC",
@@ -369,6 +369,7 @@ try {
   const v1PublicMemoryHtml = await v1PublicMemoryResponse.text();
   assert.match(v1PublicMemoryHtml, /var LANG = 'zh';/);
   assert.match(v1PublicMemoryHtml, /Rendered from the v1 direct memory API/);
+  assert.match(v1PublicMemoryHtml, /<title>Prisma public memory &amp; notes · Configured title<\/title>/);
   assert.match(v1PublicMemoryHtml, new RegExp(`"public_id":"${v1PublicId}"`));
   const directListPayload = JSON.parse(
     v1PublicMemoryHtml.match(/var DEFAULT_POSTS = ([\s\S]*?);\n\s*var DEFAULT_POST =/)?.[1] ||
@@ -377,6 +378,11 @@ try {
   const directPostPayload = JSON.parse(
     v1PublicMemoryHtml.match(/var DEFAULT_POST = (\{[^\n]*\});/)?.[1] || "null",
   );
+  assert.equal(directPostPayload.data.text, "Rendered from the v1 direct memory API. A &amp; B.");
+  assert.equal(directPostPayload.data.is_long_form, "0");
+  assert.match(directPostPayload.data.body_html, /<strong>A &amp; B<\/strong>/);
+  assert.doesNotMatch(directPostPayload.data.body_html, /<h1>/);
+  assert.match(v1PublicMemoryHtml, new RegExp(`rel="canonical" href="https://songqi.org/memory/${v1PublicId}"`));
   assert.equal(
     directPostPayload.data.id,
     directListPayload.data.posts.find((post) => post.public_id === v1PublicId).id,

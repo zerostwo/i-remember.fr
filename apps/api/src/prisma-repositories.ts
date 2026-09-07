@@ -79,6 +79,34 @@ function attachmentCreates(attachments: AttachmentInput[] = []) {
   }));
 }
 
+function attachmentChanges(existing: MemoryRecord, attachments: AttachmentInput[]) {
+  const ownedIds = new Set(existing.attachments?.map((attachment) => attachment.id));
+  const retainedIds = new Set<string>();
+  for (const attachment of attachments) {
+    if (!attachment.id) continue;
+    if (!ownedIds.has(attachment.id) || retainedIds.has(attachment.id)) {
+      throw new ApiError(
+        400,
+        "Invalid attachment identity for this memory",
+        "invalid_attachment_id",
+      );
+    }
+    retainedIds.add(attachment.id);
+  }
+  // Keep retained rows stable so editing one attachment does not invalidate all
+  // attachment identities, timestamps, and pagination cursors for the memory.
+  return {
+    deleteMany: { id: { notIn: [...retainedIds] } },
+    update: attachments
+      .filter((attachment) => attachment.id)
+      .map((attachment) => ({
+        where: { id: attachment.id! },
+        data: attachmentCreates([attachment])[0],
+      })),
+    create: attachmentCreates(attachments.filter((attachment) => !attachment.id)),
+  };
+}
+
 function memory(row: any): MemoryRecord {
   return {
     id: row.id,
@@ -336,7 +364,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
       knowledgeGraph: input.knowledgeGraph as any,
     };
     if (input.attachments) {
-      data.attachments = { deleteMany: {}, create: attachmentCreates(input.attachments) };
+      data.attachments = attachmentChanges(existing, input.attachments);
     }
     if (input.tags) {
       data.tags = { deleteMany: {}, create: await tagCreates(this.db, input.tags) };

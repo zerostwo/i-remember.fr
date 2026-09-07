@@ -6,6 +6,7 @@ import { extname, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { serveAsset } from "./src/server/static-assets.js";
+import { storageProxyPath, isApiProxyPath } from "./src/server/api-proxy-paths.js";
 import { createRevivalMiddleware } from "./src/server/revival.js";
 
 const rootDir = resolve(fileURLToPath(new URL(".", import.meta.url)));
@@ -18,7 +19,7 @@ const trustOuterProxy = enabled(process.env.I_REMEMBER_TRUST_PROXY);
 const trustedOuterProxyPeers = trustOuterProxy
   ? await resolveTrustedProxyPeers(process.env.I_REMEMBER_TRUSTED_PROXY_PEERS)
   : new Set();
-const storagePublicBaseUrl = normalizeProxyPath(process.env.STORAGE_PUBLIC_BASE_URL || "/uploads");
+const storagePublicBaseUrl = storageProxyPath(process.env.STORAGE_PUBLIC_BASE_URL || "/uploads");
 const packageJson = JSON.parse(readFileSync(resolve(rootDir, "package.json"), "utf8"));
 const hopByHopHeaders = new Set([
   "connection",
@@ -72,11 +73,6 @@ function safeStaticPath(pathname) {
   }
 
   return candidate;
-}
-
-function normalizeProxyPath(value) {
-  const normalized = `/${String(value || "/uploads").replace(/^\/+|\/+$/g, "")}`;
-  return normalized === "/" ? "/uploads" : normalized;
 }
 
 function enabled(value) {
@@ -158,14 +154,7 @@ function sendStatus(res, statusCode, message) {
 function apiProxyTarget(req) {
   if (!apiBaseUrl) return null;
   const url = new URL(req.url || "/", "http://i-remember.local");
-  const isApiPath = url.pathname === "/api/v1" || url.pathname.startsWith("/api/v1/");
-  const isV1AssetPath =
-    url.pathname.startsWith(`${storagePublicBaseUrl}/`) &&
-    !(
-      storagePublicBaseUrl === "/uploads" &&
-      (url.pathname.startsWith("/uploads/posts/") || url.pathname.startsWith("/uploads/tmp/"))
-    );
-  if (!isApiPath && !isV1AssetPath) return null;
+  if (!isApiProxyPath(url.pathname, storagePublicBaseUrl)) return null;
   return new URL(`${url.pathname}${url.search}`, apiBaseUrl);
 }
 

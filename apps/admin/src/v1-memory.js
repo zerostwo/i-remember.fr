@@ -41,7 +41,8 @@ export function v1MemoryPayload(memory = {}, defaultLanguage = memory.defaultLan
   };
   // Omit unchanged relations on PATCH: replacing a partial array destroys the others.
   if ((!publicId || memory.attachmentsDirty) && Array.isArray(memory.attachments)) {
-    payload.attachments = memory.attachments.map(({ url, type, metadata }) => ({
+    payload.attachments = memory.attachments.map(({ id, url, type, metadata }) => ({
+      ...(id ? { id } : {}),
       url,
       type,
       metadata,

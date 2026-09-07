@@ -7,6 +7,7 @@ import {
   tagSlug,
 } from "../apps/api/dist/prisma-repositories.js";
 import { MemoryService } from "../apps/api/dist/services.js";
+import { memoryPatchInput } from "../apps/api/dist/validation.js";
 import { v1MemoryPayload } from "../apps/admin/src/v1-memory.js";
 // Explicit opt-in: this suite writes disposable records and must use a test database.
 const databaseUrl = process.env.I_REMEMBER_TEST_DATABASE_URL;
@@ -54,11 +55,99 @@ try {
     edited.attachments.map((a) => a.type),
     ["image/png", "application/pdf"],
   );
+  assert.deepEqual(edited.attachments[0].metadata, { caption: "Original" });
   assert.equal(await service.get(anonymous, memory.publicId), null);
+  for (const visibility of ["PRIVATE", "UNLISTED"]) {
+    await repository.update(memory.publicId, { visibility, status: "PENDING" });
+    const pendingPayload = v1MemoryPayload({
+      publicId: memory.publicId,
+      title: prefix,
+      bodyMarkdown: "Edited without publishing",
+      visibility,
+      dbStatus: "PENDING",
+    });
+    delete pendingPayload.publicId;
+    const saved = await service.update(admin, memory.publicId, memoryPatchInput(pendingPayload));
+    assert.equal(saved.visibility, visibility);
+    assert.equal(saved.status, "PENDING");
+    assert.equal(await service.get(anonymous, memory.publicId), null);
+  }
   await repository.archive(memory.publicId);
   assert.equal((await service.get(admin, memory.publicId)).status, "ARCHIVED");
+  assert.equal(await service.get(anonymous, memory.publicId), null);
+  await service.update(admin, memory.publicId, { status: "NORMAL" });
+  assert.equal((await service.get(admin, memory.publicId)).visibility, "UNLISTED");
+  assert.equal(await service.get(anonymous, memory.publicId), null);
   await service.update(admin, memory.publicId, { status: "NORMAL", visibility: "PUBLIC" });
   assert.equal((await service.get(anonymous, memory.publicId)).status, "NORMAL");
+  const attachmentPayload = v1MemoryPayload({
+    publicId: memory.publicId,
+    title: prefix,
+    bodyMarkdown: "Edited attachments",
+    visibility: "PUBLIC",
+    attachmentsDirty: true,
+    attachments: [
+      { ...edited.attachments[0], metadata: { caption: "Updated" } },
+      edited.attachments[1],
+      { url: `/${prefix}/extra.txt`, type: "text/plain" },
+    ],
+  });
+  delete attachmentPayload.publicId;
+  const withExtra = await service.update(
+    admin,
+    memory.publicId,
+    memoryPatchInput(attachmentPayload),
+  );
+  assert.equal(withExtra.attachments.length, 3);
+  for (const original of edited.attachments) {
+    const retained = withExtra.attachments.find((attachment) => attachment.id === original.id);
+    assert.ok(retained, "Adding an attachment must retain the existing attachment identities");
+    assert.equal(retained.createdAt.toISOString(), original.createdAt.toISOString());
+    assert.equal(retained.type, original.type);
+  }
+  assert.deepEqual(withExtra.attachments.find((a) => a.id === originalIds[0]).metadata, {
+    caption: "Updated",
+  });
+  const afterRemove = await service.update(
+    admin,
+    memory.publicId,
+    memoryPatchInput({
+      attachments: withExtra.attachments.filter((a) => originalIds.includes(a.id)),
+    }),
+  );
+  assert.deepEqual(
+    afterRemove.attachments.map((a) => a.id),
+    originalIds,
+  );
+  assert.equal(await db.attachment.count({ where: { url: `/${prefix}/extra.txt` } }), 0);
+  const beforeInvalid = await repository.get(memory.publicId);
+  await assert.rejects(
+    service.update(
+      admin,
+      memory.publicId,
+      memoryPatchInput({
+        content: "Must not be persisted",
+        attachments: [{ ...afterRemove.attachments[0], id: "missing-attachment" }],
+      }),
+    ),
+    (error) => error.code === "invalid_attachment_id",
+  );
+  assert.deepEqual(await repository.get(memory.publicId), beforeInvalid);
+  await assert.rejects(
+    service.update(
+      admin,
+      memory.publicId,
+      memoryPatchInput({
+        attachments: [afterRemove.attachments[0], afterRemove.attachments[0]],
+      }),
+    ),
+    (error) => error.code === "invalid_attachment_id",
+  );
+  assert.throws(
+    () => memoryPatchInput({ attachments: Array.from({ length: 25 }, () => attachments[0]) }),
+    (error) => error.code === "too_many_attachments",
+    "Oversized attachment arrays must fail instead of silently dropping the tail",
+  );
   const tags = await repository.create({
     title: prefix,
     content: "Different Chinese tags",
@@ -67,11 +156,22 @@ try {
   assert.equal(tags.tags.length, 2);
   assert.equal(memory.tags.length, 2);
   assert.equal(new Set([...tags.tags, ...memory.tags].map((t) => t.id)).size, 3);
+  await assert.rejects(
+    service.update(
+      admin,
+      tags.publicId,
+      memoryPatchInput({
+        attachments: [afterRemove.attachments[0]],
+      }),
+    ),
+    (error) => error.code === "invalid_attachment_id",
+    "An attachment cannot be moved between memories by submitting another memory's ID",
+  );
   assert.notEqual(tagSlug("旅行"), tagSlug("家人"));
   assert.notEqual(tagSlug("a+b"), tagSlug("a-b"));
   assert.equal(tagSlug("é"), tagSlug("e\u0301"));
-  await db.tag.create({ data: { name: `${prefix}Existing`, slug: `${prefix}-old-slug` } });
-  await repository.update(memory.publicId, { tags: [`${prefix}Existing`] });
+  await db.tag.create({ data: { name: `${prefix}旧标签`, slug: `${prefix}-old-slug` } });
+  await repository.update(memory.publicId, { tags: [`${prefix}旧标签`] });
   assert.equal(
     (await repository.get(memory.publicId)).tags[0].slug,
     `${prefix}-old-slug`,
@@ -92,6 +192,7 @@ try {
     ids = [];
   do {
     const page = await service.page(anonymous, { q: `${prefix} cursor page`, limit: 200, cursor });
+    assert.equal(page.pagination.total, 405);
     ids.push(...page.data.map((m) => m.publicId));
     cursor = page.pagination.nextCursor;
   } while (cursor);
@@ -138,7 +239,7 @@ try {
   assert.equal(new Set(owned.map((a) => a.id)).size, 207);
   assert.ok(owned.every((a) => a.memoryId === memory.publicId));
   console.log(
-    "PostgreSQL regressions passed: visibility, unchanged attachment IDs/types, archive restore, Unicode/existing tags, 405 records and 207 attachment pagination",
+    "PostgreSQL regressions passed: private/unlisted draft preservation, unchanged and edited attachment IDs/types/timestamps, attachment ownership and count validation, archive restore, Unicode/existing tags, 405 records and 207 attachment pagination",
   );
 } finally {
   await db.memory.deleteMany({ where: { title: { startsWith: prefix } } });

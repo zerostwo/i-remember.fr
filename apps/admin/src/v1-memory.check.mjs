@@ -3,8 +3,8 @@ import { archiveV1Memory, syncV1Memory, v1MemoryPayload } from "./v1-memory.js";
 import { collectPages } from "./pagination.js";
 const id = "m11111111111111111111";
 const attachments = [
-  { url: "/a.png", type: "image/png", metadata: { caption: "First" } },
-  { url: "/b.pdf", type: "application/pdf" },
+  { id: "asset-png", url: "/a.png", type: "image/png", metadata: { caption: "First" } },
+  { id: "asset-pdf", url: "/b.pdf", type: "application/pdf" },
 ];
 for (const visibility of ["PRIVATE", "UNLISTED", "PUBLIC"]) {
   const payload = v1MemoryPayload({

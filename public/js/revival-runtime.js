@@ -228,6 +228,13 @@
     return "/memory/" + encodeURIComponent(String(id || ""));
   };
 
+  window.__REVIVAL_PUBLIC_SHARE_URL__ = publicShareUrl;
+
+  function publicShareUrl(path) {
+    var canonical = window.SONGQI_SITE_SETTINGS && window.SONGQI_SITE_SETTINGS.canonicalUrl;
+    return new URL(path || "/", canonical || window.location.origin).href;
+  }
+
   function restorePanelWidth() {
     var saved;
     try {
@@ -541,6 +548,7 @@
       .replace('t.src="uploads/posts/"+e.img+"/resized.jpg"', 't.src=e.image_url||"uploads/posts/"+e.img+"/resized.jpg"')
       .replace('backgroundImage:"url(uploads/posts/"+e.img+"/resized.jpg)"', 'backgroundImage:"url("+(e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"');
     return patched
+      .replace('s=n.SITE_URL+s,', 's=window.__REVIVAL_PUBLIC_SHARE_URL__(s),')
       .replace(
         'e.SITE_URL=e.BASE_URL+(LANG=="fr"?"":"/"+LANG),',
         'e.SITE_URL=e.BASE_URL,'

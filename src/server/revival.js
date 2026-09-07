@@ -1,4 +1,4 @@
-import { markdownToHtml, memoryBody } from "../../packages/content/src/markdown.js";
+import { markdownToHtml, memoryBody, memoryPreview } from "../../packages/content/src/markdown.js";
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
@@ -644,20 +644,9 @@ function htmlText(value) {
     .replace(/'/g, "&#39;");
 }
 
-function plainFromMarkdown(value = "") {
-  return String(value || "")
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/!\[[^\]]*\]\([^)]+\)/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[#>*_~`-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function excerptFromMarkdown(value = "", maxLength = 220) {
-  const plain = plainFromMarkdown(value);
-  return plain.length > maxLength ? `${plain.slice(0, maxLength - 1).trim()}...` : plain;
+function excerptFromMarkdown(value = "", title = "") {
+  const preview = memoryPreview({ content: value, title });
+  return preview.text + (preview.truncated ? "…" : "");
 }
 
 function normalizeLegacyDate(value) {
@@ -741,22 +730,24 @@ function v1LegacyPostId(memory, index = 0) {
 
 function v1MemoryToPost(memory, index = 0, language = "en") {
   const content = String(memory?.content || "");
-  const excerpt = excerptFromMarkdown(memoryBody(memory));
+  const preview = memoryPreview(memory);
+  const excerpt = preview.text + (preview.truncated ? "…" : "");
   const imageKey = v1ImageKey(memory);
-  const isLongForm = content.length > 220;
+  const isLongForm = preview.longForm;
   return {
     id: v1LegacyPostId(memory, index),
     uid: String(memory?.id || memory?.publicId || `v1_memory_${index}`),
     public_id: String(memory?.id || memory?.publicId || ""),
     name: htmlText(memory?.authorName || "I Remember"),
     title: htmlText(memory?.title || "I Remember"),
+    title_text: String(memory?.title || "I Remember"),
     img: imageKey,
     image_url: memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey),
     thumb_url: memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey, "thumb"),
     img_offset_x: "0",
     img_offset_y: "0",
-    text: htmlText(isLongForm ? excerpt || content.slice(0, 220) : content || excerpt),
-    excerpt: htmlText(excerpt || content),
+    text: htmlText(excerpt),
+    excerpt: htmlText(excerpt),
     body_markdown: content,
     body_html: markdownToHtml(memoryBody(memory) || excerpt),
     is_long_form: isLongForm ? "1" : "0",
@@ -823,7 +814,7 @@ function v1MemoryToAdminMemory(memory = {}, language = "en") {
     status: memory.status === "NORMAL" ? "published" : String(memory.status || "").toLowerCase(),
     dbStatus: memory.status,
     source: memory.metadata?.source || "v1",
-    excerpt: memory.excerpt || excerptFromMarkdown(bodyMarkdown),
+    excerpt: excerptFromMarkdown(bodyMarkdown, memory.title),
     text: bodyMarkdown,
     bodyMarkdown,
     metadataJson: JSON.stringify(memory.metadata || {}),
@@ -1398,7 +1389,7 @@ async function renderAppHtml(
   let html = readFileSync(appHtmlUrlForLanguage(normalized), "utf8");
   if (normalized === "zh") html = localizeChineseHtml(html);
   if (backend.production) html = html.replace("/src/public-markdown.js", "/assets/public-markdown.js");
-  const title = directPayload?.data?.title ? `${directPayload.data.title} · ${siteSettings.siteTitle}` : siteSettings.siteTitle;
+  const title = directPayload?.data?.title_text ? `${directPayload.data.title_text} · ${siteSettings.siteTitle}` : siteSettings.siteTitle;
   const canonical = new URL(pathname.startsWith("/memory/") ? pathname : "/", siteSettings.canonicalUrl).href;
   html = html.replace(/<title>[\s\S]*?<\/title>/g, `<title>${htmlText(title)}</title>`)
     .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${htmlAttr(title)}"/>`)

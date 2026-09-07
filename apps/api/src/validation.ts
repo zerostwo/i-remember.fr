@@ -133,14 +133,22 @@ function tags(value: unknown) {
 function attachments(value: unknown) {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value)) throw new ApiError(400, "Invalid attachments", "invalid_attachments");
-  return value.slice(0, 24).map((item) => {
+  if (value.length > 24) {
+    throw new ApiError(400, "A memory can have at most 24 attachments", "too_many_attachments");
+  }
+  return value.map((item) => {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       throw new ApiError(400, "Invalid attachment", "invalid_attachment");
     }
     const record = item as Record<string, unknown>;
+    const id = record.id === undefined ? undefined : String(record.id);
+    if (id !== undefined && !/^[a-zA-Z0-9_-]{1,240}$/.test(id)) {
+      throw new ApiError(400, "Invalid attachment ID", "invalid_attachment_id");
+    }
     const url = text(record.url, "", 2000);
     if (!url) throw new ApiError(400, "Attachment URL is required", "missing_attachment_url");
     return {
+      ...(id ? { id } : {}),
       url,
       type: text(record.type ?? record.contentType, "application/octet-stream", 120),
       metadata:

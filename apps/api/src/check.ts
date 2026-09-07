@@ -761,6 +761,31 @@ const invalidLongitude = await json(`/api/v1/memories/${created.body.data.id}`, 
 assert.equal(invalidLongitude.response.status, 400);
 assert.equal(invalidLongitude.body.error.code, "invalid_longitude");
 
+const tooManyAttachments = await json(`/api/v1/memories/${created.body.data.id}`, {
+  method: "PATCH",
+  headers: adminHeaders,
+  body: JSON.stringify({
+    attachments: Array.from({ length: 25 }, (_, index) => ({
+      url: `/uploads/attachment-${index}.png`,
+      type: "image/png",
+    })),
+  }),
+});
+assert.equal(tooManyAttachments.response.status, 400);
+assert.equal(tooManyAttachments.body.error.code, "too_many_attachments");
+
+const invalidAttachmentId = await json(`/api/v1/memories/${created.body.data.id}`, {
+  method: "PATCH",
+  headers: adminHeaders,
+  body: JSON.stringify({ attachments: [{ id: "../other", url: "/uploads/new.jpg" }] }),
+});
+assert.equal(invalidAttachmentId.response.status, 400);
+assert.equal(invalidAttachmentId.body.error.code, "invalid_attachment_id");
+const afterInvalidAttachments = await json(`/api/v1/memories/${created.body.data.id}`, {
+  headers: adminHeaders,
+});
+assert.deepEqual(afterInvalidAttachments.body.data.attachments, created.body.data.attachments);
+
 const publicAfterCreate = await json("/api/v1/memories");
 assert.equal(
   publicAfterCreate.body.data.some((memory: { id: string }) => memory.id === created.body.data.id),

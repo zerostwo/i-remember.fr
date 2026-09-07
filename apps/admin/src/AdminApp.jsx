@@ -62,7 +62,7 @@ import {
 } from "./v1-content.js";
 import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
 import { collectPages } from "./pagination.js";
-import { markdownToHtml } from "../../../packages/content/src/markdown.js";
+import { markdownToHtml, memoryBody } from "../../../packages/content/src/markdown.js";
 
 const routes = [
   {
@@ -242,7 +242,9 @@ function metadataJson(value) {
 function v1MemoryAdmin(memory = {}) {
   const metadata = memory.metadata || {};
   const imageKey = metadata.imageKey || "revival-upload";
-  const imageUrl = memory.attachments?.[0]?.url || `/uploads/posts/${imageKey}/resized.jpg`;
+  const imageUrl =
+    memory.attachments?.find((asset) => asset.type?.startsWith("image/"))?.url ||
+    `/uploads/posts/${imageKey}/resized.jpg`;
   return {
     id: memory.id,
     publicId: memory.id,
@@ -638,11 +640,15 @@ export function AdminApp() {
     setEditorDirty(dirty);
   }, []);
   function canLeaveEditor() {
+    if (actionRef.current) {
+      setNotice("Please wait for the memory operation to finish.");
+      return false;
+    }
     return !dirtyRef.current || window.confirm("Discard unsaved changes?");
   }
   useEffect(() => {
     const preventUnload = (event) => {
-      if (!dirtyRef.current) return;
+      if (!dirtyRef.current && !actionRef.current) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -711,11 +717,12 @@ export function AdminApp() {
 
   useEffect(() => {
     const handleLocation = () => {
-      if (dirtyRef.current && !window.confirm("Discard unsaved changes?")) {
+      if (!canLeaveEditor()) {
         window.history.pushState({}, "", locationRef.current);
         return;
       }
       reportDirty(false);
+      setNewDraftVersion((value) => value + 1);
       locationRef.current = window.location.href;
       setRoute(routeFromLocation());
       setSelectedMemoryId(memoryIdFromLocation());
@@ -880,6 +887,7 @@ export function AdminApp() {
   function editMemory(id, section = "content") {
     if (!canLeaveEditor()) return;
     reportDirty(false);
+    setNewDraftVersion((value) => value + 1);
     setSelectedMemoryId(id);
     window.history.pushState(
       { route: "memory-editor" },
@@ -890,22 +898,37 @@ export function AdminApp() {
     setRoute("memory-editor");
   }
 
-  async function uploadEditorFile(file) {
+  async function uploadEditorFile(file, signal) {
     const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
     return v1Api("/api/v1/assets", {
       method: "POST",
       body: JSON.stringify(v1AssetUploadPayload(file, contentBase64)),
+      signal,
     });
   }
 
   async function deleteMemory(id) {
+    if (actionRef.current) return;
     const memory = data?.memories?.find((item) => item.id === id);
-    if (!memory || !window.confirm(`Archive "${memory.title || memory.excerpt || "this memory"}"?`))
+    if (
+      !memory ||
+      !window.confirm(
+        `Archive "${memory.title || memory.excerpt || "this memory"}"?${dirtyRef.current ? " Unsaved changes will be discarded." : ""}`,
+      )
+    )
       return;
-    await runAction("Memory archived", async () => {
-      await archiveV1Memory(v1Api, memory);
-      await refreshData();
-    });
+    actionRef.current = true;
+    setSavingMemory(true);
+    try {
+      await runAction("Memory archived", async () => {
+        await archiveV1Memory(v1Api, memory);
+        reportDirty(false);
+        await refreshData();
+      });
+    } finally {
+      actionRef.current = false;
+      setSavingMemory(false);
+    }
   }
 
   async function uploadAttachment(file, memoryId) {
@@ -2237,12 +2260,11 @@ function MemoryEditorView({
   );
   return (
     <MemoryEditor
-      key={selectedMemoryId || `new-${newDraftVersion}`}
+      key={`${selectedMemoryId || "new"}-${newDraftVersion}`}
       reportDirty={reportDirty}
       onUpload={uploadEditorFile}
       saving={savingMemory}
       memory={draft}
-      timezone={data.settings?.timezone}
       isNew={isNew}
       onSave={saveMemory}
       onDelete={deleteMemory}
@@ -2270,19 +2292,13 @@ function MemoryListItem({ memory, compact = false }) {
   );
 }
 
-function MemoryEditor({
-  memory,
-  isNew = false,
-  onSave,
-  onDelete,
-  reportDirty,
-  onUpload,
-  saving,
-  timezone,
-}) {
+function MemoryEditor({ memory, isNew = false, onSave, onDelete, reportDirty, onUpload, saving }) {
   const [draft, setDraft] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const uploadController = useRef(null);
+
+  useEffect(() => () => uploadController.current?.abort(), []);
 
   useEffect(() => {
     setDraft(memory ? { ...memory } : null);
@@ -2299,6 +2315,7 @@ function MemoryEditor({
   }
 
   const update = (key, value) => {
+    if (saving) return;
     reportDirty(true);
     setDraft((current) => ({ ...current, [key]: value }));
   };
@@ -2325,7 +2342,7 @@ function MemoryEditor({
             <span className="admin-card-meta">Markdown</span>
           </CardAction>
         </CardHeader>
-        <CardContent className="grid gap-5">
+        <CardContent className="grid gap-5" inert={saving}>
           <FieldGroup>
             <TextField
               label="Title"
@@ -2398,12 +2415,17 @@ function MemoryEditor({
                 const input = event.currentTarget;
                 const files = [...input.files];
                 input.value = "";
+                if (!files.length) return;
+                const controller = new AbortController();
+                uploadController.current = controller;
+                // Navigation must protect the draft from the start of an upload.
+                reportDirty(true);
                 setUploading(true);
                 setUploadError("");
                 try {
                   for (const file of files) {
-                    const asset = await onUpload(file);
-                    reportDirty(true);
+                    const asset = await onUpload(file, controller.signal);
+                    if (controller.signal.aborted) return;
                     setDraft((current) => ({
                       ...current,
                       attachmentsDirty: true,
@@ -2411,9 +2433,9 @@ function MemoryEditor({
                     }));
                   }
                 } catch (error) {
-                  setUploadError(error.message);
+                  if (!controller.signal.aborted) setUploadError(error.message);
                 } finally {
-                  setUploading(false);
+                  if (!controller.signal.aborted) setUploading(false);
                 }
               }}
             />
@@ -2450,14 +2472,14 @@ function MemoryEditor({
                 type="button"
                 variant="outline"
                 onClick={() =>
-                  draft.status === "archived"
+                  memory.status === "archived"
                     ? onSave(memory.id, { ...draft, status: "published" })
                     : onDelete(memory.id)
                 }
-                disabled={saving}
+                disabled={saving || uploading}
               >
                 <Trash2 data-icon="inline-start" />
-                {draft.status === "archived" ? "Restore memory" : "Archive memory"}
+                {memory.status === "archived" ? "Restore memory" : "Archive memory"}
               </Button>
             ) : null}
           </div>
@@ -2467,18 +2489,15 @@ function MemoryEditor({
         <CardHeader>
           <CardTitle>Public preview</CardTitle>
           <CardAction>
-            <span className="admin-card-meta">Card + Read more</span>
+            <span className="admin-card-meta">Mobile card</span>
           </CardAction>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <MemoryCard
-            memory={draft}
-            timezone={timezone}
-            onOpen={() => document.querySelector(".admin-preview-note")?.setAttribute("open", "")}
-          />
+          <MemoryCard memory={draft} />
           <details className="admin-preview-note">
             <summary>Full content preview</summary>
-            <MarkdownPreview value={draft.bodyMarkdown} />
+            <h3 className="mb-3 text-lg font-medium">{draft.title}</h3>
+            <MarkdownPreview value={memoryBody(draft)} />
           </details>
         </CardContent>
       </Card>
@@ -3023,7 +3042,7 @@ function SettingsView({
               <FieldGroup>
                 <TextField
                   label="Site title"
-                  description="Used in browser titles and the public introduction."
+                  description="Used in browser titles and page metadata."
                   value={siteDraft.siteTitle}
                   onChange={(value) => updateSite("siteTitle", value)}
                 />

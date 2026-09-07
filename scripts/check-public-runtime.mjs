@@ -13,6 +13,29 @@ function runtimeFunction(name, context = {}) {
 }
 
 const page = runtimeFunction("memoryEnginePage");
+const shareWindow = {
+  SONGQI_SITE_SETTINGS: { canonicalUrl: "https://songqi.org" },
+  location: { origin: "http://localhost:7890" },
+};
+const shareUrl = runtimeFunction("publicShareUrl", { window: shareWindow, URL });
+assert.equal(
+  shareUrl("/memory/m11111111111111111111"),
+  "https://songqi.org/memory/m11111111111111111111",
+);
+assert.equal(shareUrl(""), "https://songqi.org/");
+delete shareWindow.SONGQI_SITE_SETTINGS;
+assert.equal(
+  shareUrl("/memory/m11111111111111111111"),
+  "http://localhost:7890/memory/m11111111111111111111",
+);
+assert.ok(source.includes("s=window.__REVIVAL_PUBLIC_SHARE_URL__(s),"));
+const originalMain = await readFile(new URL("../public/js/main.js", import.meta.url), "utf8");
+const patchedMain = runtimeFunction("patchLegacyMainSource")(originalMain);
+assert.ok(patchedMain.includes("s=window.__REVIVAL_PUBLIC_SHARE_URL__(s),"));
+assert.ok(
+  !patchedMain.includes("s=n.SITE_URL+s,"),
+  "Sharing must use the configured canonical origin",
+);
 const records = Array.from({ length: 405 }, (_, i) => ({ id: ((i * 83) % 405) + 1 }));
 let cursor = "";
 const seen = [];
