@@ -658,10 +658,9 @@
   }
 
   function memoryEnginePage(posts, url) {
-    var lastId = parseInt(url.searchParams.get("lastId") || "", 10);
-    var page = Number.isFinite(lastId)
-      ? posts.filter(function (post) { return parseInt(post.id, 10) < lastId; })
-      : posts;
+    var lastId = url.searchParams.get("lastId");
+    var index = lastId ? posts.findIndex(function (post) { return String(post.id) === lastId; }) : -1;
+    var page = lastId ? (index < 0 ? [] : posts.slice(index + 1)) : posts;
     return page.slice(0, 200);
   }
 
@@ -726,13 +725,13 @@
 
   function memoryEngineJqxhr(settings, payload) {
     var jqxhr = {
-      abort: function () {},
+      abort: function () { window.clearTimeout(timer); jqxhr.readyState = 0; },
       readyState: 1,
       status: 0,
       responseJSON: null,
       responseText: ""
     };
-    window.setTimeout(function () {
+    var timer = window.setTimeout(function () {
       jqxhr.readyState = 4;
       jqxhr.status = 200;
       jqxhr.responseJSON = payload;
@@ -754,6 +753,7 @@
     var releaseUploadImageInflight;
     var jqxhr;
     var aborted = false;
+    var controller;
 
     if (!url) return null;
     path = new URL(url).pathname;
@@ -774,6 +774,8 @@
       credentials: "same-origin",
       method: method
     };
+    controller = new AbortController();
+    requestOptions.signal = controller.signal;
     if (method !== "GET") requestOptions.body = settings.data || null;
     isUploadImageRequest = method === "POST" && path === "/api/upload-image";
     if (isUploadImageRequest) {
@@ -786,7 +788,10 @@
     }
     jqxhr = {
       abort: function () {
+        if (aborted || jqxhr.readyState === 4) return;
         aborted = true;
+        jqxhr.readyState = 0;
+        controller.abort();
       },
       readyState: 1,
       status: 0
@@ -1205,9 +1210,9 @@
       .replace(/'/g, "&#39;");
   }
 
-  function fetchJson(url) {
+  function fetchJson(url, signal) {
     if (!window.fetch) return Promise.reject(new Error("fetch_unavailable"));
-    return window.fetch(url, { credentials: "same-origin" }).then(function (response) {
+    return window.fetch(url, { credentials: "same-origin", signal: signal }).then(function (response) {
       return response.json().then(function (payload) {
         if (!response.ok || !payload || payload.success === false) {
           throw new Error(payload && (payload.message || payload.errorMsg) || "request_failed");
@@ -1246,25 +1251,37 @@
     var root = document.documentElement;
     if (window.I_REMEMBER_REVIVAL.mobileViewportReady) return;
     window.I_REMEMBER_REVIVAL.mobileViewportReady = true;
+    var frame = 0;
 
     function update() {
-      var height = viewport ? viewport.height : window.innerHeight;
-      var offset = viewport ? viewport.offsetTop : 0;
+      frame = 0;
+      // Pinch zoom reduces the visual viewport too; it must not be mistaken
+      // for a software keyboard or resize the scene under the user's fingers.
+      var unzoomed = !viewport || Math.abs((viewport.scale || 1) - 1) < 0.05;
+      var height = viewport && unzoomed ? viewport.height : window.innerHeight;
+      var offset = viewport && unzoomed ? viewport.offsetTop : 0;
+      var focused = document.activeElement;
+      var editing = focused && (focused.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(focused.tagName));
       root.style.setProperty("--revival-visual-viewport-height", height + "px");
       root.style.setProperty("--revival-visual-viewport-offset", offset + "px");
       root.classList.toggle(
         "revival-keyboard-open",
-        Boolean(viewport && window.innerHeight - viewport.height > 120)
+        Boolean(viewport && unzoomed && editing && window.innerHeight - height > 120)
       );
+    }
+    function scheduleUpdate() {
+      if (!frame) frame = window.requestAnimationFrame(update);
     }
 
     update();
     if (viewport) {
-      viewport.addEventListener("resize", update, { passive: true });
-      viewport.addEventListener("scroll", update, { passive: true });
+      viewport.addEventListener("resize", scheduleUpdate, { passive: true });
+      viewport.addEventListener("scroll", scheduleUpdate, { passive: true });
     }
-    window.addEventListener("resize", update, { passive: true });
-    window.addEventListener("orientationchange", update, { passive: true });
+    window.addEventListener("resize", scheduleUpdate, { passive: true });
+    window.addEventListener("orientationchange", scheduleUpdate, { passive: true });
+    document.addEventListener("focusin", scheduleUpdate, true);
+    document.addEventListener("focusout", scheduleUpdate, true);
   }
 
   function installImeCompositionSupport() {
@@ -1432,7 +1449,7 @@
       ".revival-mobile-map-hint{position:fixed;z-index:35;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));max-width:calc(100% - 32px);border:1px solid rgba(255,255,255,.26);border-radius:999px;background:rgba(8,9,11,.9);color:#fff;font:16px/1.35 Helvetica,Arial,sans-serif;padding:12px 16px;text-align:center;transform:translate3d(-50%,12px,0);opacity:0;pointer-events:none;transition:opacity .22s linear,transform .22s ease;white-space:nowrap}",
       ".revival-mobile-map-hint.is-visible{opacity:1;transform:translate3d(-50%,0,0)}",
       "html.revival-empty-memory .add-steps-add-options-look,html.revival-empty-memory .nav-map-wrapper{display:none!important;pointer-events:none!important}",
-      "@media(max-width:760px){.header-description{display:none!important}.header-logo{left:22px!important;top:28px!important;transform:scale(.72)!important;transform-origin:left top!important}.header-fade-container{right:16px!important;top:12px!important;transform:scale(.76)!important;transform-origin:right top!important}.nav{left:8px!important;width:72px!important;margin-top:-78px!important}.nav-map-wrapper{left:0!important;width:62px!important;height:62px!important;margin:8px 0 8px auto!important}.nav-map-btn{width:62px!important;height:62px!important}.nav-search-wrapper,.nav-add-wrapper{margin:8px 0 8px auto!important}.nav-text,.nav-search-item{left:52px!important}.search-center-wrapper{left:20px!important;right:20px!important;width:auto!important;margin-left:0!important;margin-top:-58px!important}.search-input-wrapper,.search-line{width:100%!important}.search-input,.search-input-placeholder{font-size:50px!important;line-height:58px!important;max-width:100%!important;white-space:nowrap!important}.search-not-found{left:0!important;width:100%!important;font-size:15px!important;line-height:22px!important}.search-btn{right:0!important}.footer{height:132px!important}.footer-content{height:132px!important;display:flex!important;align-items:flex-end!important;justify-content:flex-end!important;gap:8px 12px!important;flex-wrap:wrap!important;padding:0 16px 18px 16px!important}.footer-content>*{float:none!important;margin:0!important}.footer-logo-wrapper{order:20;width:46px!important;height:54px!important}.footer-share,.footer-sound-btn{width:24px!important;height:24px!important}.footer-link-item{font-size:9px!important;line-height:14px!important;white-space:nowrap!important}.footer-link-lang-list{bottom:18px!important}.terms-wrapper,.credit-wrapper{width:100vw!important;max-width:100vw!important}.revival-panel-resize{display:none!important}}",
+      "@media(max-width:760px),(max-width:1024px) and (max-height:500px){.header-description{display:none!important}.header-logo{left:22px!important;top:28px!important;transform:scale(.72)!important;transform-origin:left top!important}.header-fade-container{right:16px!important;top:12px!important;transform:scale(.76)!important;transform-origin:right top!important}.nav{left:8px!important;width:72px!important;margin-top:-78px!important}.nav-map-wrapper{left:0!important;width:62px!important;height:62px!important;margin:8px 0 8px auto!important}.nav-map-btn{width:62px!important;height:62px!important}.nav-search-wrapper,.nav-add-wrapper{margin:8px 0 8px auto!important}.nav-text,.nav-search-item{left:52px!important}.search-center-wrapper{left:20px!important;right:20px!important;width:auto!important;margin-left:0!important;margin-top:-58px!important}.search-input-wrapper,.search-line{width:100%!important}.search-input,.search-input-placeholder{font-size:50px!important;line-height:58px!important;max-width:100%!important;white-space:nowrap!important}.search-not-found{left:0!important;width:100%!important;font-size:15px!important;line-height:22px!important}.search-btn{right:0!important}.footer{height:132px!important}.footer-content{height:132px!important;display:flex!important;align-items:flex-end!important;justify-content:flex-end!important;gap:8px 12px!important;flex-wrap:wrap!important;padding:0 16px 18px 16px!important}.footer-content>*{float:none!important;margin:0!important}.footer-logo-wrapper{order:20;width:46px!important;height:54px!important}.footer-share,.footer-sound-btn{width:24px!important;height:24px!important}.footer-link-item{font-size:9px!important;line-height:14px!important;white-space:nowrap!important}.footer-link-lang-list{bottom:18px!important}.terms-wrapper,.credit-wrapper{width:100vw!important;max-width:100vw!important}.revival-panel-resize{display:none!important}}",
       ".nav{left:0!important;width:100px!important;margin-top:-100px!important}",
       ".nav-map-wrapper{left:19px!important;width:92px!important;height:92px!important;margin:12px 0 12px auto!important}",
       ".nav-map-btn{width:92px!important;height:92px!important}",
@@ -1452,7 +1469,7 @@
       ".revival-menu-actions button,.revival-menu-actions a,.revival-memory-explore{min-height:44px;font-size:16px}",
       ".revival-menu-close{display:grid;width:44px;height:44px;place-items:center;right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top))}",
       ".terms-close-btn,.credit-close-btn{min-width:44px!important;min-height:44px!important}",
-      "@media(max-width:760px){.tutorials{display:none!important;pointer-events:none!important}.base-3d-container,.base-3d-container canvas{touch-action:none!important}.header-logo{top:calc(20px + env(safe-area-inset-top))!important;left:max(18px,env(safe-area-inset-left))!important}.header-fade-container{top:calc(8px + env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}.nav{left:max(8px,env(safe-area-inset-left))!important}.nav-search-wrapper,.nav-add-wrapper,.search-btn,.circle-btn,[role='button']{min-width:44px;min-height:44px}.search-btn{width:44px!important;height:44px!important;top:57px!important}.search-hint{display:inline-flex;min-height:44px;align-items:center;padding:0 8px;font-size:16px}.footer{height:calc(132px + env(safe-area-inset-bottom))!important}.footer-content{height:calc(132px + env(safe-area-inset-bottom))!important;padding:0 max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))!important}.footer-content>.footer-managed-item,.footer-link-item{display:inline-flex!important;min-height:44px;align-items:center;padding:0 6px;font-size:16px!important;line-height:20px!important}.footer-share,.footer-sound-btn,.add-steps-congrats-share{display:inline-flex!important;width:44px!important;height:44px!important;align-items:center;justify-content:center}.footer-link-lang-list,.footer-menu-group-list{bottom:44px!important}.terms-wrapper,.credit-wrapper{width:100%!important;max-width:100%!important;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}.add-steps-back-btn,.add-steps-validate-btn,.add-steps-message-terms{min-height:44px;font-size:16px!important}.add-steps-message-terms{display:flex;align-items:center;justify-content:center;white-space:normal}.revival-menu-body p{font-size:16px}.revival-menu-image{min-height:150px}.revival-menu-body{padding:20px}.revival-menu-body h2{font-size:24px}html.revival-search-open .nav{opacity:0!important;pointer-events:none!important}.revival-mobile-map-hint{white-space:normal}}",
+      "@media(max-width:760px),(max-width:1024px) and (max-height:500px){.tutorials{display:none!important;pointer-events:none!important}.base-3d-container,.base-3d-container canvas{touch-action:none!important}.header-logo{top:calc(20px + env(safe-area-inset-top))!important;left:max(18px,env(safe-area-inset-left))!important}.header-fade-container{top:calc(8px + env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}.nav{left:max(8px,env(safe-area-inset-left))!important}.nav-search-wrapper,.nav-add-wrapper,.search-btn,.circle-btn,[role='button']{min-width:44px;min-height:44px}.search-btn{width:44px!important;height:44px!important;top:57px!important}.search-hint{display:inline-flex;min-height:44px;align-items:center;padding:0 8px;font-size:16px}.footer{height:calc(132px + env(safe-area-inset-bottom))!important}.footer-content{height:calc(132px + env(safe-area-inset-bottom))!important;padding:0 max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))!important}.footer-content>.footer-managed-item,.footer-link-item{display:inline-flex!important;min-height:44px;align-items:center;padding:0 6px;font-size:16px!important;line-height:20px!important}.footer-share,.footer-sound-btn,.add-steps-congrats-share{display:inline-flex!important;width:44px!important;height:44px!important;align-items:center;justify-content:center}.footer-link-lang-list,.footer-menu-group-list{bottom:44px!important}.terms-wrapper,.credit-wrapper{width:100%!important;max-width:100%!important;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}.add-steps-back-btn,.add-steps-validate-btn,.add-steps-message-terms{min-height:44px;font-size:16px!important}.add-steps-message-terms{display:flex;align-items:center;justify-content:center;white-space:normal}.revival-menu-body p{font-size:16px}.revival-menu-image{min-height:150px}.revival-menu-body{padding:20px}.revival-menu-body h2{font-size:24px}html.revival-search-open .nav{opacity:0!important;pointer-events:none!important}.revival-mobile-map-hint{white-space:normal}}",
       "html.revival-keyboard-open .header,html.revival-keyboard-open .footer{opacity:0!important;pointer-events:none!important}",
       "html.revival-keyboard-open .search-center-wrapper{margin-top:-42px!important}",
       "@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.revival-menu-card{transform:none!important}}"
@@ -2177,8 +2194,11 @@
   }
 
   var memoryRequestSequence = 0;
+  var memoryRequestController;
   function refreshMemoryRoute(path, initial) {
     var requestSequence = ++memoryRequestSequence;
+    if (memoryRequestController) memoryRequestController.abort();
+    memoryRequestController = new AbortController();
     var id = memoryIdFromPath(path);
     if (!id) {
       if (window.SONGQI_SITE_SETTINGS) document.title = window.SONGQI_SITE_SETTINGS.siteTitle;
@@ -2186,6 +2206,7 @@
       setMemoryExplore(null);
       return;
     }
+    if (id !== lastViewedMemory) setMemoryExplore(null);
     if (!initial && id !== lastViewedMemory) {
       window.fetch("/api/v1/memories/" + encodeURIComponent(id) + "/view", {
         method: "POST",
@@ -2195,7 +2216,7 @@
       }).catch(function () {});
     }
     lastViewedMemory = id;
-    fetchJson("/api/v1/memories/" + encodeURIComponent(id))
+    fetchJson("/api/v1/memories/" + encodeURIComponent(id), memoryRequestController.signal)
       .then(function(memory){if(requestSequence === memoryRequestSequence) { setMemoryExplore(memory); if (memory && window.SONGQI_SITE_SETTINGS) document.title = memory.title + " · " + window.SONGQI_SITE_SETTINGS.siteTitle; }})
       .catch(function () {});
   }
@@ -2381,6 +2402,6 @@
     else if (!document.hidden && !stage.isRendering) stage.startRender();
   });
   document.addEventListener("touchmove", function (event) {
-    if (matchMedia("(max-width:760px)").matches && event.target.closest(".post-2d-center-wrapper,.revival-menu-body")) event.stopPropagation();
+    if (matchMedia("(max-width:760px), (max-width:1024px) and (max-height:500px)").matches && event.target.closest(".post-2d-center-wrapper,.revival-menu-card,.add-steps-message")) event.stopPropagation();
   }, { capture: true, passive: true });
 })();

@@ -48,3 +48,29 @@ uploads, private draft save/edit, original public photo/name/email/terms submiss
 and immediate publication, long-form reading, and active original audio playback.
 Viewport checks do not substitute for testing the software keyboard and audio
 policy on physical iOS and Android devices.
+
+## Follow-up optimization
+
+- Generate Brotli and gzip sidecars during the build, and serve the encoding
+  accepted by the browser. Original images, fonts, music, and renderer source
+  remain unchanged. The original main script transfers as 140,577 Brotli bytes
+  instead of 560,821 bytes (75% less); this measures transfer size, not frame rate.
+- Revalidate stable asset and admin entry URLs with ETag/Last-Modified after
+  deployments. Content-hashed build assets receive long-lived immutable caching.
+- Correct audio suffix ranges and clamp requested end offsets to the file length;
+  handle conditional requests and close streams when downloads are cancelled.
+  These follow [HTTP range semantics](https://www.rfc-editor.org/rfc/rfc9110.html#name-range).
+- Abort superseded public requests at the network layer, preventing obsolete
+  responses from changing the current memory. The browser test-data adapter now
+  also uses record order for pagination, matching the previously corrected server.
+- Add the short landscape breakpoint, keep the memory close button reachable
+  while scrolling, and allow submission content to scroll above its actions.
+  Coalesce viewport resize/scroll events into one animation frame. Pinch zoom is
+  distinguished from a keyboard using viewport scale and input focus.
+
+The additional `check-static-assets.mjs` suite verifies actual HTTP responses and
+byte-for-byte decompression. `check-public-runtime.mjs` executes the shipping
+request, pagination, and viewport functions with controlled browser boundaries.
+Browser checks also covered 320×568 and 844×390 layouts: scrollable memory cards,
+full reading and close actions, and the landscape photo/name/email/content form
+through the reachable terms area. Original background audio was actively playing.

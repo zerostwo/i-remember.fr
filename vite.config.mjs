@@ -4,12 +4,13 @@ import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createViteRevivalPlugin } from "./src/server/revival.js";
+import { precompressAssets } from "./src/server/asset-compression.js";
 
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   root: rootDir,
-  plugins: [react(), tailwindcss(), createViteRevivalPlugin()],
+  plugins: [react(), tailwindcss(), createViteRevivalPlugin(), precompressAssets()],
   resolve: {
     alias: {
       "@": resolve(rootDir, "src"),

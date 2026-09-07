@@ -1,10 +1,11 @@
-import { createReadStream, existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { lookup } from "node:dns/promises";
 import { createServer } from "node:http";
 import { isIP } from "node:net";
 import { extname, resolve, sep } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
+import { serveAsset } from "./src/server/static-assets.js";
 import { createRevivalMiddleware } from "./src/server/revival.js";
 
 const rootDir = resolve(fileURLToPath(new URL(".", import.meta.url)));
@@ -249,56 +250,9 @@ function logProxyRequest(req, path, status, durationMs) {
 }
 
 function serveFile(req, res, filePath, stat) {
-  const contentType = contentTypes[extname(filePath).toLowerCase()] || "application/octet-stream";
-  const range = req.headers.range;
-
   setSecurityHeaders(res);
-  res.setHeader("Accept-Ranges", "bytes");
-  res.setHeader("Cache-Control", "public, max-age=3600");
-  res.setHeader("Content-Type", contentType);
-
-  if (range) {
-    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
-    if (!match) {
-      res.statusCode = 416;
-      res.setHeader("Content-Range", `bytes */${stat.size}`);
-      res.end();
-      return;
-    }
-
-    const start = match[1] ? Number.parseInt(match[1], 10) : 0;
-    const end = match[2] ? Number.parseInt(match[2], 10) : stat.size - 1;
-
-    if (
-      !Number.isFinite(start) ||
-      !Number.isFinite(end) ||
-      start > end ||
-      start >= stat.size
-    ) {
-      res.statusCode = 416;
-      res.setHeader("Content-Range", `bytes */${stat.size}`);
-      res.end();
-      return;
-    }
-
-    res.statusCode = 206;
-    res.setHeader("Content-Range", `bytes ${start}-${end}/${stat.size}`);
-    res.setHeader("Content-Length", String(end - start + 1));
-    if (req.method === "HEAD") {
-      res.end();
-      return;
-    }
-    createReadStream(filePath, { start, end }).pipe(res);
-    return;
-  }
-
-  res.statusCode = 200;
-  res.setHeader("Content-Length", String(stat.size));
-  if (req.method === "HEAD") {
-    res.end();
-    return;
-  }
-  createReadStream(filePath).pipe(res);
+  const contentType = contentTypes[extname(filePath).toLowerCase()] || "application/octet-stream";
+  serveAsset(req, res, filePath, stat, contentType);
 }
 
 function serveStatic(req, res) {
