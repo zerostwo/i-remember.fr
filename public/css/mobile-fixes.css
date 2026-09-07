@@ -1,4 +1,28 @@
 /* Desktop inherits the original artwork, typography, geometry and animation. */
+html body .footer .footer-content > .footer-link-lang {
+  display: none !important;
+}
+html body .search-input:focus,
+html body .add-steps-message-input:focus {
+  outline: none !important;
+  box-shadow: none;
+}
+@media (min-width: 761px) and (min-height: 501px), (min-width: 1025px) {
+  .app.revival-card-fit .post-2d-center-wrapper {
+    width: calc(var(--revival-card-image-size) + 348px) !important;
+    height: var(--revival-card-image-size) !important;
+    top: var(--revival-card-top) !important;
+    margin: 0 !important;
+    transform: translateX(-50%) !important;
+  }
+  .app.revival-card-fit .post-2d-img {
+    width: var(--revival-card-image-size) !important;
+    height: var(--revival-card-image-size) !important;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+}
 .revival-menu-memory.is-expanded .revival-menu-excerpt,
 .revival-menu-memory.is-expanded .revival-menu-read {
   display: none !important;

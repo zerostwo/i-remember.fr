@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import QRCode from "qrcode";
+import { DropdownMenu } from "radix-ui";
 import {
   Badge,
   Button,
@@ -140,7 +141,6 @@ const menuTypes = [
   "GROUP",
   "TERMS",
   "CREDITS",
-  "LANGUAGE",
   "SOUND",
   "SHARE",
   "LOGO",
@@ -754,6 +754,11 @@ export function AdminApp() {
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
   }, []);
+
+  useEffect(() => {
+    // A new admin screen starts below its own top bar, not at the old page's scroll offset.
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [route, selectedMemoryId]);
 
   function navigate(nextRoute) {
     if (!canLeaveEditor()) return;
@@ -2070,6 +2075,52 @@ function MetricCard({ label, value, detail, tone }) {
   );
 }
 
+function MemoryActions({ memory, canonicalUrl, editMemory }) {
+  const [trigger, setTrigger] = useState(null);
+
+  return (
+    <DropdownMenu.Root modal={false}>
+      <DropdownMenu.Trigger asChild>
+        <Button
+          ref={setTrigger}
+          variant="outline"
+          size="sm"
+          aria-label={`Actions for ${memory.title}`}
+        >
+          More
+        </Button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal container={trigger?.closest(".i-remember-admin")}>
+        <DropdownMenu.Content
+          className="admin-memory-actions"
+          align="end"
+          sideOffset={4}
+          collisionPadding={12}
+        >
+          <DropdownMenu.Item onSelect={() => editMemory(memory.id)}>Edit</DropdownMenu.Item>
+          <DropdownMenu.Item onSelect={() => editMemory(memory.id, "settings")}>
+            Settings
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() =>
+              navigator.clipboard?.writeText(
+                `${String(canonicalUrl || window.location.origin).replace(/\/$/, "")}${memory.publicUrl}`,
+              )
+            }
+          >
+            Copy share link
+          </DropdownMenu.Item>
+          <DropdownMenu.Item asChild>
+            <a href={memory.publicUrl} target="_blank" rel="noreferrer">
+              Open public
+            </a>
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
 function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, editMemory }) {
   const [page, setPage] = useState(1);
   const memories = data.memories || [];
@@ -2149,46 +2200,11 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
                       : "--"}
                   </TableCell>
                   <TableCell className="text-right">
-                    <details className="relative inline-block text-left">
-                      <summary className="cursor-pointer list-none rounded-md border px-3 py-1.5 text-xs">
-                        More
-                      </summary>
-                      <div className="absolute right-0 z-10 mt-1 grid min-w-36 gap-1 rounded-md border bg-popover p-1 shadow-lg">
-                        <button
-                          className="rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
-                          type="button"
-                          onClick={() => editMemory(memory.id)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
-                          type="button"
-                          onClick={() => editMemory(memory.id, "settings")}
-                        >
-                          Settings
-                        </button>
-                        <button
-                          className="rounded px-2 py-1.5 text-left text-sm hover:bg-muted"
-                          type="button"
-                          onClick={() =>
-                            navigator.clipboard?.writeText(
-                              `${String(data.settings?.canonicalUrl || window.location.origin).replace(/\/$/, "")}${memory.publicUrl}`,
-                            )
-                          }
-                        >
-                          Copy share link
-                        </button>
-                        <a
-                          className="rounded px-2 py-1.5 text-sm hover:bg-muted"
-                          href={memory.publicUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Open public
-                        </a>
-                      </div>
-                    </details>
+                    <MemoryActions
+                      memory={memory}
+                      canonicalUrl={data.settings?.canonicalUrl}
+                      editMemory={editMemory}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -2648,7 +2664,8 @@ function MenusView({
   saveMenuItem,
   deleteMenuItem,
 }) {
-  const menu = data.menu || [];
+  // Language remains supported internally, but has no public navigation control.
+  const menu = (data.menu || []).filter((item) => item.type !== "LANGUAGE");
   const filtered = menu.filter((item) =>
     containsQuery([item.label, item.type, item.targetValue, item.url], search),
   );

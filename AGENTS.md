@@ -120,3 +120,9 @@ Current backend/product decisions:
   graphics. Align footer labels and the sound icon while preserving the original
   visual assets. Default-language public URLs must be clean (`/` and
   `/memory/:id`), without a redundant `?ln=en`; retain non-default language support.
+- Owner feedback on 2026-09-06: remove rectangular white focus outlines from
+  public search and staged memory-entry fields; preserve their original caret
+  and focus treatment. Fit the complete desktop memory card and close control
+  between the header/footer without changing the original typography. Remove
+  the public Language switcher, while retaining translation and language-route
+  support. Keep the approved admin style and ensure its pages are consistent.

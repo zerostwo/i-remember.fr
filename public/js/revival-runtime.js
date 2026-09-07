@@ -1262,6 +1262,48 @@
     window.I_REMEMBER_REVIVAL.preModalFocus = null;
   }
 
+  function desktopCardLayout(width, height, headerHeight, footerHeight) {
+    var availableHeight = height - headerHeight - footerHeight - 32;
+    var imageSize = Math.floor(Math.min(600, width - 348 - 48, availableHeight));
+    if (imageSize <= 0) return null;
+    return {
+      imageSize: imageSize,
+      top: headerHeight + 16 + (availableHeight - imageSize) / 2
+    };
+  }
+
+  function installDesktopCardFit() {
+    var app = document.querySelector(".app");
+    var header = document.querySelector(".header");
+    var footer = document.querySelector(".footer");
+    if (!app || !header || !footer || app.__revivalCardFitReady) return;
+    app.__revivalCardFitReady = true;
+    var frame = 0;
+    var lastSize = "";
+    function update() {
+      frame = 0;
+      var layout = desktopCardLayout(app.clientWidth, app.clientHeight, header.offsetHeight, footer.offsetHeight);
+      if (!layout) return;
+      var sizeKey = layout.imageSize + ":" + layout.top;
+      if (sizeKey === lastSize) return;
+      lastSize = sizeKey;
+      app.style.setProperty("--revival-card-image-size", layout.imageSize + "px");
+      app.style.setProperty("--revival-card-top", layout.top + "px");
+      app.classList.add("revival-card-fit");
+      var content = document.querySelector(".post-2d-content-wrapper");
+      if (content && content.offsetParent && content.scrollpane) content.scrollpane.onResize();
+    }
+    function schedule() {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    }
+    if (window.ResizeObserver) {
+      var observer = new ResizeObserver(schedule);
+      [app, header, footer].forEach(function (element) { observer.observe(element); });
+    }
+    window.addEventListener("resize", schedule, { passive: true });
+    update();
+  }
+
   function installMobileViewportSupport() {
     var viewport = window.visualViewport;
     var root = document.documentElement;
@@ -1478,7 +1520,7 @@
       ".app{top:var(--revival-visual-viewport-offset,0);height:var(--revival-visual-viewport-height,100dvh)!important;min-height:var(--revival-visual-viewport-height,100svh)!important}",
       "input,textarea,select,[contenteditable='true']{font-size:max(16px,1em)}",
       "button,a,[role='button'],label[for]{touch-action:manipulation}",
-      "[role='button']:focus-visible,a:focus-visible,button:focus-visible,[contenteditable='true']:focus-visible{outline:3px solid rgba(255,255,255,.92)!important;outline-offset:4px!important}",
+      "[role='button']:focus-visible,a:focus-visible,button:focus-visible{outline:3px solid rgba(255,255,255,.92)!important;outline-offset:4px!important}",
       ".revival-menu-memory{top:var(--revival-visual-viewport-offset,0);height:var(--revival-visual-viewport-height,100dvh);padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));box-sizing:border-box}",
       ".revival-menu-card{width:min(620px,100%);max-height:100%}",
       ".revival-menu-body,.credit-wrapper,.terms-wrapper{overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y pinch-zoom}",
@@ -1560,17 +1602,11 @@
       }
     );
 
-    var languageItem = items.filter(function (item) {
-      return item.type === "LANGUAGE";
-    })[0];
-    if (languageItem) {
-      language.style.display = "";
-      language.classList.add("footer-managed-item");
-      var text = language.querySelector(".footer-link-lang-text");
-      if (text) text.textContent = languageItem.label;
-    } else {
-      language.style.display = "none";
-    }
+    // Keep the legacy DOM anchor for footer ordering, without exposing a
+    // language control in the public interface. Language routes remain supported.
+    language.hidden = true;
+    language.setAttribute("aria-hidden", "true");
+    language.style.display = "none";
 
     var fixedTypes = { SOUND: ".footer-sound-btn", SHARE: ".footer-share", LOGO: ".footer-logo-wrapper" };
     Object.keys(fixedTypes).forEach(function (type) {
@@ -2272,6 +2308,7 @@
 
   ensureManagedMenuStyles();
   installMobileViewportSupport();
+  installDesktopCardFit();
   installImeCompositionSupport();
   installLegacySearchState();
   installMobileMapHint();
@@ -2286,6 +2323,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     ensureManagedMenuStyles();
     installMobileViewportSupport();
+    installDesktopCardFit();
     installImeCompositionSupport();
     installLegacySearchState();
     installMobileMapHint();

@@ -13,6 +13,15 @@ function runtimeFunction(name, context = {}) {
 }
 
 const page = runtimeFunction("memoryEnginePage");
+const cardLayout = runtimeFunction("desktopCardLayout");
+for (const [width, height, header, footer] of [[1512, 861, 166, 166], [1280, 720, 140, 140], [768, 900, 140, 140]]) {
+  const layout = cardLayout(width, height, header, footer);
+  assert.ok(layout.top >= header + 16);
+  assert.ok(layout.top + layout.imageSize <= height - footer - 16);
+  assert.ok(layout.imageSize + 348 <= width - 48);
+}
+assert.equal(cardLayout(1920, 1200, 140, 140).imageSize, 600, "Large desktops keep the original image size");
+assert.equal(cardLayout(1024, 180, 100, 100), null);
 const shareWindow = {
   SONGQI_SITE_SETTINGS: { canonicalUrl: "https://songqi.org" },
   location: { origin: "http://localhost:7890" },
