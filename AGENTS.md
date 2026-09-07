@@ -115,3 +115,8 @@ Current backend/product decisions:
 - During the current repair and review, use English for all public and admin UI
   previews and verification. Keep English as the site default; retain other
   language support for later use, without presenting the Chinese UI for now.
+- Owner feedback on 2026-09-06: keep the original mobile globe, search, and add
+  controls on one visual center line, with hit targets aligned to the rendered
+  graphics. Align footer labels and the sound icon while preserving the original
+  visual assets. Default-language public URLs must be clean (`/` and
+  `/memory/:id`), without a redundant `?ln=en`; retain non-default language support.

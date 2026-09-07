@@ -1394,7 +1394,8 @@ async function renderAppHtml(
   html = html.replace(/<title>[\s\S]*?<\/title>/g, `<title>${htmlText(title)}</title>`)
     .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${htmlAttr(title)}"/>`)
     .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${htmlAttr(canonical)}"/>`)
-    .replace("</head>", `<link rel="canonical" href="${htmlAttr(canonical)}"/><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};</script></head>`);
+    .replace("</head>", `<link rel="canonical" href="${htmlAttr(canonical)}"/></head>`)
+    .replace("<head>", `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};</script>`);
 
   html = patchLanguageShell(html, normalized, pathname);
   html = injectTracking(html, siteSettings);
@@ -1598,6 +1599,20 @@ async function handleRequest(backend, req, res, next, options = {}) {
     : backend.siteSettings();
   const defaultLanguage = siteSettings.defaultLanguage;
   const memoryLanguage = contentLanguage(defaultLanguage);
+
+  // Language-free URLs use the configured default (or an explicit /fr, /zh,
+  // /en route). Do not retain a query parameter that repeats that language.
+  // This redirect is temporary because the owner can change the site default.
+  if (req.method === "GET" && (appShellRequested(pathname) || memoryShellRequested(pathname)) &&
+      url.searchParams.has("ln") &&
+      languageFromRequest(url, pathname, defaultLanguage) === languageFromPath(pathname, defaultLanguage)) {
+    url.searchParams.delete("ln");
+    res.statusCode = 302;
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Location", `${url.pathname}${url.search}${url.hash}`);
+    res.end();
+    return;
+  }
 
   if (shouldLogRequest(pathname)) {
     res.once("finish", () => {

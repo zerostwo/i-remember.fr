@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createRevivalMiddleware } from "../src/server/revival.js";
 
 const dataDir = await mkdtemp(join(tmpdir(), "i-remember-proxy-"));
 const v1PublicId = "m11111111111111111111";
@@ -13,6 +14,7 @@ const v1MenuId = "menu-v1-about";
 const v1CreateBodies = [];
 const v1CreatedMemories = [];
 let v1ViewCount = 0;
+let siteDefaultLanguage = "zh";
 let v1Ready = true;
 let v1Reachable = true;
 async function freePort() {
@@ -52,7 +54,7 @@ const upstream = createServer(async (req, res) => {
           siteTitle: "Configured title",
           canonicalUrl: "https://songqi.org",
           timezone: "Asia/Shanghai",
-          defaultLanguage: "zh",
+          defaultLanguage: siteDefaultLanguage,
           anonymousSubmissions: true,
           tracking: {
             enabled: true,
@@ -317,6 +319,7 @@ try {
   assert.match(contentSecurityPolicy, /connect-src[^;]*https:\/\/stats\.example\.test/);
   const homeHtml = await homeResponse.text();
   assert.match(homeHtml, /<title>Configured title<\/title>/);
+  assert.ok(homeHtml.indexOf("window.SONGQI_SITE_SETTINGS=") < homeHtml.indexOf("js/revival-runtime.js"), "Configured default language must be available before runtime URL normalization");
   assert.match(homeHtml, /rel="canonical" href="https:\/\/songqi.org\/"/);
   assert.match(homeHtml, /src="\/assets\/public-markdown.js"/);
   const indexResponse = await fetch(`${baseUrl}/index.html?ln=en`, { redirect: "manual" });
@@ -324,6 +327,15 @@ try {
   assert.equal(indexResponse.headers.get("location"), "/?ln=en");
   assert.match(homeHtml, /src="https:\/\/stats\.example\.test\/script\.js"/);
   assert.match(homeHtml, /data-website-id="proxy-test-site"/);
+
+  const redundantLanguageResponse = await fetch(`${baseUrl}/?ln=zh&source=menu`, { redirect: "manual" });
+  assert.equal(redundantLanguageResponse.status, 302);
+  assert.equal(redundantLanguageResponse.headers.get("location"), "/?source=menu");
+  assert.equal(redundantLanguageResponse.headers.get("cache-control"), "no-store");
+  const redundantMemoryLanguage = await fetch(`${baseUrl}/memory/${v1PublicId}?ln=zh&source=menu`, { redirect: "manual" });
+  assert.equal(redundantMemoryLanguage.status, 302);
+  assert.equal(redundantMemoryLanguage.headers.get("location"), `/memory/${v1PublicId}?source=menu`);
+  assert.equal(v1ViewCount, 0, "URL normalization must not count an extra memory view");
 
   const memoryEditorResponse = await fetch(
     `${baseUrl}/admin/memory/editor?id=${encodeURIComponent(v1PublicId)}`,
@@ -528,6 +540,34 @@ try {
   assert.equal(agentBody.method, "POST");
   assert.equal(agentBody.auth, "Bearer proxy-test");
   assert.equal(JSON.parse(agentBody.body).query, "test");
+
+  // A fresh middleware instance loads the owner's changed default, rather
+  // than relying on the environment fallback or the prior instance's cache.
+  siteDefaultLanguage = "en";
+  const englishMiddleware = createRevivalMiddleware({ apiBaseUrl: `http://127.0.0.1:${upstreamPort}` });
+  const englishServer = createServer((req, res) => englishMiddleware(req, res, () => {
+    res.statusCode = 404;
+    res.end();
+  }));
+  await new Promise((resolve) => englishServer.listen(0, "127.0.0.1", resolve));
+  try {
+    const englishBaseUrl = `http://127.0.0.1:${englishServer.address().port}`;
+    for (const path of ["/", `/memory/${v1PublicId}`]) {
+      const response = await fetch(`${englishBaseUrl}${path}?ln=en&source=menu`, { redirect: "manual" });
+      assert.equal(response.status, 302);
+      assert.equal(response.headers.get("location"), `${path}?source=menu`);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      const cleanResponse = await fetch(`${englishBaseUrl}${response.headers.get("location")}`);
+      assert.equal(cleanResponse.status, 200);
+      assert.match(await cleanResponse.text(), /var LANG = 'en';/);
+    }
+    const frenchResponse = await fetch(`${englishBaseUrl}/?ln=fr`, { redirect: "manual" });
+    assert.equal(frenchResponse.status, 200);
+    assert.match(await frenchResponse.text(), /var LANG = 'fr';/);
+  } finally {
+    await new Promise((resolve) => englishServer.close(resolve));
+    siteDefaultLanguage = "zh";
+  }
 
   const adminOnlyDataDir = await mkdtemp(join(tmpdir(), "i-remember-admin-only-"));
   const adminOnlyPort = await freePort();

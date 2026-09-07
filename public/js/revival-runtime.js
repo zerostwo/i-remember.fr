@@ -71,7 +71,6 @@
     introAppInitialized: false
   };
 
-  var languagePreferenceKey = "iRememberLanguage";
   var uiCopy = {
     en: {
       htmlLang: "en-US",
@@ -1109,32 +1108,41 @@
   }, 100);
 
   function siteLanguage() {
-    var preferred = preferredLanguage();
-    if (preferred) return preferred;
+    // The server-rendered language and URL are authoritative, including a bare
+    // route's configured default. A stale session preference must not override it.
     if (window.LANG === "fr" || window.LANG === "zh" || window.LANG === "en") return window.LANG;
-    if (window.location.pathname.indexOf("/fr") === 0) return "fr";
-    if (window.location.pathname.indexOf("/zh") === 0) return "zh";
-    return "en";
+    return languageFromLocation();
   }
 
   function normalizedLanguage(language) {
+    language = String(language || "").toLowerCase();
     return language === "fr" || language === "zh" || language === "en" ? language : "en";
   }
 
-  function preferredLanguage() {
-    var stored;
-    try {
-      stored = window.sessionStorage.getItem(languagePreferenceKey);
-    } catch (error) {}
-    return stored === "fr" || stored === "zh" || stored === "en" ? stored : "";
+  function defaultRouteLanguage(pathname) {
+    var prefix = String(pathname || "/").split("/")[1];
+    if (prefix === "fr" || prefix === "zh" || prefix === "en") return prefix;
+    return normalizedLanguage(window.SONGQI_SITE_SETTINGS && window.SONGQI_SITE_SETTINGS.defaultLanguage);
+  }
+
+  function languageFromLocation() {
+    var url = new URL(window.location.href);
+    return normalizedLanguage(url.searchParams.get("ln") || defaultRouteLanguage(url.pathname));
+  }
+
+  function languageUrl(path, language) {
+    var next = new URL(String(path), window.location.href);
+    if (next.origin !== window.location.origin) return path;
+    var normalized = normalizedLanguage(language);
+    if (normalized === defaultRouteLanguage(next.pathname)) next.searchParams.delete("ln");
+    else next.searchParams.set("ln", normalized);
+    return next.pathname + next.search + next.hash;
   }
 
   function setPreferredLanguage(language) {
     var normalized = normalizedLanguage(language);
-    try {
-      window.sessionStorage.setItem(languagePreferenceKey, normalized);
-    } catch (error) {}
     window.LANG = normalized;
+    window.history.replaceState(window.history.state, "", languageUrl(window.location.href, normalized));
     return normalized;
   }
 
@@ -2231,16 +2239,24 @@
 
   function installMemoryRouteObserver() {
     window.addEventListener("songqi-markdown-ready", function(){refreshMemoryRoute(window.location.pathname, true);});
+    var currentPath = window.location.pathname + window.location.search + window.location.hash;
+    var cleanPath = languageUrl(window.location.href, siteLanguage());
+    if (currentPath !== cleanPath) window.history.replaceState(window.history.state, "", cleanPath);
     ["pushState", "replaceState"].forEach(function (name) {
       var original = window.history[name];
       window.history[name] = function () {
-        if (arguments[2]) {
-          try { var next = new URL(String(arguments[2]), window.location.href); if (next.origin === window.location.origin) { next.searchParams.set("ln", siteLanguage()); arguments[2] = next.pathname + next.search + next.hash; } } catch (error) {}
+        if (arguments[2] != null) {
+          try { arguments[2] = languageUrl(arguments[2], siteLanguage()); } catch (error) {}
         }
         var result = original.apply(this, arguments);
         refreshMemoryRoute(arguments[2] || window.location.pathname, false);
         return result;
       };
+    });
+    window.addEventListener("popstate", function () {
+      window.LANG = languageFromLocation();
+      applyLanguagePreference();
+      refreshMemoryRoute(window.location.pathname, false);
     });
     refreshMemoryRoute(window.location.pathname, true);
   }

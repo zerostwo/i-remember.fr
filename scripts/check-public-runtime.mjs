@@ -36,6 +36,63 @@ assert.ok(
   !patchedMain.includes("s=n.SITE_URL+s,"),
   "Sharing must use the configured canonical origin",
 );
+// Execute URL changes through the actual history wrapper, including existing
+// links, in-place language switching, memory open/close, and back navigation.
+const languageEvents = new Map();
+const historyCalls = [];
+const languageWindow = {
+  LANG: "en",
+  SONGQI_SITE_SETTINGS: { defaultLanguage: "en" },
+  location: new URL("https://songqi.org/?ln=en&campaign=hello%20world#intro"),
+  addEventListener: (name, callback) => languageEvents.set(name, callback),
+  sessionStorage: { getItem: () => "fr" },
+};
+languageWindow.history = {
+  state: { preserved: true },
+  pushState(state, _title, path) {
+    historyCalls.push(["push", state, path]);
+    languageWindow.location = new URL(path, languageWindow.location);
+  },
+  replaceState(state, _title, path) {
+    historyCalls.push(["replace", state, path]);
+    languageWindow.location = new URL(path, languageWindow.location);
+  },
+};
+const languageContext = {
+  URL,
+  window: languageWindow,
+  refreshMemoryRoute: () => {},
+  applyLanguagePreference: () => {},
+};
+for (const name of ["normalizedLanguage", "defaultRouteLanguage", "languageFromLocation", "siteLanguage", "languageUrl", "setPreferredLanguage"]) {
+  languageContext[name] = runtimeFunction(name, languageContext);
+}
+assert.equal(languageContext.siteLanguage(), "en", "A stale saved preference must not override the rendered default");
+runtimeFunction("installMemoryRouteObserver", languageContext)();
+assert.equal(languageWindow.location.searchParams.has("ln"), false);
+assert.equal(languageWindow.location.searchParams.get("campaign"), "hello world");
+assert.equal(languageWindow.location.hash, "#intro");
+assert.deepEqual(historyCalls[0][1], { preserved: true });
+languageWindow.history.pushState(null, "", "/memory/m11111111111111111111");
+assert.equal(languageWindow.location.pathname, "/memory/m11111111111111111111");
+assert.equal(languageWindow.location.search, "");
+languageContext.setPreferredLanguage("fr");
+assert.equal(languageWindow.location.pathname, "/memory/m11111111111111111111");
+assert.equal(languageWindow.location.search, "?ln=fr");
+languageWindow.history.pushState(null, "", "/");
+assert.equal(languageWindow.location.search, "?ln=fr");
+languageContext.setPreferredLanguage("en");
+assert.equal(languageWindow.location.href, "https://songqi.org/");
+languageWindow.location = new URL("https://songqi.org/memory/m11111111111111111111?ln=fr");
+languageEvents.get("popstate")();
+assert.equal(languageWindow.LANG, "fr");
+assert.equal(languageContext.languageUrl("/fr?ln=fr#chapter", "fr"), "/fr#chapter");
+assert.equal(languageContext.languageUrl("/fr", "en"), "/fr?ln=en", "A legacy language path must retain an explicit language override");
+assert.equal(languageContext.languageUrl("https://elsewhere.example/?ln=en", "en"), "https://elsewhere.example/?ln=en");
+languageWindow.SONGQI_SITE_SETTINGS.defaultLanguage = "fr";
+assert.equal(languageContext.languageUrl("/?ln=fr&source=menu#footer", "fr"), "/?source=menu#footer");
+assert.equal(languageContext.languageUrl("/memory/m11111111111111111111", "en"), "/memory/m11111111111111111111?ln=en");
+
 const records = Array.from({ length: 405 }, (_, i) => ({ id: ((i * 83) % 405) + 1 }));
 let cursor = "";
 const seen = [];
@@ -131,5 +188,5 @@ events.get("focusout")();
 frames.shift()();
 assert.equal(classes.get("revival-keyboard-open"), false);
 console.log(
-  "Public runtime passed: 405 unordered IDs, real request cancellation, keyboard/pinch distinction, and coalesced viewport updates",
+  "Public runtime passed: clean language URLs/history, 405 unordered IDs, real request cancellation, keyboard/pinch distinction, and coalesced viewport updates",
 );
