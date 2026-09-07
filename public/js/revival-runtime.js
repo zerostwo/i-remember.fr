@@ -228,6 +228,12 @@
   };
 
   window.__REVIVAL_PUBLIC_SHARE_URL__ = publicShareUrl;
+  window.__REVIVAL_CREATE_MEMORY_MAP_INDEX__ = createMemoryMapIndex;
+  window.__REVIVAL_UNIQUE_MAP_POSTS__ = uniqueMapPosts;
+  window.__REVIVAL_MEMORY_SEARCH_VISIBLE__ = function () {
+    var search = legacyModule("scene3d/searchPostParticles");
+    return !!(search && search.visible);
+  };
 
   function publicShareUrl(path) {
     var canonical = window.SONGQI_SITE_SETTINGS && window.SONGQI_SITE_SETTINGS.canonicalUrl;
@@ -522,6 +528,60 @@
     }
   }
 
+  function uniqueMapPosts(posts) {
+    var seen = new Set();
+    return (posts || []).filter(function (post) {
+      if (!post) return false;
+      var identity = String(post.public_id || post.publicId || post.uid || post.id || "");
+      var content = String(post.text || post.content || post.body_markdown || post.excerpt || "").trim();
+      var status = String(post.status || post.dbStatus || "").toUpperCase();
+      var visibility = String(post.visibility || "").toUpperCase();
+      if (!identity || !content || seen.has(identity)) return false;
+      if (status && status !== "NORMAL" && status !== "PUBLISHED") return false;
+      if (visibility && visibility !== "PUBLIC") return false;
+      seen.add(identity);
+      return true;
+    });
+  }
+
+  function createMemoryMapIndex(getPosts, requestMore) {
+    // Particle meshes are recycled as the camera moves. Memory ownership belongs
+    // to the world grid, and must survive recycling, searches and camera resets.
+    var coordinates = new Map();
+    var known = new Set();
+    var queue = [];
+    var cursor = 0;
+    var lastPosts;
+    var lastLength = -1;
+    return {
+      atGrid: function (x, y) {
+        var coordinate = x + ":" + y;
+        if (coordinates.has(coordinate)) return coordinates.get(coordinate);
+        var posts = getPosts();
+        if (posts !== lastPosts || posts.length !== lastLength) {
+          uniqueMapPosts(posts).forEach(function (post) {
+            var identity = String(post.public_id || post.publicId || post.uid || post.id);
+            if (!known.has(identity)) {
+              known.add(identity);
+              queue.push(post);
+            }
+          });
+          lastPosts = posts;
+          lastLength = posts.length;
+        }
+        if (cursor >= queue.length) {
+          // Do not memoize empty cells: a subsequent page or new submission can
+          // fill one. Never wrap the queue back to an already assigned memory.
+          requestMore();
+          return null;
+        }
+        var post = queue[cursor++];
+        coordinates.set(coordinate, post);
+        return post;
+      }
+    };
+  }
+
   function patchLegacyMainSource(source) {
     var marker = 'define.amd={jQuery:!0}})(),define("../../build/almond"';
     var replacement =
@@ -546,6 +606,26 @@
       .replace('e.UPLOADS_FOLDER+"posts/"+this.img+"/resized.jpg"', '(this.image_url||e.UPLOADS_FOLDER+"posts/"+this.img+"/resized.jpg")')
       .replace('t.src="uploads/posts/"+e.img+"/resized.jpg"', 't.src=e.image_url||"uploads/posts/"+e.img+"/resized.jpg"')
       .replace('backgroundImage:"url(uploads/posts/"+e.img+"/resized.jpg)"', 'backgroundImage:"url("+(e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"');
+    // Retain the original noise field, geometry and transitions. Only replace
+    // cyclic memory allocation and stale mesh/hover handling in the old renderer.
+    patched = patched
+      .replace('function A(){var e=l[""],t=e[d];return t||(d=0,t=e[0],S()),d++,t}',
+        'function A(){var e=l[""],t=e[d];return t?(d++,t):(S(),null)}')
+      .replace('e.takePost=A}', 'e.takePost=A,e.loadMorePosts=S}')
+      .replace('var v=e.particles=[],m,g;',
+        'var v=e.particles=[],m,g,revivalMap=window.__REVIVAL_CREATE_MEMORY_MAP_INDEX__(function(){return r.tagNamedPosts[""]||[]},function(){r.loadMorePosts()});')
+      .replace('t=new n({type:"nav",visible:!0})', 't=new n({type:"nav",visible:!1})')
+      .replace('function b(){var e=i.cameraPosition,t=i.lookAtPosition',
+        'function b(){if(window.__REVIVAL_MEMORY_SEARCH_VISIBLE__()){for(var revivalSlot=0;revivalSlot<v.length;revivalSlot++)v[revivalSlot].visible=v[revivalSlot].interactive=!1;return []}var e=i.cameraPosition,t=i.lookAtPosition')
+      .replace('D=v[C],D.hasMatch=!1,D.uniforms.fade.value',
+        'D=v[C],D.hasMatch=D.visible=D.interactive=!1,D.uniforms.fade.value')
+      .replace('N=B[C*4+2],D=B[C*4+3];if(!D){',
+        'N=B[C*4+2],D=B[C*4+3];var revivalPost=revivalMap.atGrid(w,E);if(!revivalPost)continue;if(!D){')
+      .replace('D.changePost(r.takePost())', 'D.changePost(revivalPost)')
+      .replace('m.copy(D.position),m.sub(e)', 'D.visible=D.interactive=!0,m.copy(D.position),m.sub(e)')
+      .replace('bt&&mt.unshift(bt);', 'bt&&!bt.visible&&(bt.onOut(),bt=null),bt&&mt.unshift(bt);')
+      .replace('function N(t){if(e.visible)m=t,g||O();',
+        'function N(t){t=window.__REVIVAL_UNIQUE_MAP_POSTS__(t);if(e.visible)m=t,g||O();');
     return patched
       .replace('s=n.SITE_URL+s,', 's=window.__REVIVAL_PUBLIC_SHARE_URL__(s),')
       .replace(

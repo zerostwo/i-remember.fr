@@ -64,6 +64,9 @@ Current backend/product decisions:
 - Public and admin language controls are UI language only; they must not choose content collections, menu records, or admin list data. Backend/admin content uses the site default language from System Settings.
 - Public memory URLs must be language-free `/memory/:id` routes using non-sequential random alphanumeric public IDs; legacy numeric memory URLs must not resolve memory content.
 - Each memory may occupy only one map coordinate; deduplicate memory identity before passing posts into the legacy map/search rendering flow.
+- Never cycle a short memory list to populate extra star positions. Preserve each
+  memory's grid ownership while exploring, searching, and returning to the map;
+  recycled particle meshes must not create duplicate or stale clickable memories.
 - Anonymous and admin-created memories publish immediately by default; do not require moderation unless an admin explicitly sets a non-published status.
 - Anonymous `New Memory` creation remains a first-class public workflow for
   `songqi.org` and should preserve the current archive sequence and immediate-
