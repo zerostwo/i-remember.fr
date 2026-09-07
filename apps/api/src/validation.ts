@@ -248,6 +248,7 @@ export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery 
   }
 
   return {
+    cursor: cursorParam(searchParams),
     q: searchParams.get("q") || searchParams.get("tag") || undefined,
     limit,
     status: status === "ALL" ? "all" : (status as MemoryStatus),
@@ -562,4 +563,12 @@ export function agentQueryInput(value: Record<string, unknown>): AgentQueryInput
   if (!query) throw new ApiError(400, "Agent query is required", "missing_agent_query");
 
   return { query, limit };
+}
+
+export function cursorParam(searchParams: URLSearchParams) {
+  const cursor = searchParams.get("cursor") || undefined;
+  if (cursor && !/^[a-zA-Z0-9_-]{1,240}$/.test(cursor)) {
+    throw new ApiError(400, "Invalid cursor", "invalid_cursor");
+  }
+  return cursor;
 }

@@ -11,7 +11,7 @@ const rootDir = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const distDir = resolve(rootDir, "dist");
 const host = process.env.HOST || "127.0.0.1";
 const port = Number.parseInt(process.env.PORT || "7890", 10);
-const apiBaseUrl = process.env.API_BASE_URL || "";
+const apiBaseUrl = process.env.API_BASE_URL || "http://127.0.0.1:7892";
 const adminOnly = process.env.I_REMEMBER_ADMIN_ONLY === "true";
 const trustOuterProxy = enabled(process.env.I_REMEMBER_TRUST_PROXY);
 const trustedOuterProxyPeers = trustOuterProxy
@@ -342,6 +342,7 @@ function serveStatic(req, res) {
 const revivalMiddleware = createRevivalMiddleware({
   production: true,
   apiBaseUrl,
+  clientAddress: (req) => trustedForwardedAddress(req) || req.socket.remoteAddress,
 });
 const server = createServer((req, res) => {
   const target = apiProxyTarget(req);

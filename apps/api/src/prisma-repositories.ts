@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { getPrismaClient } from "@i-remember/database";
 import type {
   AttachmentInput,
@@ -44,25 +44,30 @@ export function createPublicMemoryId() {
   return `m${randomBytes(10).toString("hex")}`;
 }
 
-function tagSlug(name: string) {
-  return (
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 80) || "tag"
-  );
+// Unicode names remain distinct; the digest also disambiguates punctuation and truncation.
+export function tagSlug(name: string) {
+  const normalized = name.normalize("NFKC").trim().toLocaleLowerCase("en");
+  const base = normalized
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return `${base || "tag"}-${createHash("sha256").update(normalized).digest("hex").slice(0, 16)}`;
 }
 
-function tagCreates(tags: string[] = []) {
+async function tagCreates(prisma: any, tags: string[] = []) {
   const unique = new Map(tags.map((name) => [tagSlug(name), name]));
+  const existing = await prisma.tag.findMany({
+    where: { OR: [{ name: { in: [...unique.values()] } }, { slug: { in: [...unique.keys()] } }] },
+  });
   return [...unique].map(([slug, name]) => ({
-    tag: {
-      connectOrCreate: {
-        where: { slug },
-        create: { name, slug },
-      },
-    },
+    tag: existing.find((tag: any) => tag.name === name || tag.slug === slug)
+      ? { connect: { id: existing.find((tag: any) => tag.name === name || tag.slug === slug).id } }
+      : {
+          connectOrCreate: {
+            where: { name },
+            create: { name, slug },
+          },
+        },
   }));
 }
 
@@ -247,8 +252,9 @@ export class PrismaMemoryRepository implements MemoryRepository {
     const rows = await this.db.memory.findMany({
       where: memoryWhere(query) as any,
       include: memoryInclude,
-      orderBy: { createdAt: "desc" },
-      take: Math.min(query.limit || 100, 200),
+      orderBy: [{ createdAt: "desc" }, { publicId: "desc" }],
+      ...(query.cursor ? { cursor: { publicId: query.cursor }, skip: 1 } : {}),
+      take: Math.min(query.limit || 100, 201),
     });
     return rows.map(memory);
   }
@@ -261,7 +267,6 @@ export class PrismaMemoryRepository implements MemoryRepository {
     const row = await this.db.memory.findFirst({
       where: {
         OR: [{ id }, { publicId: id }],
-        status: { not: "ARCHIVED" },
       },
       include: memoryInclude,
     });
@@ -290,7 +295,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
           attachments: input.attachments?.length
             ? { create: attachmentCreates(input.attachments) }
             : undefined,
-          tags: input.tags?.length ? { create: tagCreates(input.tags) } : undefined,
+          tags: input.tags?.length ? { create: await tagCreates(this.db, input.tags) } : undefined,
         },
         include: memoryInclude,
       }),
@@ -334,7 +339,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
       data.attachments = { deleteMany: {}, create: attachmentCreates(input.attachments) };
     }
     if (input.tags) {
-      data.tags = { deleteMany: {}, create: tagCreates(input.tags) };
+      data.tags = { deleteMany: {}, create: await tagCreates(this.db, input.tags) };
     }
     return memory(
       await this.db.memory.update({
@@ -665,14 +670,16 @@ export class PrismaReadinessRepository implements ReadinessRepository {
 export class PrismaAssetRepository implements AssetRepository {
   constructor(private readonly db = getPrismaClient()) {}
 
-  async list(limit: number): Promise<AssetRecord[]> {
+  async list(limit: number, cursor?: string): Promise<AssetRecord[]> {
     const rows = await this.db.attachment.findMany({
-      orderBy: { createdAt: "desc" },
-      take: Math.min(limit, 200),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      include: { memory: { select: { publicId: true } } },
+      take: Math.min(limit, 201),
     });
     return rows.map((row: any) => ({
       id: row.id,
-      memoryId: row.memoryId,
+      memoryId: row.memory?.publicId || row.memoryId,
       url: row.url,
       type: row.type,
       metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : null,

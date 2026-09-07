@@ -30,6 +30,7 @@ import {
   UserService,
 } from "./services.js";
 import {
+  cursorParam,
   agentQueryInput,
   assetKeyInput,
   assetUploadInput,
@@ -173,10 +174,11 @@ export class MemoryController {
 
   async list(context: RequestContext) {
     const principal = authenticate(context.req);
-    const data = await this.memories.list(principal, memoryListQuery(context.url.searchParams));
+    const page = await this.memories.page(principal, memoryListQuery(context.url.searchParams));
     return {
       success: true,
-      data: data.map((memory) => memoryDto(memory, principal.role === "ADMIN")),
+      pagination: page.pagination,
+      data: page.data.map((memory) => memoryDto(memory, principal.role === "ADMIN")),
     };
   }
 
@@ -249,11 +251,15 @@ export class SearchController {
   constructor(private readonly memories: MemoryService) {}
 
   async search(context: RequestContext) {
-    const data = await this.memories.list(
+    const page = await this.memories.page(
       authenticate(context.req),
       memoryListQuery(context.url.searchParams),
     );
-    return { success: true, data: data.map((memory) => memoryDto(memory)) };
+    return {
+      success: true,
+      pagination: page.pagination,
+      data: page.data.map((memory) => memoryDto(memory)),
+    };
   }
 }
 
@@ -470,8 +476,17 @@ export class AssetController {
   async list(context: RequestContext) {
     const principal = authenticate(context.req);
     const limit = assetListLimit(context.url.searchParams);
-    const data = await this.assets.list(principal, limit);
-    return { success: true, data };
+    const rows = await this.assets.list(
+      principal,
+      limit + 1,
+      cursorParam(context.url.searchParams),
+    );
+    const data = rows.slice(0, limit);
+    return {
+      success: true,
+      data,
+      pagination: { nextCursor: rows.length > limit ? data.at(-1)?.id : null },
+    };
   }
 
   async upload(context: RequestContext) {

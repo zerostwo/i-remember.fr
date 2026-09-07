@@ -93,3 +93,25 @@ Current backend/product decisions:
   characters, including `981211@Dd`.
 - Do not commit generated QA artifacts, imported data snapshots, runtime database directories, SQLite files, or `db/`; SQLite runtime and migration paths are removed and must not be reintroduced.
 - After modifying this repository, create a clean ccc-style Conventional Commit before handing work back.
+- On 2026-09-07, the owner approved completing the public clean-room redesign
+  directly in the established concise dark `songqi.org` direction because the
+  Product Design `get-context` skill/tool is unavailable. This approval waives
+  that prerequisite for the current audit-fix task. Preserve the galaxy,
+  search, anonymous photo/name/email/terms submission sequence, immediate
+  publication, and long-form reading; replace the restored public code/assets.
+- On 2026-09-06, the owner clarified that the original full-screen three-dimensional
+  memory galaxy visual effect and public interaction model must be preserved.
+  Do not replace it with a flat constellation, split hero, or a card-list homepage.
+  Keep orbit/drag/zoom, memory selection, overlay search, and the staged submission
+  flow. Clean-room identity changes and defect fixes must work within that experience.
+
+- Latest owner instruction on 2026-09-06 supersedes the public clean-room redesign
+  and earlier redesign waivers: preserve the original public visual style one to
+  one, including its typography, layout, three-dimensional galaxy, transitions,
+  interactions, original background music and sound effects. Modernize internal
+  code and improve efficiency without changing the desktop appearance. Fix mobile
+  compatibility with responsive adaptations. Do not substitute a newly drawn
+  galaxy or redesign the homepage. Existing admin direction remains unchanged.
+- During the current repair and review, use English for all public and admin UI
+  previews and verification. Keep English as the site default; retain other
+  language support for later use, without presenting the Chinese UI for now.

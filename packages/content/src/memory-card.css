@@ -1,0 +1,78 @@
+.songqi-memory-card {
+  color: #ecece2;
+  border: 1px solid #303735;
+  border-radius: 14px;
+  background: #171d1d;
+  overflow: hidden;
+  min-width: 0;
+  font-family: inherit;
+  text-align: left;
+}
+.songqi-card-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+}
+.songqi-card-copy {
+  padding: 24px;
+}
+.songqi-card-copy time {
+  display: block;
+  color: #a6b0aa;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  margin-bottom: 18px;
+}
+.songqi-card-copy h2 {
+  font-size: 21px;
+  line-height: 1.4;
+  font-weight: 500;
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.songqi-card-copy h2 button {
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+.songqi-card-copy p {
+  color: #bec7c1;
+  font-size: 15px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+.songqi-card-copy footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #99a89f;
+  font-size: 13px;
+  margin-top: 24px;
+}
+.songqi-card-copy footer button {
+  font: inherit;
+  color: #d5e5b8;
+  background: none;
+  border: 0;
+  padding: 8px 0;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .songqi-card-copy {
+    padding: 20px;
+  }
+  .songqi-card-copy h2 button {
+    min-height: 44px;
+  }
+  .songqi-card-copy footer button {
+    min-height: 44px;
+  }
+}

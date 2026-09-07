@@ -186,6 +186,25 @@ export class MemoryService {
     return principal.role === "ANONYMOUS" ? memories.filter(isRealPublicMemory) : memories;
   }
 
+  async page(principal: Principal, query: MemoryListQuery) {
+    if (
+      (query.status && query.status !== "NORMAL") ||
+      (query.visibility && query.visibility !== "PUBLIC")
+    ) {
+      requireRole(principal, ["ADMIN"]);
+    }
+    const limit = Math.min(query.limit || 100, 200);
+    const [rows, total] = await Promise.all([
+      this.memories.list({ ...query, limit: limit + 1 }),
+      this.memories.count({ ...query, cursor: undefined }),
+    ]);
+    const page = rows.slice(0, limit);
+    return {
+      data: principal.role === "ANONYMOUS" ? page.filter(isRealPublicMemory) : page,
+      pagination: { total, nextCursor: rows.length > limit ? page.at(-1)?.publicId : null },
+    };
+  }
+
   async get(principal: Principal, id: string) {
     const memory = await this.memories.get(id);
     if (!memory) return null;
@@ -658,9 +677,9 @@ export class AssetService {
     }),
   ) {}
 
-  list(principal: Principal, limit: number) {
+  list(principal: Principal, limit: number, cursor?: string) {
     requireRole(principal, ["ADMIN"]);
-    return this.assets.list(limit);
+    return this.assets.list(limit, cursor);
   }
 
   async upload(principal: Principal, input: AssetUploadInput) {

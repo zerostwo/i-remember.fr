@@ -49,6 +49,9 @@ const upstream = createServer(async (req, res) => {
       JSON.stringify({
         success: true,
         data: {
+          siteTitle: "Configured title",
+          canonicalUrl: "https://songqi.org",
+          timezone: "Asia/Shanghai",
           defaultLanguage: "zh",
           anonymousSubmissions: true,
           tracking: {
@@ -313,6 +316,12 @@ try {
   assert.match(contentSecurityPolicy, /script-src[^;]*https:\/\/stats\.example\.test/);
   assert.match(contentSecurityPolicy, /connect-src[^;]*https:\/\/stats\.example\.test/);
   const homeHtml = await homeResponse.text();
+  assert.match(homeHtml, /<title>Configured title<\/title>/);
+  assert.match(homeHtml, /rel="canonical" href="https:\/\/songqi.org\/"/);
+  assert.match(homeHtml, /src="\/assets\/public-markdown.js"/);
+  const indexResponse = await fetch(`${baseUrl}/index.html?ln=en`, { redirect: "manual" });
+  assert.equal(indexResponse.status, 308);
+  assert.equal(indexResponse.headers.get("location"), "/?ln=en");
   assert.match(homeHtml, /src="https:\/\/stats\.example\.test\/script\.js"/);
   assert.match(homeHtml, /data-website-id="proxy-test-site"/);
 

@@ -112,4 +112,17 @@ assert.doesNotMatch(
   "public runtime: touch input must not be converted to duplicate mouse events",
 );
 
-console.log("Mobile UX guardrails passed.");
+const mobileFixes = await read("public/css/mobile-fixes.css");
+assert.match(mobileFixes, /@media\s*\(max-width:\s*760px\)/);
+assert.match(mobileFixes, /post-2d-center-wrapper/);
+assert.match(mobileFixes, /overflow-y:\s*auto\s*!important/);
+assert.match(mobileFixes, /post-2d-close-btn/);
+assert.match(publicRuntime, /visibilitychange/);
+assert.match(publicRuntime, /sound.isMute/);
+assert.match(publicRuntime, /songqiMarkdown/);
+for (const path of ["index.html", "fr.html"]) {
+  const source = await read(path);
+  const payload = JSON.parse(source.match(/var DEFAULT_POSTS = ([\s\S]*?);\n/)?.[1]);
+  assert.deepEqual(payload.data.posts, [], "Source HTML must not distribute sample memories");
+}
+console.log("Mobile layout, original audio, Markdown and empty source-data guardrails passed.");

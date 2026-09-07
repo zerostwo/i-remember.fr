@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { MemoryCard } from "../../../packages/content/src/MemoryCard.jsx";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Download,
   ExternalLink,
@@ -60,6 +61,8 @@ import {
   v1PageMemory,
 } from "./v1-content.js";
 import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
+import { collectPages } from "./pagination.js";
+import { markdownToHtml } from "../../../packages/content/src/markdown.js";
 
 const routes = [
   {
@@ -176,9 +179,10 @@ function memoryIdFromLocation() {
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
-  const response = await fetch(path, { ...options, headers });
+  const { envelope, ...requestOptions } = options;
+  const response = await fetch(path, { ...requestOptions, headers });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload.success === false) {
+  if (!response.ok || payload.success !== true) {
     throw new Error(
       payload.error?.message ||
         payload.message ||
@@ -186,7 +190,7 @@ async function api(path, options = {}) {
         `Request failed: ${response.status}`,
     );
   }
-  return payload.data;
+  return envelope ? payload : payload.data;
 }
 
 function adminToken(value) {
@@ -251,6 +255,9 @@ function v1MemoryAdmin(memory = {}) {
     language: metadata.language || "en",
     status: v1Status(memory.status),
     dbStatus: memory.status,
+    visibility: memory.visibility,
+    attachments: memory.attachments || [],
+    tags: memory.tags || [],
     source: metadata.source || "v1",
     imageKey,
     imageUrl,
@@ -300,14 +307,15 @@ function settingsFromV1(settings = {}, account = {}) {
 }
 
 async function v1Bootstrap() {
-  const [dashboard, memories, pages, menu, settings, account, assets] = await Promise.all([
+  const settings = await v1Api("/api/v1/settings");
+  const language = encodeURIComponent(settings.defaultLanguage || "en");
+  const [dashboard, memories, pages, menu, account, assets] = await Promise.all([
     v1Api("/api/v1/dashboard"),
-    v1Api("/api/v1/memories?status=all&visibility=all&limit=200"),
-    v1Api("/api/v1/pages"),
-    v1Api("/api/v1/menu-items"),
-    v1Api("/api/v1/settings"),
+    collectPages(v1Api, "/api/v1/memories?status=all&visibility=all"),
+    v1Api(`/api/v1/pages?language=${language}`),
+    v1Api(`/api/v1/menu-items?language=${language}`),
     v1Api("/api/v1/auth/account"),
-    v1Api("/api/v1/assets").catch(() => []),
+    collectPages(v1Api, "/api/v1/assets"),
   ]);
   const payload = {
     language: settings.defaultLanguage || "en",
@@ -362,75 +370,6 @@ function downloadBlob(filename, value, type) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
-}
-
-function escapeHtml(value = "") {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function inlineMarkdown(value = "") {
-  return escapeHtml(value)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]+)\)/g, (_match, label, href) => {
-      return `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
-    });
-}
-
-function markdownToHtml(value = "") {
-  const output = [];
-  let listOpen = false;
-  const closeList = () => {
-    if (listOpen) {
-      output.push("</ul>");
-      listOpen = false;
-    }
-  };
-
-  String(value || "")
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .forEach((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) {
-        closeList();
-        return;
-      }
-      if (trimmed.startsWith("### ")) {
-        closeList();
-        output.push(`<h3>${inlineMarkdown(trimmed.slice(4))}</h3>`);
-        return;
-      }
-      if (trimmed.startsWith("## ")) {
-        closeList();
-        output.push(`<h2>${inlineMarkdown(trimmed.slice(3))}</h2>`);
-        return;
-      }
-      if (trimmed.startsWith("# ")) {
-        closeList();
-        output.push(`<h1>${inlineMarkdown(trimmed.slice(2))}</h1>`);
-        return;
-      }
-      if (/^[-*]\s+/.test(trimmed)) {
-        if (!listOpen) {
-          output.push("<ul>");
-          listOpen = true;
-        }
-        output.push(`<li>${inlineMarkdown(trimmed.replace(/^[-*]\s+/, ""))}</li>`);
-        return;
-      }
-      closeList();
-      output.push(`<p>${inlineMarkdown(trimmed)}</p>`);
-    });
-
-  closeList();
-  return output.join("");
 }
 
 function containsQuery(values, query) {
@@ -688,6 +627,28 @@ export function AdminApp() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const searchTriggerRef = useRef(null);
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [newDraftVersion, setNewDraftVersion] = useState(0);
+  const [savingMemory, setSavingMemory] = useState(false);
+  const dirtyRef = useRef(false);
+  const actionRef = useRef(false);
+  const locationRef = useRef(window.location.href);
+  const reportDirty = useCallback((dirty) => {
+    dirtyRef.current = dirty;
+    setEditorDirty(dirty);
+  }, []);
+  function canLeaveEditor() {
+    return !dirtyRef.current || window.confirm("Discard unsaved changes?");
+  }
+  useEffect(() => {
+    const preventUnload = (event) => {
+      if (!dirtyRef.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", preventUnload);
+    return () => window.removeEventListener("beforeunload", preventUnload);
+  }, []);
 
   useVisualViewportVariables();
   useBodyScrollLock(mobileNavOpen || spotlightOpen);
@@ -725,12 +686,14 @@ export function AdminApp() {
     try {
       const payload = await v1Bootstrap();
       setData(payload);
-      setSelectedMemoryId((current) => {
-        const requested = memoryIdFromLocation();
-        if (requested && payload.memories.some((memory) => memory.id === requested))
-          return requested;
-        return payload.memories.some((memory) => memory.id === current) ? current : null;
-      });
+      const requested = memoryIdFromLocation();
+      if (requested && !payload.memories.some((memory) => memory.id === requested)) {
+        // A direct editor route must not depend on the owner's cached list.
+        const record = await v1Api(`/api/v1/memories/${encodeURIComponent(requested)}`);
+        payload.memories.push(v1MemoryAdmin(record));
+        setData({ ...payload });
+      }
+      if (requested) setSelectedMemoryId(requested);
       setSelectedPageSlug((current) =>
         payload.pages.some((page) => page.slug === current)
           ? current
@@ -747,7 +710,16 @@ export function AdminApp() {
   }, []);
 
   useEffect(() => {
-    const handleLocation = () => setRoute(routeFromLocation());
+    const handleLocation = () => {
+      if (dirtyRef.current && !window.confirm("Discard unsaved changes?")) {
+        window.history.pushState({}, "", locationRef.current);
+        return;
+      }
+      reportDirty(false);
+      locationRef.current = window.location.href;
+      setRoute(routeFromLocation());
+      setSelectedMemoryId(memoryIdFromLocation());
+    };
     window.addEventListener("popstate", handleLocation);
     window.addEventListener("hashchange", handleLocation);
     return () => {
@@ -777,11 +749,14 @@ export function AdminApp() {
   }, []);
 
   function navigate(nextRoute) {
+    if (!canLeaveEditor()) return;
+    reportDirty(false);
     const target = routeMap.has(nextRoute) ? nextRoute : "dashboard";
     const targetPath = pathForRoute(target);
     if (window.location.pathname !== targetPath) {
       window.history.pushState({ route: target }, "", targetPath);
     }
+    locationRef.current = window.location.href;
     setRoute(target);
     setMobileNavOpen(false);
   }
@@ -845,6 +820,8 @@ export function AdminApp() {
   }
 
   async function handleLogout() {
+    if (!canLeaveEditor()) return;
+    reportDirty(false);
     adminToken("");
     setAuthenticated(false);
     setData(null);
@@ -866,33 +843,59 @@ export function AdminApp() {
   }
 
   async function saveMemory(id, payload) {
-    await runAction("Memory saved", async () => {
-      const saved = await syncV1Memory(v1Api, payload);
-      setSelectedMemoryId(saved?.id || id);
-      window.history.replaceState(
-        { route: "memory-editor" },
-        "",
-        `/admin/memory/editor?id=${encodeURIComponent(saved?.id || id)}`,
-      );
-      setRoute("memory-editor");
-      await refreshData();
-    });
+    if (actionRef.current) return null;
+    actionRef.current = true;
+    setSavingMemory(true);
+    try {
+      return await runAction("Memory saved", async () => {
+        const saved = await syncV1Memory(v1Api, payload);
+        reportDirty(false);
+        setSelectedMemoryId(saved.id);
+        window.history.replaceState(
+          { route: "memory-editor" },
+          "",
+          `/admin/memory/editor?id=${encodeURIComponent(saved.id)}`,
+        );
+        locationRef.current = window.location.href;
+        setRoute("memory-editor");
+        await refreshData();
+        return saved;
+      });
+    } finally {
+      actionRef.current = false;
+      setSavingMemory(false);
+    }
   }
 
   function createMemory() {
+    if (!canLeaveEditor()) return;
+    setNewDraftVersion((value) => value + 1);
+    reportDirty(false);
     setSelectedMemoryId(null);
     window.history.pushState({ route: "memory-editor" }, "", "/admin/memory/editor?new=1");
+    locationRef.current = window.location.href;
     setRoute("memory-editor");
   }
 
   function editMemory(id, section = "content") {
+    if (!canLeaveEditor()) return;
+    reportDirty(false);
     setSelectedMemoryId(id);
     window.history.pushState(
       { route: "memory-editor" },
       "",
       `/admin/memory/editor?id=${encodeURIComponent(id)}&section=${encodeURIComponent(section)}`,
     );
+    locationRef.current = window.location.href;
     setRoute("memory-editor");
+  }
+
+  async function uploadEditorFile(file) {
+    const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
+    return v1Api("/api/v1/assets", {
+      method: "POST",
+      body: JSON.stringify(v1AssetUploadPayload(file, contentBase64)),
+    });
   }
 
   async function deleteMemory(id) {
@@ -909,12 +912,10 @@ export function AdminApp() {
     const memory = data?.memories?.find((item) => String(item.id) === String(memoryId));
     if (!file || !memory) return;
     await runAction("Attachment uploaded", async () => {
-      const synced = await syncV1Memory(v1Api, memory);
-      if (!synced?.id) throw new Error("Memory could not be synced to v1 before upload");
       const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
       await v1Api("/api/v1/assets", {
         method: "POST",
-        body: JSON.stringify(v1AssetUploadPayload(file, contentBase64, synced.id)),
+        body: JSON.stringify(v1AssetUploadPayload(file, contentBase64, memory.publicId)),
       });
       await refreshData();
     });
@@ -1045,7 +1046,7 @@ export function AdminApp() {
       const bundle = {
         generatedAt: new Date().toISOString(),
         format: "i-remember-v1-export",
-        data,
+        data: await v1Bootstrap(),
       };
       const stamp = String(bundle.generatedAt).slice(0, 10);
       downloadJson(`i-remember-backup-${stamp}.json`, bundle);
@@ -1149,10 +1150,28 @@ export function AdminApp() {
               <MenuIcon />
             </button>
             <div className="admin-page-heading min-w-0">
-              <h1>{currentRoute.title}</h1>
-              <p>{currentRoute.description}</p>
+              <h1>
+                {route === "memory-editor"
+                  ? selectedMemoryId
+                    ? "Edit memory"
+                    : "New memory"
+                  : currentRoute.title}
+              </h1>
+              <p>
+                {route === "memory-editor"
+                  ? savingMemory
+                    ? "Saving…"
+                    : editorDirty
+                      ? "Unsaved changes"
+                      : selectedMemoryId
+                        ? "Changes saved"
+                        : "Ready to write"
+                  : currentRoute.description}
+              </p>
             </div>
             <TopBarAction
+              selectedMemoryId={selectedMemoryId}
+              saving={savingMemory}
               route={route}
               settingsTab={settingsTab}
               createMemory={createMemory}
@@ -1168,6 +1187,10 @@ export function AdminApp() {
             {loading && !data ? <LoadingState /> : null}
             {data ? (
               <AdminRoute
+                reportDirty={reportDirty}
+                uploadEditorFile={uploadEditorFile}
+                savingMemory={savingMemory}
+                newDraftVersion={newDraftVersion}
                 route={route}
                 data={data}
                 search={search}
@@ -1399,6 +1422,8 @@ function SetupScreen({ loading, onSetup }) {
 }
 
 function TopBarAction({
+  selectedMemoryId,
+  saving,
   route,
   settingsTab,
   createMemory,
@@ -1409,17 +1434,26 @@ function TopBarAction({
   if (route === "memory-editor") {
     return (
       <div className="admin-topbar-actions">
+        {!selectedMemoryId ? (
+          <Button
+            disabled={saving}
+            variant="outline"
+            form="memory-editor-form"
+            name="intent"
+            value="draft"
+            type="submit"
+          >
+            Save draft
+          </Button>
+        ) : null}
         <Button
-          variant="outline"
+          disabled={saving}
           form="memory-editor-form"
           name="intent"
-          value="draft"
+          value={selectedMemoryId ? "save" : "publish"}
           type="submit"
         >
-          Save draft
-        </Button>
-        <Button form="memory-editor-form" name="intent" value="publish" type="submit">
-          Publish memory
+          {saving ? "Saving…" : selectedMemoryId ? "Save changes" : "Publish memory"}
         </Button>
       </div>
     );
@@ -2062,14 +2096,14 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
               />
             </div>
           </div>
-          <Table>
+          <Table className="admin-responsive-memory-table">
             <TableHeader>
               <TableRow>
                 <TableHead>Memory</TableHead>
                 <TableHead>Author</TableHead>
                 <TableHead>Views</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Published</TableHead>
+                <TableHead>Updated</TableHead>
                 <TableHead className="text-right">More</TableHead>
               </TableRow>
             </TableHeader>
@@ -2079,13 +2113,17 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
                   <TableCell className="min-w-72">
                     <MemoryListItem memory={memory} compact />
                   </TableCell>
-                  <TableCell>{memory.author}</TableCell>
-                  <TableCell>{memory.viewCount || 0}</TableCell>
+                  <TableCell data-label="Author">{memory.author}</TableCell>
+                  <TableCell data-label="Views">{memory.viewCount || 0}</TableCell>
                   <TableCell>
                     <StatusBadge value={memory.status} />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {memory.updatedAt ? new Date(memory.updatedAt).toLocaleDateString() : "--"}
+                  <TableCell data-label="Updated" className="text-muted-foreground">
+                    {memory.updatedAt
+                      ? new Date(memory.updatedAt).toLocaleDateString(undefined, {
+                          timeZone: data.settings?.timezone,
+                        })
+                      : "--"}
                   </TableCell>
                   <TableCell className="text-right">
                     <details className="relative inline-block text-left">
@@ -2112,7 +2150,7 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
                           type="button"
                           onClick={() =>
                             navigator.clipboard?.writeText(
-                              `${window.location.origin}${memory.publicUrl}`,
+                              `${String(data.settings?.canonicalUrl || window.location.origin).replace(/\/$/, "")}${memory.publicUrl}`,
                             )
                           }
                         >
@@ -2163,27 +2201,48 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
   );
 }
 
-function MemoryEditorView({ data, selectedMemoryId, saveMemory, deleteMemory, navigate }) {
+function MemoryEditorView({
+  data,
+  selectedMemoryId,
+  saveMemory,
+  deleteMemory,
+  navigate,
+  reportDirty,
+  uploadEditorFile,
+  savingMemory,
+  newDraftVersion,
+}) {
   const memory = (data.memories || []).find((item) => item.id === selectedMemoryId);
   const isNew = !selectedMemoryId;
-  const draft =
-    memory ||
-    (isNew
-      ? {
-          id: null,
-          title: "",
-          author: "Songqi Duan",
-          excerpt: "",
-          bodyMarkdown: "",
-          status: "published",
-          imageKey: "",
-          metadataJson: "{}",
-          publicUrl: "",
-        }
-      : null);
+  const draft = useMemo(
+    () =>
+      memory ||
+      (isNew
+        ? {
+            id: null,
+            title: "",
+            author: "Songqi Duan",
+            excerpt: "",
+            bodyMarkdown: "",
+            status: "published",
+            imageKey: "",
+            attachments: [],
+            visibility: "PUBLIC",
+            metadata: { language: data.settings?.defaultLanguage || "en" },
+            metadataJson: JSON.stringify({ language: data.settings?.defaultLanguage || "en" }),
+            publicUrl: "",
+          }
+        : null),
+    [memory, isNew, data.settings?.defaultLanguage],
+  );
   return (
     <MemoryEditor
+      key={selectedMemoryId || `new-${newDraftVersion}`}
+      reportDirty={reportDirty}
+      onUpload={uploadEditorFile}
+      saving={savingMemory}
       memory={draft}
+      timezone={data.settings?.timezone}
       isNew={isNew}
       onSave={saveMemory}
       onDelete={deleteMemory}
@@ -2211,8 +2270,19 @@ function MemoryListItem({ memory, compact = false }) {
   );
 }
 
-function MemoryEditor({ memory, isNew = false, onSave, onDelete, navigate }) {
+function MemoryEditor({
+  memory,
+  isNew = false,
+  onSave,
+  onDelete,
+  reportDirty,
+  onUpload,
+  saving,
+  timezone,
+}) {
   const [draft, setDraft] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   useEffect(() => {
     setDraft(memory ? { ...memory } : null);
@@ -2228,12 +2298,10 @@ function MemoryEditor({ memory, isNew = false, onSave, onDelete, navigate }) {
     );
   }
 
-  const update = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
-  const previewText = String(draft.excerpt || draft.bodyMarkdown || "")
-    .replace(/[#*_>`[\]()~-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const previewTitle = draft.title || "Untitled memory";
+  const update = (key, value) => {
+    reportDirty(true);
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
 
   return (
     <form
@@ -2241,6 +2309,7 @@ function MemoryEditor({ memory, isNew = false, onSave, onDelete, navigate }) {
       className="admin-editor-grid"
       onSubmit={(event) => {
         event.preventDefault();
+        if (uploading || saving) return;
         const intent = event.nativeEvent.submitter?.value;
         onSave(memory.id, {
           ...draft,
@@ -2276,7 +2345,16 @@ function MemoryEditor({ memory, isNew = false, onSave, onDelete, navigate }) {
                   ariaLabel="Status"
                   value={draft.status}
                   onValueChange={(value) => update("status", value)}
-                  options={memoryStatuses}
+                  options={memoryStatuses.map((value) => ({
+                    value,
+                    label:
+                      {
+                        published: "Published",
+                        pending: "Draft",
+                        archived: "Archived",
+                        rejected: "Rejected",
+                      }[value] || value,
+                  }))}
                 />
               </Field>
             </div>
@@ -2288,15 +2366,15 @@ function MemoryEditor({ memory, isNew = false, onSave, onDelete, navigate }) {
                 disabled
               />
               <Field>
-                <FieldLabel>Language</FieldLabel>
+                <FieldLabel>Visibility</FieldLabel>
                 <AdminSelect
-                  ariaLabel="Language"
-                  value={draft.language || "en"}
-                  onValueChange={(value) => update("language", value)}
+                  ariaLabel="Visibility"
+                  value={draft.visibility || "PUBLIC"}
+                  onValueChange={(value) => update("visibility", value)}
                   options={[
-                    { value: "en", label: "Site default · English" },
-                    { value: "fr", label: "French" },
-                    { value: "zh", label: "中文" },
+                    { value: "PUBLIC", label: "Public" },
+                    { value: "UNLISTED", label: "Unlisted" },
+                    { value: "PRIVATE", label: "Private" },
                   ]}
                 />
               </Field>
@@ -2309,24 +2387,77 @@ function MemoryEditor({ memory, isNew = false, onSave, onDelete, navigate }) {
               rows={16}
             />
           </FieldGroup>
-          <button
-            className="admin-attachment-action"
-            type="button"
-            onClick={() => navigate("attachments")}
-          >
-            <strong>Add image or attachment</strong>
-            <span>JPG, PNG, WebP · uploaded to your storage</span>
-          </button>
+          <Field>
+            <FieldLabel htmlFor="editor-files">Attachments</FieldLabel>
+            <Input
+              id="editor-files"
+              type="file"
+              multiple
+              disabled={uploading || saving}
+              onChange={async (event) => {
+                const input = event.currentTarget;
+                const files = [...input.files];
+                input.value = "";
+                setUploading(true);
+                setUploadError("");
+                try {
+                  for (const file of files) {
+                    const asset = await onUpload(file);
+                    reportDirty(true);
+                    setDraft((current) => ({
+                      ...current,
+                      attachmentsDirty: true,
+                      attachments: [...(current.attachments || []), asset],
+                    }));
+                  }
+                } catch (error) {
+                  setUploadError(error.message);
+                } finally {
+                  setUploading(false);
+                }
+              }}
+            />
+            {uploading ? <p role="status">Uploading…</p> : null}
+            {uploadError ? <p role="alert">{uploadError}</p> : null}
+            <ul className="admin-editor-attachments">
+              {(draft.attachments || []).map((attachment, index) => (
+                <li key={`${attachment.url}-${index}`}>
+                  <a href={attachment.url} target="_blank" rel="noreferrer">
+                    {attachment.url.split("/").pop()}
+                  </a>
+                  <span>{attachment.type}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      reportDirty(true);
+                      setDraft((current) => ({
+                        ...current,
+                        attachmentsDirty: true,
+                        attachments: current.attachments.filter((_, i) => i !== index),
+                      }));
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </Field>
           <div className="admin-editor-actions">
             {!isNew ? (
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onDelete(memory.id)}
-                disabled={draft.status === "archived"}
+                onClick={() =>
+                  draft.status === "archived"
+                    ? onSave(memory.id, { ...draft, status: "published" })
+                    : onDelete(memory.id)
+                }
+                disabled={saving}
               >
                 <Trash2 data-icon="inline-start" />
-                Archive memory
+                {draft.status === "archived" ? "Restore memory" : "Archive memory"}
               </Button>
             ) : null}
           </div>
@@ -2340,34 +2471,15 @@ function MemoryEditor({ memory, isNew = false, onSave, onDelete, navigate }) {
           </CardAction>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <article className="admin-memory-preview-card">
-            <time>
-              {new Date(memory.createdAt || Date.now())
-                .toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })
-                .toUpperCase()}
-            </time>
-            <h2>{previewTitle}</h2>
-            <p>
-              {previewText
-                ? `${previewText.slice(0, 145)}${previewText.length > 145 ? "…" : ""}`
-                : "Your memory preview will appear here."}
-            </p>
-            {previewText.length > 220 ? <span className="admin-read-more">Read more</span> : null}
-            <small>{draft.author || "Songqi Duan"}</small>
-          </article>
-          <div className="admin-preview-note">
-            <strong>Long-form is automatic</strong>
-            <p>
-              When body content exceeds the public card preview, Read more appears and opens
-              /memory/:public-id.
-            </p>
-          </div>
-          <div className="admin-preview-route">
-            <span>Public route</span>
-            <strong>
-              {draft.publicId ? `/memory/${draft.publicId}` : "Created after first save"}
-            </strong>
-          </div>
+          <MemoryCard
+            memory={draft}
+            timezone={timezone}
+            onOpen={() => document.querySelector(".admin-preview-note")?.setAttribute("open", "")}
+          />
+          <details className="admin-preview-note">
+            <summary>Full content preview</summary>
+            <MarkdownPreview value={draft.bodyMarkdown} />
+          </details>
         </CardContent>
       </Card>
     </form>
@@ -2939,7 +3051,7 @@ function SettingsView({
                   </Field>
                   <TextField
                     label="Timezone"
-                    description="Used for schedules and backup timestamps."
+                    description="Used to display dates on your site."
                     value={siteDraft.timezone}
                     onChange={(value) => updateSite("timezone", value)}
                   />

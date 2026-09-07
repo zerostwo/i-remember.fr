@@ -22,6 +22,7 @@ import type {
 export type MemoryListQuery = {
   q?: string;
   limit?: number;
+  cursor?: string;
   status?: "all" | MemoryRecord["status"];
   visibility?: "all" | MemoryRecord["visibility"];
 };
@@ -81,7 +82,7 @@ export interface SettingRepository {
 }
 
 export interface AssetRepository {
-  list(limit: number): Promise<AssetRecord[]>;
+  list(limit: number, cursor?: string): Promise<AssetRecord[]>;
   create(input: AssetCreateInput): Promise<AssetRecord>;
   deleteByUrl(url: string): Promise<void>;
 }

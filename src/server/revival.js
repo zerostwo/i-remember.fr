@@ -1,3 +1,4 @@
+import { markdownToHtml, memoryBody } from "../../packages/content/src/markdown.js";
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
@@ -279,11 +280,10 @@ function numericPostId(post) {
 }
 
 function paginatePosts(posts, url) {
-  const lastId = Number.parseInt(url.searchParams.get("lastId") || "", 10);
-  const page =
-    Number.isFinite(lastId) && lastId >= 0
-      ? posts.filter((post) => numericPostId(post) < lastId)
-      : posts;
+  const lastId = url.searchParams.get("lastId");
+  const index = lastId ? posts.findIndex((post) => String(post.id) === lastId) : -1;
+  // The internal numeric handle is derived from a random public ID, not chronology.
+  const page = lastId ? (index < 0 ? [] : posts.slice(index + 1)) : posts;
 
   return page.slice(0, postSearchResultMax);
 }
@@ -644,70 +644,6 @@ function htmlText(value) {
     .replace(/'/g, "&#39;");
 }
 
-function inlineMarkdown(value) {
-  return htmlText(value)
-    .replace(/`([^`]+)`/g, "<code>$1</code>")
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+|\/[^)\s]+)\)/g, (_match, label, href) => {
-      return `<a href="${htmlText(href)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
-    });
-}
-
-function markdownToHtml(value = "") {
-  const lines = String(value || "").replace(/\r\n/g, "\n").split("\n");
-  const output = [];
-  let listOpen = false;
-
-  const closeList = () => {
-    if (listOpen) {
-      output.push("</ul>");
-      listOpen = false;
-    }
-  };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      closeList();
-      continue;
-    }
-
-    if (trimmed.startsWith("### ")) {
-      closeList();
-      output.push(`<h3>${inlineMarkdown(trimmed.slice(4))}</h3>`);
-      continue;
-    }
-
-    if (trimmed.startsWith("## ")) {
-      closeList();
-      output.push(`<h2>${inlineMarkdown(trimmed.slice(3))}</h2>`);
-      continue;
-    }
-
-    if (trimmed.startsWith("# ")) {
-      closeList();
-      output.push(`<h1>${inlineMarkdown(trimmed.slice(2))}</h1>`);
-      continue;
-    }
-
-    if (/^[-*]\s+/.test(trimmed)) {
-      if (!listOpen) {
-        output.push("<ul>");
-        listOpen = true;
-      }
-      output.push(`<li>${inlineMarkdown(trimmed.replace(/^[-*]\s+/, ""))}</li>`);
-      continue;
-    }
-
-    closeList();
-    output.push(`<p>${inlineMarkdown(trimmed)}</p>`);
-  }
-
-  closeList();
-  return output.join("");
-}
-
 function plainFromMarkdown(value = "") {
   return String(value || "")
     .replace(/```[\s\S]*?```/g, " ")
@@ -805,7 +741,7 @@ function v1LegacyPostId(memory, index = 0) {
 
 function v1MemoryToPost(memory, index = 0, language = "en") {
   const content = String(memory?.content || "");
-  const excerpt = String(memory?.excerpt || content.slice(0, 220));
+  const excerpt = excerptFromMarkdown(memoryBody(memory));
   const imageKey = v1ImageKey(memory);
   const isLongForm = content.length > 220;
   return {
@@ -815,12 +751,14 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     name: htmlText(memory?.authorName || "I Remember"),
     title: htmlText(memory?.title || "I Remember"),
     img: imageKey,
+    image_url: memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey),
+    thumb_url: memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey, "thumb"),
     img_offset_x: "0",
     img_offset_y: "0",
     text: htmlText(isLongForm ? excerpt || content.slice(0, 220) : content || excerpt),
     excerpt: htmlText(excerpt || content),
     body_markdown: content,
-    body_html: markdownToHtml(content || excerpt),
+    body_html: markdownToHtml(memoryBody(memory) || excerpt),
     is_long_form: isLongForm ? "1" : "0",
     view_count: Number(memory?.viewCount || 0),
     resized_img_width: "600",
@@ -967,6 +905,9 @@ function validatedPostFields(fields = {}, defaultLanguage = "en") {
 
 function environmentSiteSettings() {
   return {
+    siteTitle: process.env.I_REMEMBER_SITE_TITLE || "I Remember",
+    canonicalUrl: process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org",
+    timezone: process.env.TZ || "Asia/Shanghai",
     defaultLanguage: normalizeLanguage(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en"),
     anonymousSubmissions: process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS === "true",
     tracking: {
@@ -984,6 +925,9 @@ function normalizedSiteSettings(value, fallback) {
       ? value.tracking
       : null;
   return {
+    siteTitle: value.siteTitle || fallback.siteTitle,
+    canonicalUrl: value.canonicalUrl || fallback.canonicalUrl,
+    timezone: value.timezone || fallback.timezone,
     defaultLanguage: normalizeLanguage(value.defaultLanguage || fallback.defaultLanguage),
     anonymousSubmissions:
       typeof value.anonymousSubmissions === "boolean"
@@ -1002,7 +946,8 @@ function normalizedSiteSettings(value, fallback) {
 
 class RevivalBackend {
   constructor(options = {}) {
-    this.apiBaseUrl = String(options.apiBaseUrl || "").replace(/\/+$/g, "");
+    this.production = options.production === true;
+    this.apiBaseUrl = String(options.apiBaseUrl || process.env.API_BASE_URL || "http://127.0.0.1:7892").replace(/\/+$/g, "");
     this.cachedSiteSettings = environmentSiteSettings();
     this.siteSettingsExpiresAt = 0;
     this.siteSettingsRequest = null;
@@ -1017,11 +962,12 @@ class RevivalBackend {
   }
 
   async v1Data(path, options = {}) {
+    const { envelope = false, ...requestOptions } = options;
     if (!this.apiBaseUrl) return null;
     let response;
     try {
       response = await fetch(new URL(path, `${this.apiBaseUrl}/`), {
-        ...options,
+        ...requestOptions,
         headers: {
           "Content-Type": "application/json",
           ...(options.headers || {}),
@@ -1034,16 +980,24 @@ class RevivalBackend {
     if (!response.ok) return null;
     try {
       const payload = await response.json();
-      return payload?.success === true ? payload.data : null;
+      return payload?.success === true ? (envelope ? payload : payload.data) : null;
     } catch (_error) {
       return null;
     }
   }
 
   async v1PublicMemories(language) {
-    const data = await this.v1Data("/api/v1/memories?limit=200");
-    if (!Array.isArray(data)) return null;
-    return data.map((memory, index) => v1MemoryToPost(memory, index, language));
+    const records = [], seen = new Set();
+    let cursor = "";
+    do {
+      const result = await this.v1Data(`/api/v1/memories?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, { envelope: true });
+      if (!Array.isArray(result?.data)) throw new HttpError(503, "Memory service unavailable", "service_unavailable");
+      records.push(...result.data);
+      cursor = result.pagination?.nextCursor || "";
+      if (cursor && seen.has(cursor)) throw new HttpError(502, "Invalid memory pagination", "invalid_pagination");
+      if (cursor) seen.add(cursor);
+    } while (cursor);
+    return [...new Map(records.map((memory) => [memory.id, memory])).values()].map((memory, index) => v1MemoryToPost(memory, index, language));
   }
 
   async v1PublicMemory(publicId, language, trackView = false) {
@@ -1443,15 +1397,18 @@ async function renderAppHtml(
   const normalizedMemoryLanguage = normalizeLanguage(memoryLanguage);
   let html = readFileSync(appHtmlUrlForLanguage(normalized), "utf8");
   if (normalized === "zh") html = localizeChineseHtml(html);
+  if (backend.production) html = html.replace("/src/public-markdown.js", "/assets/public-markdown.js");
+  const title = directPayload?.data?.title ? `${directPayload.data.title} · ${siteSettings.siteTitle}` : siteSettings.siteTitle;
+  const canonical = new URL(pathname.startsWith("/memory/") ? pathname : "/", siteSettings.canonicalUrl).href;
+  html = html.replace(/<title>[\s\S]*?<\/title>/g, `<title>${htmlText(title)}</title>`)
+    .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${htmlAttr(title)}"/>`)
+    .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${htmlAttr(canonical)}"/>`)
+    .replace("</head>", `<link rel="canonical" href="${htmlAttr(canonical)}"/><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};</script></head>`);
 
   html = patchLanguageShell(html, normalized, pathname);
   html = injectTracking(html, siteSettings);
 
-  const defaultPosts = await backend.searchPosts(
-    normalizedMemoryLanguage,
-    "",
-    new URL("/", "http://i-remember.local"),
-  );
+  const defaultPosts = await backend.allPosts(normalizedMemoryLanguage);
   html = replaceDefaultPosts(html, {
     success: 1,
     data: {
@@ -1632,6 +1589,9 @@ async function handleRequest(backend, req, res, next, options = {}) {
   const url = new URL(req.url || "/", "http://i-remember.local");
   const pathname = decodeURIComponent(url.pathname);
   const startedAt = Date.now();
+  if (req.method === "GET" && ["/index.html", "/fr.html", "/legal.html"].includes(pathname)) {
+    res.statusCode = 308; res.setHeader("Location", `${pathname === "/fr.html" ? "/fr" : pathname === "/legal.html" ? "/legal" : "/"}${url.search}`); res.end(); return;
+  }
   const needsRuntimeSettings =
     appShellRequested(pathname) ||
     memoryShellRequested(pathname) ||
@@ -1940,10 +1900,10 @@ export function createViteRevivalPlugin() {
   return {
     name: "i-remember-api-shim",
     configureServer(server) {
-      server.middlewares.use(createRevivalMiddleware());
+      server.middlewares.use(createRevivalMiddleware({ apiBaseUrl: process.env.API_BASE_URL }));
     },
     configurePreviewServer(server) {
-      server.middlewares.use(createRevivalMiddleware({ production: true }));
+      server.middlewares.use(createRevivalMiddleware({ production: true, apiBaseUrl: process.env.API_BASE_URL }));
     },
   };
 }
