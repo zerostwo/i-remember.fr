@@ -105,6 +105,7 @@ assert.match(publicRuntime, /prefers-reduced-motion/);
 assert.match(publicRuntime, /installImeCompositionSupport/);
 assert.match(publicRuntime, /data-revival-composing/);
 assert.match(publicRuntime, /revival-search-open/);
+assert.match(publicRuntime, /r\.offsetTop=D\.matchMedia/);
 assert.match(publicRuntime, /\.tutorials\{display:none!important/);
 assert.doesNotMatch(
   publicRuntime,
@@ -114,6 +115,8 @@ assert.doesNotMatch(
 
 const mobileFixes = await read("public/css/mobile-fixes.css");
 assert.match(mobileFixes, /@media\s*\(max-width:\s*760px\)/);
+assert.match(mobileFixes, /@media\s*\(max-width:\s*760px\)\s*and\s*\(min-height:\s*501px\)/);
+assert.match(mobileFixes, /bottom:\s*calc\(148px\s*\+\s*env\(safe-area-inset-bottom\)\)\s*!important/);
 assert.match(mobileFixes, /post-2d-center-wrapper/);
 assert.match(mobileFixes, /overflow-y:\s*auto\s*!important/);
 assert.match(mobileFixes, /post-2d-close-btn/);

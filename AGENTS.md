@@ -134,3 +134,6 @@ Current backend/product decisions:
   metadata/share copy, and post-submission thanks should invite the owner and
   visitors to preserve beautiful moments they may otherwise forget, while
   retaining the original visual style and memory-galaxy interaction.
+- Owner feedback on 2026-09-10: on portrait mobile only, place the globe, search,
+  and add control rail lower in the viewport, immediately above the footer.
+  Preserve its vertical alignment, hit targets, and the desktop placement.

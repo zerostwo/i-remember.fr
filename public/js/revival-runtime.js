@@ -597,6 +597,12 @@
       'function u(){i&&(window.requestAnimationFrame(u),r.dispatch())}function a(){i=t.isRendering=!0,u()}function f(){i=t.isRendering=!1}',
       'var revivalFrame=0;function u(){i&&(revivalFrame=window.requestAnimationFrame(u),r.dispatch())}function a(){if(!i){i=t.isRendering=!0,u()}}function f(){i=t.isRendering=!1,window.cancelAnimationFrame(revivalFrame)}'
     );
+    // The portrait rail's map center is viewport height minus 322px. Mirror
+    // that coordinate in the WebGL overlay so its pixels and hit target agree.
+    patched = patched.replace(
+      'function Ht(){B=D.innerWidth,j=D.innerHeight,F=B/2,I=j/2;',
+      'function Ht(){B=D.innerWidth,j=D.innerHeight,F=B/2,I=j/2,r.offsetTop=D.matchMedia("(max-width:760px) and (min-height:501px)").matches?322-j/2:44;'
+    );
     patched = patched.replace('o.loop=!0,c(0)', 'o.loop=!0,o.preload="auto",u.preload="auto",window.__REVIVAL_AUDIO__={loop:o,add:u},o.hidden=u.hidden=!0,document.body.appendChild(o),document.body.appendChild(u),c(0)')
       .replace('o.play(),o.readyState', 'Promise.resolve(o.play()).catch(function(){}),o.readyState')
       .replace('function l(){u.play()}', 'function l(){Promise.resolve(u.play()).catch(function(){})}');
