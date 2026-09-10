@@ -69,6 +69,17 @@ html body .add-steps-message-input:focus {
   text-decoration: underline;
 }
 @media (max-width: 760px), (max-width: 1024px) and (max-height: 500px) {
+  html body .preloader-text-line-1,
+  html body .preloader-text-line-2 {
+    width: calc(100% - 32px) !important;
+    max-width: 350px;
+    margin-left: auto;
+    margin-right: auto;
+    text-wrap: balance;
+  }
+  html body .preloader-text-line-1 .font-italic {
+    white-space: nowrap;
+  }
   /* Keep the original globe, search, and add hit targets on the same x-axis. */
   html body .nav {
     left: 0 !important;
@@ -445,19 +456,25 @@ html body .add-steps-message-input:focus {
     width: auto !important;
     height: 92px !important;
     margin-top: 0 !important;
-    display: flex !important;
-    align-items: center;
-    justify-content: space-between;
     z-index: 2;
   }
   html body .nav-map-wrapper,
   html body .nav-search-wrapper,
   html body .nav-add-wrapper {
+    position: absolute !important;
+    top: 0 !important;
     left: 0 !important;
     width: 92px !important;
     height: 92px !important;
     margin: 0 !important;
-    flex: 0 0 92px;
+  }
+  html body .nav-search-wrapper {
+    left: 50% !important;
+    transform: translateX(-50%);
+  }
+  html body .nav-add-wrapper {
+    left: auto !important;
+    right: 0 !important;
   }
   html body .nav-search-btn,
   html body .nav-add-btn {

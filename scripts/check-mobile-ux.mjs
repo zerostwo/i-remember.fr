@@ -118,10 +118,13 @@ assert.match(mobileFixes, /@media\s*\(max-width:\s*760px\)/);
 assert.match(mobileFixes, /header-fade-percent-text[\s\S]*?display:\s*none\s*!important/);
 assert.match(mobileFixes, /header-fade-container[\s\S]*?height:\s*44px\s*!important/);
 assert.match(mobileFixes, /header-fade-container[\s\S]*?transform:\s*scale\(0\.72\)\s*!important/);
+assert.match(mobileFixes, /preloader-text-line-1 \.font-italic[\s\S]*?white-space:\s*nowrap/);
+assert.match(mobileFixes, /text-wrap:\s*balance/);
 assert.match(mobileFixes, /@media\s*\(max-width:\s*760px\)\s*and\s*\(min-height:\s*501px\)/);
 assert.match(mobileFixes, /bottom:\s*calc\(28px\s*\+\s*env\(safe-area-inset-bottom\)\)\s*!important/);
-assert.match(mobileFixes, /display:\s*flex\s*!important/);
-assert.match(mobileFixes, /justify-content:\s*space-between/);
+assert.match(mobileFixes, /nav-search-wrapper[\s\S]*?transform:\s*translateX\(-50%\)/);
+assert.match(mobileFixes, /nav-add-wrapper[\s\S]*?right:\s*0\s*!important/);
+assert.doesNotMatch(mobileFixes, /html body \.nav\s*\{[^}]*display\s*:/, "mobile CSS must preserve the intro's hidden nav state");
 assert.match(mobileFixes, /mask-image:\s*radial-gradient/);
 assert.match(mobileFixes, /post-2d-center-wrapper/);
 assert.match(mobileFixes, /overflow-y:\s*auto\s*!important/);
@@ -134,4 +137,8 @@ for (const path of ["index.html", "fr.html"]) {
   const payload = JSON.parse(source.match(/var DEFAULT_POSTS = ([\s\S]*?);\n/)?.[1]);
   assert.deepEqual(payload.data.posts, [], "Source HTML must not distribute sample memories");
 }
+assert.match(await read("index.html"), />Tell a<br\/>/);
+assert.match(await read("index.html"), />See all <span class="font-italic">memories<\/span>/);
+assert.match(publicRuntime, /shareMemory:\s*'Tell a<br\/>/);
+assert.match(publicRuntime, /lookMemory:\s*'See all <span class="font-italic">memories<\/span>'/);
 console.log("Mobile layout, original audio, Markdown and empty source-data guardrails passed.");

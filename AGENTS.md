@@ -142,3 +142,7 @@ Current backend/product decisions:
   numeric percentage only, without its circle or `FADE FROM MEMORIES` label.
   Match its rendered height and top alignment to the `I remember,` logo while
   preserving the complete desktop indicator.
+- Owner feedback on 2026-09-10: never show the persistent search/add footer
+  controls during either intro screen. Capitalize the entry choices as `Tell a
+  memory` and `See all memories`. On mobile, balance the opening copy across
+  natural lines and keep `I remember` together rather than splitting the phrase.
