@@ -138,3 +138,7 @@ Current backend/product decisions:
   and add controls as a horizontal row inside the lower black footer region.
   Keep their rendered graphics aligned with their hit targets and preserve the
   desktop vertical placement.
+- Owner feedback on 2026-09-10: simplify the mobile header fade indicator to the
+  numeric percentage only, without its circle or `FADE FROM MEMORIES` label.
+  Match its rendered height and top alignment to the `I remember,` logo while
+  preserving the complete desktop indicator.

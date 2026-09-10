@@ -115,6 +115,9 @@ assert.doesNotMatch(
 
 const mobileFixes = await read("public/css/mobile-fixes.css");
 assert.match(mobileFixes, /@media\s*\(max-width:\s*760px\)/);
+assert.match(mobileFixes, /header-fade-percent-text[\s\S]*?display:\s*none\s*!important/);
+assert.match(mobileFixes, /header-fade-container[\s\S]*?height:\s*44px\s*!important/);
+assert.match(mobileFixes, /header-fade-container[\s\S]*?transform:\s*scale\(0\.72\)\s*!important/);
 assert.match(mobileFixes, /@media\s*\(max-width:\s*760px\)\s*and\s*\(min-height:\s*501px\)/);
 assert.match(mobileFixes, /bottom:\s*calc\(28px\s*\+\s*env\(safe-area-inset-bottom\)\)\s*!important/);
 assert.match(mobileFixes, /display:\s*flex\s*!important/);

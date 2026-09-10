@@ -96,6 +96,38 @@ html body .add-steps-message-input:focus {
   html body .nav-add-btn {
     width: 46px !important;
   }
+  html body .header-fade-container {
+    top: calc(20px + env(safe-area-inset-top)) !important;
+    right: max(18px, env(safe-area-inset-right)) !important;
+    width: auto !important;
+    height: 44px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-end;
+    transform: scale(0.72) !important;
+    transform-origin: right top !important;
+  }
+  html body .header-fade-percent {
+    position: static !important;
+    height: 44px;
+    line-height: 44px !important;
+    white-space: nowrap;
+  }
+  html body .header-fade-percent-num {
+    font-size: 40px !important;
+    line-height: 44px !important;
+  }
+  html body .header-fade-percent-symbol {
+    position: static !important;
+    display: inline !important;
+    font-size: 22px !important;
+    line-height: 44px !important;
+  }
+  html body .header-fade-percent-text {
+    display: none !important;
+  }
   html body .footer-content {
     box-sizing: border-box;
   }
@@ -349,8 +381,8 @@ html body .add-steps-message-input:focus {
     transform: scale(0.55) !important;
   }
   html body .header-fade-container {
-    top: 6px !important;
-    transform: scale(0.5) !important;
+    top: 12px !important;
+    transform: scale(0.55) !important;
   }
   html body .footer,
   html body .footer-content {
