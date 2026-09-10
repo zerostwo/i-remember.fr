@@ -129,3 +129,8 @@ Current backend/product decisions:
   between the header/footer without changing the original typography. Remove
   the public Language switcher, while retaining translation and language-route
   support. Keep the approved admin style and ensure its pages are consistent.
+- Owner feedback on 2026-09-10: position `songqi.org` as a personal and shared
+  memory keepsake, not an Alzheimer's campaign. Public intro, persistent header,
+  metadata/share copy, and post-submission thanks should invite the owner and
+  visitors to preserve beautiful moments they may otherwise forget, while
+  retaining the original visual style and memory-galaxy interaction.

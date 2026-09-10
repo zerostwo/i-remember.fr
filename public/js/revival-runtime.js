@@ -75,7 +75,7 @@
     en: {
       htmlLang: "en-US",
       footerLanguage: "language",
-      header: 'How lucky we are to be able to say <span class="font-italic">&laquo;I remember&raquo;</span>.<br/>Let\'s share our memories to fight Alzheimer\'s disease.',
+      header: 'How lucky we are to be able to say <span class="font-italic">&laquo;I remember&raquo;</span>.<br/>Let\'s keep the moments we never want to lose.',
       navSearch: "Search for a memory",
       navAdd: "Add a memory",
       searchPlaceholder: "Search...",
@@ -95,7 +95,7 @@
     fr: {
       htmlLang: "fr-FR",
       footerLanguage: "langue",
-      header: 'Quelle chance nous avons de pouvoir dire <span class="font-italic">&laquo;je me souviens&raquo;</span>.<br/>Partageons nos souvenirs pour lutter contre Alzheimer.',
+      header: 'Quelle chance nous avons de pouvoir dire <span class="font-italic">&laquo;je me souviens&raquo;</span>.<br/>Gardons les moments que nous ne voulons jamais perdre.',
       navSearch: "Rechercher un souvenir",
       navAdd: "Ajouter un souvenir",
       searchPlaceholder: "Rechercher...",
@@ -115,7 +115,7 @@
     zh: {
       htmlLang: "zh-CN",
       footerLanguage: "语言",
-      header: '能说出 <span class="font-italic">“我记得”</span> 是多么幸运。<br/>分享你的回忆，一起守护记忆。',
+      header: '能说出 <span class="font-italic">“我记得”</span> 是多么幸运。<br/>把不想遗忘的珍贵时刻留在这里。',
       navSearch: "搜索回忆",
       navAdd: "添加回忆",
       searchPlaceholder: "搜索...",

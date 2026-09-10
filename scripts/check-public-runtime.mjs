@@ -3,6 +3,13 @@ import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
 
 const source = await readFile(new URL("../public/js/revival-runtime.js", import.meta.url), "utf8");
+const englishShell = await readFile(new URL("../index.html", import.meta.url), "utf8");
+const frenchShell = await readFile(new URL("../fr.html", import.meta.url), "utf8");
+
+assert.match(englishShell, /Let's keep the moments we never want to lose\./);
+assert.match(englishShell, /Your memory now has a place to stay\./);
+assert.match(frenchShell, /Gardons les moments que nous ne voulons jamais perdre\./);
+assert.doesNotMatch(`${englishShell}\n${frenchShell}\n${source}`, /fight Alzheimer|lutter contre (?:la maladie d[’']Alzheimer|Alzheimer)/i);
 // Execute the shipping functions with controlled network/viewport boundaries.
 // No duplicate implementation and no DOM mutation in the browser test driver.
 function runtimeFunction(name, context = {}) {
