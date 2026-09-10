@@ -135,5 +135,6 @@ Current backend/product decisions:
   visitors to preserve beautiful moments they may otherwise forget, while
   retaining the original visual style and memory-galaxy interaction.
 - Owner feedback on 2026-09-10: on portrait mobile only, place the globe, search,
-  and add control rail lower in the viewport, immediately above the footer.
-  Preserve its vertical alignment, hit targets, and the desktop placement.
+  and add controls as a horizontal row inside the lower black footer region.
+  Keep their rendered graphics aligned with their hit targets and preserve the
+  desktop vertical placement.

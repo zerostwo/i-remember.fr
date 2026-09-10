@@ -404,10 +404,40 @@ html body .add-steps-message-input:focus {
 }
 
 @media (max-width: 760px) and (min-height: 501px) {
-  /* Keep the mobile control rail just above the footer instead of mid-screen. */
+  /* Place the three mobile controls in a horizontal row inside the footer. */
   html body .nav {
     top: auto !important;
-    bottom: calc(148px + env(safe-area-inset-bottom)) !important;
+    left: max(26px, env(safe-area-inset-left)) !important;
+    right: max(26px, env(safe-area-inset-right)) !important;
+    bottom: calc(28px + env(safe-area-inset-bottom)) !important;
+    width: auto !important;
+    height: 92px !important;
     margin-top: 0 !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 2;
+  }
+  html body .nav-map-wrapper,
+  html body .nav-search-wrapper,
+  html body .nav-add-wrapper {
+    left: 0 !important;
+    width: 92px !important;
+    height: 92px !important;
+    margin: 0 !important;
+    flex: 0 0 92px;
+  }
+  html body .nav-search-btn,
+  html body .nav-add-btn {
+    position: absolute;
+    left: 23px !important;
+    top: 23px !important;
+  }
+  /* The legacy globe is drawn in WebGL behind the solid footer backdrop. Cut
+     one exact circular window for it while keeping the rest of the footer black. */
+  html body .footer-bg {
+    -webkit-mask-image: radial-gradient(circle 48px at 72px 58px, transparent 47px, #000 48px);
+    mask-image: radial-gradient(circle 48px at 72px 58px, transparent 47px, #000 48px);
+    pointer-events: none;
   }
 }
