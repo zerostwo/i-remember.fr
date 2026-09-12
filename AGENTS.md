@@ -146,3 +146,11 @@ Current backend/product decisions:
   controls during either intro screen. Capitalize the entry choices as `Tell a
   memory` and `See all memories`. On mobile, balance the opening copy across
   natural lines and keep `I remember` together rather than splitting the phrase.
+- Owner feedback on 2026-09-11: the admin should feel visually consistent with
+  the public home page, and all admin settings tabs should share a simpler,
+  consistent presentation. Evaluate mobile workflows as touch interactions,
+  including discoverable actions, scrolling, keyboards, and complete task
+  completion; desktop mouse clicks and responsive CSS checks alone do not
+  establish mobile usability. The degree of visual convergence is still to be
+  selected; this feedback does not approve a replacement design or change the
+  public galaxy experience.
