@@ -47,6 +47,7 @@ import {
   TableHeader,
   TableRow,
   Tabs,
+  TabsContent,
   TabsList,
   TabsTrigger,
   Textarea,
@@ -119,7 +120,7 @@ const routes = [
     id: "settings",
     label: "Settings",
     title: "Settings",
-    description: "Site defaults, owner identity, security, and recovery.",
+    description: "Your site, account, and backups.",
     group: "System",
     icon: Settings,
   },
@@ -390,12 +391,16 @@ function StatusBadge({ value }) {
 }
 
 function AdminSelect({ value, onValueChange, options, placeholder, className, ariaLabel }) {
+  const [trigger, setTrigger] = useState(null);
   return (
     <Select value={value} onValueChange={onValueChange}>
-      <SelectTrigger className={cn("w-full", className)} aria-label={ariaLabel}>
+      <SelectTrigger ref={setTrigger} className={cn("w-full", className)} aria-label={ariaLabel}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent
+        container={trigger?.closest(".i-remember-admin")}
+        className="admin-select-menu"
+      >
         {options.map((option) => (
           <SelectItem key={option.value || option} value={option.value || option}>
             {option.label || option}
@@ -760,7 +765,7 @@ export function AdminApp() {
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
   }, [route, selectedMemoryId]);
 
-  function navigate(nextRoute) {
+  function navigate(nextRoute, nextSettingsTab = "site") {
     if (!canLeaveEditor()) return;
     reportDirty(false);
     const target = routeMap.has(nextRoute) ? nextRoute : "dashboard";
@@ -770,6 +775,9 @@ export function AdminApp() {
     }
     locationRef.current = window.location.href;
     setRoute(target);
+    if (target === "settings") setSettingsTab(nextSettingsTab);
+    setNotice("");
+    setError("");
     setMobileNavOpen(false);
   }
 
@@ -1304,11 +1312,11 @@ function LoginScreen({ loading, onLogin }) {
         <strong>songqi.org</strong>
         <div>
           <h1>
-            A private control room
+            A place for the moments
             <br />
-            for a public memory blog.
+            you want to remember.
           </h1>
-          <p>The public site remains open for anonymous New Memory submissions.</p>
+          <p>Your memories, shared moments, and the details that make them yours.</p>
         </div>
         <small>PERSONAL BLOG · SONGQI DUAN</small>
       </section>
@@ -1323,6 +1331,7 @@ function LoginScreen({ loading, onLogin }) {
               <FieldGroup>
                 <TextField
                   label="Email"
+                  type="email"
                   value={email}
                   onChange={setEmail}
                   autoComplete="username"
@@ -1396,11 +1405,11 @@ function SetupScreen({ loading, onSetup }) {
         <strong>songqi.org</strong>
         <div>
           <h1>
-            A private control room
+            A place for the moments
             <br />
-            for a public memory blog.
+            you want to remember.
           </h1>
-          <p>The public site remains open for anonymous New Memory submissions.</p>
+          <p>Your memories, shared moments, and the details that make them yours.</p>
         </div>
         <small>PERSONAL BLOG · SONGQI DUAN</small>
       </section>
@@ -1417,6 +1426,7 @@ function SetupScreen({ loading, onSetup }) {
               <FieldGroup>
                 <TextField
                   label="Email"
+                  type="email"
                   value={email}
                   onChange={setEmail}
                   autoComplete="username"
@@ -1811,10 +1821,13 @@ function Spotlight({ open, data, close, navigate, createMemory, createPage, edit
             aria-label="Search memories, pages, or actions"
           />
           <button type="button" onClick={close} aria-label="Close search">
-            esc
+            <X aria-hidden="true" />
           </button>
         </div>
-        <p className="admin-spotlight-hint">Type to search · ↑↓ to move · ↵ to open</p>
+        <p className="admin-spotlight-hint">
+          <span className="admin-keyboard-hint">Type to search · ↑↓ to move · ↵ to open</span>
+          <span className="admin-touch-hint">Search, then tap a result to open it.</span>
+        </p>
         <div className="admin-spotlight-results">
           {[...new Set(results.map((result) => result.group))].map((group) => (
             <div className="admin-spotlight-group" key={group}>
@@ -1899,6 +1912,7 @@ function AdminRoute(props) {
           setupTwoFactor={props.setupTwoFactor}
           enableTwoFactor={props.enableTwoFactor}
           disableTwoFactor={props.disableTwoFactor}
+          exportBackup={props.exportBackup}
           settingsTab={props.settingsTab}
           setSettingsTab={props.setSettingsTab}
         />
@@ -2031,8 +2045,8 @@ function DashboardView({ data, navigate, createMemory, createPage, editMemory })
               ) : (
                 <p className="admin-ok">Umami analytics is connected.</p>
               )}
-              <button type="button" onClick={() => navigate("settings")}>
-                <strong>Verify your latest export can restore</strong>
+              <button type="button" onClick={() => navigate("settings", "backup")}>
+                <strong>Review full backup options</strong>
                 <span>Open Backup settings →</span>
               </button>
             </CardContent>
@@ -2972,6 +2986,7 @@ function SettingsView({
   disableTwoFactor,
   settingsTab,
   setSettingsTab,
+  exportBackup,
 }) {
   const settings = data.settings || {};
   const account = settings.account || {};
@@ -3040,395 +3055,361 @@ function SettingsView({
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="backup">Backup</TabsTrigger>
         </TabsList>
-      </Tabs>
-      {settingsTab === "site" ? (
-        <Card className="admin-settings-card admin-site-settings-card">
-          <CardHeader>
-            <CardTitle>Site</CardTitle>
-            <CardDescription>The defaults used by songqi.org and every new entry.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              id="settings-site-form"
-              className="grid gap-5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                saveSettings(siteDraft);
-              }}
-            >
-              <FieldGroup>
-                <TextField
-                  label="Site title"
-                  description="Used in browser titles and page metadata."
-                  value={siteDraft.siteTitle}
-                  onChange={(value) => updateSite("siteTitle", value)}
-                />
-                <TextField
-                  label="Canonical URL"
-                  description="The public origin used for canonical links and sharing."
-                  value={siteDraft.canonicalUrl}
-                  onChange={(value) => updateSite("canonicalUrl", value)}
-                  type="url"
-                />
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel>Default language</FieldLabel>
-                    <AdminSelect
-                      ariaLabel="Default language"
-                      value={siteDraft.defaultLanguage}
-                      onValueChange={(value) => updateSite("defaultLanguage", value)}
-                      options={[
-                        { value: "en", label: "English" },
-                        { value: "fr", label: "French" },
-                        { value: "zh", label: "中文" },
-                      ]}
-                    />
-                    <FieldDescription>Used for / and newly created content.</FieldDescription>
-                  </Field>
-                  <TextField
-                    label="Timezone"
-                    description="Used to display dates on your site."
-                    value={siteDraft.timezone}
-                    onChange={(value) => updateSite("timezone", value)}
-                  />
-                </div>
-                <p className="admin-settings-section-label">Public submissions</p>
-                <ToggleField
-                  className="admin-settings-toggle"
-                  label="Allow visitors to publish memories"
-                  description="No sign-in required. New submissions publish immediately."
-                  checked={siteDraft.anonymousSubmissions}
-                  onCheckedChange={(value) => updateSite("anonymousSubmissions", value)}
-                />
-                <p className="admin-settings-section-label">Umami analytics</p>
-                <div className="admin-umami-settings">
-                  <ToggleField
-                    className="admin-umami-toggle"
-                    label="Use self-hosted Umami"
-                    description="Turn this on to reveal the host URL and Website ID fields."
-                    checked={siteDraft.tracking.enabled}
-                    onCheckedChange={(value) => updateTracking("enabled", value)}
-                  />
-                  <div className="admin-umami-fields">
-                    <Input
-                      aria-label="Umami host URL"
-                      disabled={!siteDraft.tracking.enabled}
-                      value={siteDraft.tracking.umamiSrc}
-                      onChange={(event) => updateTracking("umamiSrc", event.target.value)}
-                      placeholder="Host URL"
-                    />
-                    <Input
-                      aria-label="Umami Website ID"
-                      disabled={!siteDraft.tracking.enabled}
-                      value={siteDraft.tracking.umamiWebsiteId}
-                      onChange={(event) => updateTracking("umamiWebsiteId", event.target.value)}
-                      placeholder="Website ID"
-                    />
-                  </div>
-                </div>
-              </FieldGroup>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {settingsTab === "account" ? (
-        <Card className="admin-settings-card admin-account-settings-card">
-          <CardHeader>
-            <CardTitle>Account</CardTitle>
-            <CardDescription>
-              The email and password used by the single owner account.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              id="settings-account-form"
-              className="grid gap-5"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                const result = await saveAccount(accountDraft);
-                if (result) {
-                  setAccountDraft((current) => ({
-                    ...current,
-                    currentPassword: "",
-                    newPassword: "",
-                  }));
-                }
-              }}
-            >
-              <FieldGroup>
-                <TextField
-                  label="Admin email"
-                  value={accountDraft.email}
-                  onChange={(value) => updateAccount("email", value)}
-                  type="email"
-                  autoComplete="username"
-                />
-                <TextField
-                  label="Current password"
-                  description="Required before changing the email or password."
-                  value={accountDraft.currentPassword}
-                  onChange={(value) => updateAccount("currentPassword", value)}
-                  type="password"
-                  autoComplete="current-password"
-                />
-                <TextField
-                  label="New password"
-                  description="Use at least 8 characters and a password manager."
-                  value={accountDraft.newPassword}
-                  onChange={(value) => updateAccount("newPassword", value)}
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder="Leave blank to keep the current password"
-                />
-              </FieldGroup>
-              <div className="admin-session-note">
-                <strong>Your current session stays active</strong>
-                <p>
-                  A password change signs out other sessions. Recovery codes are managed in
-                  Security.
-                </p>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {settingsTab === "security" ? (
-        <div className="admin-security-settings">
-          <Card className="admin-settings-card admin-security-settings-card">
-            <CardHeader>
-              <CardTitle>Two-factor authentication</CardTitle>
-              <CardDescription>
-                {account.twoFactorEnabled
-                  ? "A TOTP authenticator is required after password login."
-                  : "Add a TOTP authenticator after password login."}
-              </CardDescription>
-              <CardAction>
-                <Badge variant="outline" className="admin-security-status">
-                  {account.twoFactorEnabled ? "On" : "Off"}
-                </Badge>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="grid gap-5">
-              {account.twoFactorEnabled ? (
+        <TabsContent value={settingsTab}>
+          {settingsTab === "site" ? (
+            <Card className="admin-settings-card admin-site-settings-card">
+              <CardHeader>
+                <CardTitle>Site</CardTitle>
+                <CardDescription>
+                  The defaults used by songqi.org and every new entry.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
                 <form
-                  className="grid max-w-md gap-4"
+                  id="settings-site-form"
+                  className="grid gap-5"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    saveSettings(siteDraft);
+                  }}
+                >
+                  <FieldGroup>
+                    <TextField
+                      label="Site title"
+                      description="Used in browser titles and page metadata."
+                      value={siteDraft.siteTitle}
+                      onChange={(value) => updateSite("siteTitle", value)}
+                    />
+                    <TextField
+                      label="Canonical URL"
+                      description="The public origin used for canonical links and sharing."
+                      value={siteDraft.canonicalUrl}
+                      onChange={(value) => updateSite("canonicalUrl", value)}
+                      type="url"
+                    />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field>
+                        <FieldLabel>Default language</FieldLabel>
+                        <AdminSelect
+                          ariaLabel="Default language"
+                          value={siteDraft.defaultLanguage}
+                          onValueChange={(value) => updateSite("defaultLanguage", value)}
+                          options={[
+                            { value: "en", label: "English" },
+                            { value: "fr", label: "French" },
+                            { value: "zh", label: "中文" },
+                          ]}
+                        />
+                        <FieldDescription>Used for / and newly created content.</FieldDescription>
+                      </Field>
+                      <TextField
+                        label="Timezone"
+                        description="Used to display dates on your site."
+                        value={siteDraft.timezone}
+                        onChange={(value) => updateSite("timezone", value)}
+                      />
+                    </div>
+                    <p className="admin-settings-section-label">Public submissions</p>
+                    <ToggleField
+                      className="admin-settings-toggle"
+                      label="Allow visitors to publish memories"
+                      description="No sign-in required. New submissions publish immediately."
+                      checked={siteDraft.anonymousSubmissions}
+                      onCheckedChange={(value) => updateSite("anonymousSubmissions", value)}
+                    />
+                    <p className="admin-settings-section-label">Umami analytics</p>
+                    <div className="admin-umami-settings">
+                      <ToggleField
+                        className="admin-umami-toggle"
+                        label="Use self-hosted Umami"
+                        description="Measure visits with your own analytics server."
+                        checked={siteDraft.tracking.enabled}
+                        onCheckedChange={(value) => updateTracking("enabled", value)}
+                      />
+                      {siteDraft.tracking.enabled ? (
+                        <div className="admin-umami-fields">
+                          <TextField
+                            label="Umami script URL"
+                            type="url"
+                            value={siteDraft.tracking.umamiSrc}
+                            onChange={(value) => updateTracking("umamiSrc", value)}
+                            placeholder="https://analytics.example.com/script.js"
+                          />
+                          <TextField
+                            label="Website ID"
+                            value={siteDraft.tracking.umamiWebsiteId}
+                            onChange={(value) => updateTracking("umamiWebsiteId", value)}
+                            placeholder="Your Umami website ID"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  </FieldGroup>
+                  <div className="admin-settings-actions">
+                    <Button type="submit">Save changes</Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {settingsTab === "account" ? (
+            <Card className="admin-settings-card admin-account-settings-card">
+              <CardHeader>
+                <CardTitle>Account</CardTitle>
+                <CardDescription>
+                  The email and password used by the single owner account.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form
+                  id="settings-account-form"
+                  className="grid gap-5"
                   onSubmit={async (event) => {
                     event.preventDefault();
-                    const result = await disableTwoFactor({ totp: disableCode });
+                    const result = await saveAccount(accountDraft);
                     if (result) {
-                      setDisableCode("");
-                      setRecoveryCodes([]);
+                      setAccountDraft((current) => ({
+                        ...current,
+                        currentPassword: "",
+                        newPassword: "",
+                      }));
                     }
                   }}
                 >
-                  <TextField
-                    label="Authenticator or recovery code"
-                    value={disableCode}
-                    onChange={setDisableCode}
-                    inputMode="text"
-                    autoComplete="one-time-code"
-                  />
-                  <Button variant="outline" className="w-fit" type="submit">
-                    Disable 2FA
-                  </Button>
-                </form>
-              ) : (
-                <>
-                  <form
-                    className="grid gap-4"
-                    onSubmit={async (event) => {
-                      event.preventDefault();
-                      const setup = await setupTwoFactor({ currentPassword: securityPassword });
-                      if (setup) {
-                        setTwoFactor(setup);
-                        setRecoveryCodes([]);
-                        setSecurityPassword("");
-                      }
-                    }}
-                  >
+                  <FieldGroup>
+                    <TextField
+                      label="Admin email"
+                      value={accountDraft.email}
+                      onChange={(value) => updateAccount("email", value)}
+                      type="email"
+                      autoComplete="username"
+                    />
                     <TextField
                       label="Current password"
-                      description="This state is isolated from the Account form."
-                      value={securityPassword}
-                      onChange={setSecurityPassword}
+                      description="Required before changing the email or password."
+                      value={accountDraft.currentPassword}
+                      onChange={(value) => updateAccount("currentPassword", value)}
                       type="password"
                       autoComplete="current-password"
-                      placeholder="Confirm your identity"
                     />
-                    <Button className="w-fit" variant="outline" type="submit">
-                      Start 2FA setup
-                    </Button>
-                  </form>
-                  {!twoFactor ? (
-                    <div className="admin-security-steps" aria-label="Two-factor setup steps">
-                      {[
-                        ["1", "Confirm", "Enter the owner password."],
-                        ["2", "Pair", "Scan the QR code and enter a TOTP."],
-                        ["3", "Recover", "Download one-time recovery codes."],
-                      ].map(([number, title, copy]) => (
-                        <div key={number}>
-                          <span>{number}</span>
-                          <strong>{title}</strong>
-                          <p>{copy}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  {twoFactor ? (
-                    <form
-                      className="grid gap-4 rounded-lg border bg-background/45 p-4"
-                      onSubmit={async (event) => {
-                        event.preventDefault();
-                        const result = await enableTwoFactor({ totp: twoFactorCode });
-                        if (result?.recoveryCodes?.length) {
-                          setRecoveryCodes(result.recoveryCodes);
-                          setTwoFactor(null);
-                        }
-                        if (result) setTwoFactorCode("");
-                      }}
-                    >
-                      <div className="grid gap-4 md:grid-cols-[auto_minmax(0,1fr)]">
-                        <TotpQrCode value={twoFactor.otpauthUrl} />
-                        <div className="grid min-w-0 gap-2 text-sm">
-                          <span className="text-muted-foreground">
-                            Scan this QR code with an authenticator app, or enter the secret
-                            manually.
-                          </span>
-                          <code className="overflow-x-auto rounded border px-3 py-2">
-                            {twoFactor.secret}
-                          </code>
-                        </div>
-                      </div>
-                      <TextField
-                        label="Authenticator code"
-                        value={twoFactorCode}
-                        onChange={setTwoFactorCode}
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                      />
-                      <Button className="w-fit" type="submit">
-                        Enable 2FA
-                      </Button>
-                    </form>
-                  ) : null}
-                </>
-              )}
-              {recoveryCodes.length ? (
-                <div className="grid gap-4 rounded-lg border bg-background/45 p-4">
-                  <div className="grid gap-1">
-                    <strong className="text-sm">Recovery codes</strong>
-                    <p className="text-sm text-muted-foreground">
-                      Save these now. They are shown once and each code can be used one time.
+                    <TextField
+                      label="New password"
+                      description="Use at least 8 characters and a password manager."
+                      value={accountDraft.newPassword}
+                      onChange={(value) => updateAccount("newPassword", value)}
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder="Leave blank to keep the current password"
+                    />
+                  </FieldGroup>
+                  <div className="admin-session-note">
+                    <strong>Your current session stays active</strong>
+                    <p>
+                      A password change signs out other sessions. Recovery codes are managed in
+                      Security.
                     </p>
                   </div>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                    {recoveryCodes.map((code) => (
-                      <code key={code} className="rounded border px-3 py-2 text-center text-sm">
-                        {code}
-                      </code>
-                    ))}
+                  <div className="admin-settings-actions">
+                    <Button type="submit">Save account</Button>
                   </div>
-                  <Button
-                    className="w-fit"
-                    variant="outline"
-                    type="button"
-                    onClick={() =>
-                      downloadText(
-                        "i-remember-recovery-codes.txt",
-                        `songqi.org recovery codes\nGenerated: ${new Date().toISOString()}\n\n${recoveryCodes.join("\n")}\n`,
-                      )
-                    }
-                  >
-                    <Download data-icon="inline-start" />
-                    Download recovery codes
-                  </Button>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-          <p className="admin-security-note">
-            When 2FA is enabled, this card changes to an authenticator-or-recovery-code form with a
-            deliberate Disable 2FA action.
-          </p>
-        </div>
-      ) : null}
-      {settingsTab === "backup" ? <BackupsView /> : null}
+                </form>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {settingsTab === "security" ? (
+            <div className="admin-security-settings">
+              <Card className="admin-settings-card admin-security-settings-card">
+                <CardHeader>
+                  <CardTitle>Two-factor authentication</CardTitle>
+                  <CardDescription>
+                    {account.twoFactorEnabled
+                      ? "A TOTP authenticator is required after password login."
+                      : "Add a TOTP authenticator after password login."}
+                  </CardDescription>
+                  <CardAction>
+                    <Badge variant="outline" className="admin-security-status">
+                      {account.twoFactorEnabled ? "On" : "Off"}
+                    </Badge>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className="grid gap-5">
+                  {account.twoFactorEnabled ? (
+                    <form
+                      className="grid max-w-md gap-4"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        const result = await disableTwoFactor({ totp: disableCode });
+                        if (result) {
+                          setDisableCode("");
+                          setRecoveryCodes([]);
+                        }
+                      }}
+                    >
+                      <TextField
+                        label="Authenticator or recovery code"
+                        value={disableCode}
+                        onChange={setDisableCode}
+                        inputMode="text"
+                        autoComplete="one-time-code"
+                      />
+                      <Button variant="outline" className="w-fit" type="submit">
+                        Disable 2FA
+                      </Button>
+                    </form>
+                  ) : (
+                    <>
+                      <form
+                        className="grid gap-4"
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          const setup = await setupTwoFactor({ currentPassword: securityPassword });
+                          if (setup) {
+                            setTwoFactor(setup);
+                            setRecoveryCodes([]);
+                            setSecurityPassword("");
+                          }
+                        }}
+                      >
+                        <TextField
+                          label="Current password"
+                          description="Enter your password to protect this account with an authenticator."
+                          value={securityPassword}
+                          onChange={setSecurityPassword}
+                          type="password"
+                          autoComplete="current-password"
+                          placeholder="Confirm your identity"
+                        />
+                        <Button className="w-fit" variant="outline" type="submit">
+                          Start 2FA setup
+                        </Button>
+                      </form>
+                      {!twoFactor ? (
+                        <ol className="admin-security-steps" aria-label="Two-factor setup steps">
+                          <li>Confirm your password.</li>
+                          <li>Add the account to your authenticator and enter its code.</li>
+                          <li>Save your recovery codes somewhere safe.</li>
+                        </ol>
+                      ) : null}
+                      {twoFactor ? (
+                        <form
+                          className="grid gap-4 rounded-lg border bg-background/45 p-4"
+                          onSubmit={async (event) => {
+                            event.preventDefault();
+                            const result = await enableTwoFactor({ totp: twoFactorCode });
+                            if (result?.recoveryCodes?.length) {
+                              setRecoveryCodes(result.recoveryCodes);
+                              setTwoFactor(null);
+                            }
+                            if (result) setTwoFactorCode("");
+                          }}
+                        >
+                          <div className="grid gap-4 md:grid-cols-[auto_minmax(0,1fr)]">
+                            <TotpQrCode value={twoFactor.otpauthUrl} />
+                            <div className="grid min-w-0 gap-2 text-sm">
+                              <span className="text-muted-foreground">
+                                Scan this QR code with an authenticator app, or enter the secret
+                                manually.
+                              </span>
+                              <code className="overflow-x-auto rounded border px-3 py-2">
+                                {twoFactor.secret}
+                              </code>
+                            </div>
+                          </div>
+                          <TextField
+                            label="Authenticator code"
+                            value={twoFactorCode}
+                            onChange={setTwoFactorCode}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                          />
+                          <Button className="w-fit" type="submit">
+                            Enable 2FA
+                          </Button>
+                        </form>
+                      ) : null}
+                    </>
+                  )}
+                  {recoveryCodes.length ? (
+                    <div className="grid gap-4 rounded-lg border bg-background/45 p-4">
+                      <div className="grid gap-1">
+                        <strong className="text-sm">Recovery codes</strong>
+                        <p className="text-sm text-muted-foreground">
+                          Save these now. They are shown once and each code can be used one time.
+                        </p>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                        {recoveryCodes.map((code) => (
+                          <code key={code} className="rounded border px-3 py-2 text-center text-sm">
+                            {code}
+                          </code>
+                        ))}
+                      </div>
+                      <Button
+                        className="w-fit"
+                        variant="outline"
+                        type="button"
+                        onClick={() =>
+                          downloadText(
+                            "i-remember-recovery-codes.txt",
+                            `songqi.org recovery codes\nGenerated: ${new Date().toISOString()}\n\n${recoveryCodes.join("\n")}\n`,
+                          )
+                        }
+                      >
+                        <Download data-icon="inline-start" />
+                        Download recovery codes
+                      </Button>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+          {settingsTab === "backup" ? <BackupsView exportBackup={exportBackup} /> : null}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
-function BackupsView() {
-  const rows = [
-    ["Memories & pages", "Both"],
-    ["Menu & comments", "Both"],
-    ["Attachment metadata", "Both"],
-    ["Uploaded files", "Server only"],
-    ["Database & secrets", "Server only"],
-  ];
-
+function BackupsView({ exportBackup }) {
   return (
     <div className="admin-backup-grid">
-      <Card className="admin-settings-card admin-backup-export">
-        <CardHeader>
-          <p className="admin-settings-kicker">Content export</p>
-          <CardTitle>Export your content</CardTitle>
-          <CardDescription>
-            Downloads memories, pages, menu items, comments, and attachment metadata as JSON.
-            Uploaded files and server secrets are not included.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="admin-backup-honesty">
-            This is portable content — not a disaster-recovery backup.
-          </p>
-        </CardContent>
-      </Card>
       <Card className="admin-settings-card">
         <CardHeader>
-          <CardTitle>Recovery guardrail</CardTitle>
+          <CardTitle>Backup</CardTitle>
+          <CardDescription>Keep a copy of the moments you have saved.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="admin-backup-copy">
-            Restoring overwrites service state and requires downtime. The admin UI explains the
-            process but does not expose a destructive button.
-          </p>
-          <strong className="admin-ok">No restore action in the browser</strong>
-        </CardContent>
-      </Card>
-      <Card className="admin-settings-card admin-backup-server">
-        <CardHeader>
-          <p className="admin-settings-kicker">Server backup</p>
-          <CardTitle>Full recovery stays server-side</CardTitle>
-          <CardDescription>
-            A complete backup includes PostgreSQL, uploaded files, auth secrets, a manifest, and
-            checksums. It runs from the container and restores only into an empty volume.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <code>docker compose exec app i-remember-backup</code>
-          <a
-            href="https://github.com/zerostwo/i-remember.fr/blob/main/docs/deployment.md"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open deployment guide ↗
-          </a>
-          <p>Restore is intentionally not a one-click admin action.</p>
-        </CardContent>
-      </Card>
-      <Card className="admin-settings-card">
-        <CardHeader>
-          <CardTitle>What each option contains</CardTitle>
-        </CardHeader>
-        <CardContent className="admin-backup-scope">
-          {rows.map(([title, copy]) => (
-            <p key={title}>
-              <span>{title}</span>
-              <small>{copy}</small>
+        <CardContent className="grid gap-6">
+          <div className="grid gap-2">
+            <strong className="text-sm font-medium">Content export</strong>
+            <p className="admin-backup-copy">
+              Download your memories, pages, navigation, comments, and attachment details as JSON.
+              Uploaded files and account credentials are not included.
             </p>
-          ))}
+          </div>
+          <details className="admin-backup-guide">
+            <summary>Full backup and recovery</summary>
+            <p>
+              A full backup also includes uploaded files, the database, and account secrets. Create
+              and restore it on the server using the deployment guide. A content export alone cannot
+              restore the complete site.
+            </p>
+            <a
+              href="https://github.com/zerostwo/i-remember.fr/blob/main/docs/deployment.md"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Read the backup guide <ExternalLink className="ml-2 size-4" />
+            </a>
+          </details>
+          <div className="admin-settings-actions">
+            <Button type="button" onClick={exportBackup}>
+              <Download data-icon="inline-start" />
+              Export content
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

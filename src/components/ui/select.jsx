@@ -54,12 +54,13 @@ function SelectTrigger({
 function SelectContent({
   className,
   children,
+  container,
   position = "item-aligned",
   align = "center",
   ...props
 }) {
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Content
         data-slot="select-content"
         data-align-trigger={position === "item-aligned"}

@@ -6,6 +6,8 @@ packages/*/.turbo/
 apps/*/dist/
 packages/*/dist/
 qa/
+output/playwright/
+.playwright-cli/
 data/
 db/
 .revival-storage/

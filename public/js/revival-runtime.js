@@ -1899,6 +1899,8 @@
 
     overlay = document.createElement("div");
     overlay.className = "revival-menu-memory";
+    // Let native taps and scrolling through the legacy input controller.
+    overlay.__skipPreventDefault = true;
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");
     overlay.setAttribute("aria-labelledby", "revival-menu-memory-title");
@@ -2228,6 +2230,13 @@
         element.setAttribute("aria-label", label(entry[1]));
         element.setAttribute("aria-multiline", entry[1] === "Your memory" ? "true" : "false");
         element.setAttribute("spellcheck", entry[1] === "Your email" ? "false" : "true");
+        if (entry[1] === "Your email") {
+          element.setAttribute("inputmode", "email");
+          element.setAttribute("autocapitalize", "none");
+          element.setAttribute("enterkeyhint", "next");
+        } else if (entry[1] === "Search memories") {
+          element.setAttribute("enterkeyhint", "search");
+        }
       });
     });
 
@@ -2318,6 +2327,7 @@
     button = document.createElement("button");
     button.type = "button";
     button.className = "revival-memory-explore";
+    button.__skipPreventDefault = true;
     button.textContent = (uiCopy[siteLanguage()] || uiCopy.en).exploreMemory;
     wrapper.appendChild(button);
     activeLongMemory = {

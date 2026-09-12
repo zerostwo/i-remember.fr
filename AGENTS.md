@@ -154,3 +154,11 @@ Current backend/product decisions:
   establish mobile usability. The degree of visual convergence is still to be
   selected; this feedback does not approve a replacement design or change the
   public galaxy experience.
+- On 2026-09-11 the owner authorized fixing the findings in
+  `docs/admin-design-review-2026-09-11.md` directly. For this repair, proceed
+  with the proposed visual convergence and touch improvements without another
+  Figma approval or the unavailable Product Design get-context prerequisite.
+  Keep the current admin information architecture and public galaxy intact;
+  use neutral dark surfaces, serif page headings, restrained borders, consistent
+  settings layouts, and discoverable touch actions. Validate against a local
+  PostgreSQL/API and browser interactions before delivery.

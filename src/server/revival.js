@@ -1638,6 +1638,16 @@ async function handleRequest(backend, req, res, next, options = {}) {
   }
 
   if (req.method === "GET" && nonSiteArtifactRequested(pathname)) {
+    // Vite serves transformed modules from these paths during local development.
+    // Keep the production artifact boundary intact and never allow env/data paths.
+    if (options.transformIndexHtml &&
+        (/^\/node_modules\/\.vite\/deps\//.test(pathname) ||
+         /^\/node_modules\/(?:\.pnpm\/vite@[^/]+\/node_modules\/)?vite\/dist\/client\/env\.mjs$/.test(pathname) ||
+         /^\/node_modules\/(?:\.pnpm\/@fontsource-variable\+geist@[^/]+\/node_modules\/)?@fontsource-variable\/geist\/files\/[^/]+\.woff2$/.test(pathname) ||
+         /^\/src\/(?:index\.css$|public-markdown\.js$|components\/|lib\/)/.test(pathname))) {
+      next();
+      return;
+    }
     sendStatus(res, 404, "Not found");
     return;
   }
@@ -1704,7 +1714,10 @@ async function handleRequest(backend, req, res, next, options = {}) {
     }
 
     if (adminPageRequested(pathname)) {
-      sendHtml(res, readFileSync(adminHtmlUrlForMode(options), "utf8"));
+      const html = readFileSync(adminHtmlUrlForMode(options), "utf8");
+      sendHtml(res, options.transformIndexHtml
+        ? await options.transformIndexHtml(req.url, html)
+        : html);
       return;
     }
 
@@ -1906,7 +1919,10 @@ export function createViteRevivalPlugin() {
   return {
     name: "i-remember-api-shim",
     configureServer(server) {
-      server.middlewares.use(createRevivalMiddleware({ apiBaseUrl: process.env.API_BASE_URL }));
+      server.middlewares.use(createRevivalMiddleware({
+        apiBaseUrl: process.env.API_BASE_URL,
+        transformIndexHtml: (url, html) => server.transformIndexHtml(url, html),
+      }));
     },
     configurePreviewServer(server) {
       server.middlewares.use(createRevivalMiddleware({ production: true, apiBaseUrl: process.env.API_BASE_URL }));
