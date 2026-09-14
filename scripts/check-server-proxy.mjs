@@ -52,6 +52,7 @@ const upstream = createServer(async (req, res) => {
         success: true,
         data: {
           siteTitle: "Configured title",
+          ownerName: "", ownerAlternateName: "", siteDescription: "A configured archive",
           canonicalUrl: "https://songqi.org",
           timezone: "Asia/Shanghai",
           defaultLanguage: siteDefaultLanguage,
@@ -322,6 +323,16 @@ try {
   assert.ok(homeHtml.indexOf("window.SONGQI_SITE_SETTINGS=") < homeHtml.indexOf("js/revival-runtime.js"), "Configured default language must be available before runtime URL normalization");
   assert.match(homeHtml, /rel="canonical" href="https:\/\/songqi.org\/"/);
   assert.match(homeHtml, /src="\/assets\/public-markdown.js"/);
+  assert.match(homeHtml, /name="description" content="A configured archive"/);
+  const robots = await fetch(`${baseUrl}/robots.txt`);
+  assert.match(await robots.text(), /Sitemap: https:\/\/songqi.org\/sitemap.xml/);
+  const sitemap = await fetch(`${baseUrl}/sitemap.xml`);
+  const xml = await sitemap.text();
+  assert.equal(sitemap.status, 200);
+  assert.match(xml, new RegExp(`/memory/${v1PublicId}`));
+  assert.ok(!xml.includes("/admin"));
+  const adminSeo = await fetch(`${baseUrl}/admin/login`);
+  assert.equal(adminSeo.headers.get("x-robots-tag"), "noindex, nofollow");
   const indexResponse = await fetch(`${baseUrl}/index.html?ln=en`, { redirect: "manual" });
   assert.equal(indexResponse.status, 308);
   assert.equal(indexResponse.headers.get("location"), "/?ln=en");

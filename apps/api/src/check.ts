@@ -573,6 +573,7 @@ readinessRepository.available = true;
 
 const publicSettings = await json("/api/v1/public/settings");
 assert.equal(publicSettings.response.status, 200);
+assert.equal(publicSettings.response.headers.get("x-robots-tag"), "noindex, nofollow");
 assert.equal(publicSettings.body.data.siteTitle, "Songqi");
 assert.equal(publicSettings.body.data.canonicalUrl, "https://songqi.org");
 assert.equal(publicSettings.body.data.timezone, "Asia/Shanghai");
@@ -583,6 +584,22 @@ assert.deepEqual(publicSettings.body.data.tracking, {
   umamiSrc: "",
   umamiWebsiteId: "",
 });
+
+// Search identity is persisted, clearable, and independent of account details.
+for (const canonicalUrl of ["javascript:alert(1)", "https://example.org/path", "https://user:pass@example.org", "https://example.org/?q=1"]) {
+  const invalidSeo = await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ canonicalUrl }) });
+  assert.equal(invalidSeo.response.status, 400);
+}
+const oversizedSeo = await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ ownerName: "x".repeat(121) }) });
+assert.equal(oversizedSeo.response.status, 400);
+const customSeo = await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ canonicalUrl: "https://example.org/", ownerName: "Alex Example", ownerAlternateName: "", siteDescription: "Another personal archive" }) });
+assert.equal(customSeo.response.status, 200);
+const savedSeo = (await json("/api/v1/public/settings")).body.data;
+assert.equal(savedSeo.canonicalUrl, "https://example.org");
+assert.equal(savedSeo.ownerName, "Alex Example");
+assert.equal(savedSeo.ownerAlternateName, "");
+assert.equal(savedSeo.siteDescription, "Another personal archive");
+await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify(publicSettings.body.data) });
 
 const defaultDisabledSubmission = await json("/api/v1/memories", {
   method: "POST",

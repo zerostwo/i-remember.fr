@@ -3,7 +3,7 @@
 The supported self-hosted production shape is one application image plus one
 persistent data volume. The image runs the public web server, the private API,
 and an embedded PostgreSQL 15 server. The volume stores PostgreSQL data,
-uploaded assets, the authentication secret, the first-admin setup token, and
+uploaded assets, the authentication secret, and
 runtime logs.
 
 ## Release reference
@@ -38,6 +38,9 @@ DOCKERHUB_IMAGE=zerostwo/i-remember.fr
 # Replace with the published tag for the exact commit.
 TAG=sha-0123456789ab
 I_REMEMBER_HOST_PORT=7892
+I_REMEMBER_CANONICAL_URL=https://songqi.org
+I_REMEMBER_OWNER_NAME="Songqi Duan"
+I_REMEMBER_OWNER_ALTERNATE_NAME="段松岐"
 I_REMEMBER_DEFAULT_LANGUAGE=en
 I_REMEMBER_ANONYMOUS_SUBMISSIONS=false
 ```
@@ -73,6 +76,11 @@ Create the first administrator at `/admin/setup` before opening the public
 route, then enable two-factor authentication. Setup requires a password of at
 least eight characters, is rate limited, and is disabled by the database once
 the first user exists.
+
+Review **Settings → Site** after installation or upgrade. Set the public domain,
+site description, and owner identity for this deployment. See [search engine setup](seo.md)
+for sitemap submission and indexing checks. Saved database settings override initial
+environment defaults.
 
 ## Domain, reverse proxy, and TLS
 

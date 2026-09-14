@@ -197,6 +197,9 @@ export async function deleteV1MenuItem(v1Api, item) {
 
 export function v1SettingsPayload(settings = {}) {
   return {
+    siteDescription: String(settings.siteDescription ?? "").trim(),
+    ownerName: String(settings.ownerName ?? "").trim(),
+    ownerAlternateName: String(settings.ownerAlternateName ?? "").trim(),
     siteTitle: String(settings.siteTitle || "Songqi").trim() || "Songqi",
     canonicalUrl: String(settings.canonicalUrl || "https://songqi.org").trim(),
     timezone: String(settings.timezone || "Asia/Shanghai").trim() || "Asia/Shanghai",

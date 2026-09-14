@@ -162,3 +162,10 @@ Current backend/product decisions:
   use neutral dark surfaces, serif page headings, restrained borders, consistent
   settings layouts, and discoverable touch actions. Validate against a local
   PostgreSQL/API and browser interactions before delivery.
+- Owner instruction on 2026-09-14: keep README current with curated real-page
+  screenshots and Docker Compose instructions. Optimize the public deployment
+  at songqi.org for discovery by Songqi Duan and 段松岐. Keep owner identity,
+  site description, and canonical origin editable in Settings > Site for other
+  self-hosters. Preserve the public visual experience; ship server-rendered SEO
+  metadata and public-only crawl discovery. README screenshots are intentional
+  documentation assets, distinct from disposable QA artifacts.

@@ -69,6 +69,7 @@ assert.equal(v1PagePayload({ slug: "about", defaultLanguage: "zh" }).language, "
 assert.equal(v1MenuItemPayload({ label: "About", siteDefaultLanguage: "fr" }).language, "fr");
 const settingsPayload = v1SettingsPayload({
   siteTitle: "Songqi",
+  ownerName: "Someone Else", ownerAlternateName: "", siteDescription: "Another archive",
   canonicalUrl: "https://songqi.org",
   timezone: "Asia/Shanghai",
   defaultLanguage: "zh",
@@ -76,6 +77,9 @@ const settingsPayload = v1SettingsPayload({
 });
 assert.equal(settingsPayload.defaultLanguage, "zh");
 assert.equal(settingsPayload.siteTitle, "Songqi");
+assert.equal(settingsPayload.ownerName, "Someone Else");
+assert.equal(settingsPayload.ownerAlternateName, "");
+assert.equal(settingsPayload.siteDescription, "Another archive");
 assert.equal(settingsPayload.canonicalUrl, "https://songqi.org");
 assert.equal(settingsPayload.timezone, "Asia/Shanghai");
 

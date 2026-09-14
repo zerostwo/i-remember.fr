@@ -555,6 +555,19 @@ export function commentPatchInput(value: Record<string, unknown>): CommentUpdate
 }
 
 export function settingsInput(value: Record<string, unknown>) {
+  if (has(value, "canonicalUrl")) {
+    try {
+      const url = new URL(String(value.canonicalUrl));
+      if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash) throw new Error();
+      value = { ...value, canonicalUrl: url.origin };
+    } catch {
+      throw new ApiError(400, "Canonical URL must be an HTTP(S) origin without a path, query, or credentials", "invalid_canonical_url");
+    }
+  }
+  for (const [key, limit] of [["siteDescription", 320], ["ownerName", 120], ["ownerAlternateName", 120]] as const) {
+    if (has(value, key) && (typeof value[key] !== "string" || (value[key] as string).length > limit))
+      throw new ApiError(400, `${key} must be text of at most ${limit} characters`, "invalid_seo_setting");
+  }
   const entries = Object.entries(value).filter(([key]) => key.trim());
   if (!entries.length) throw new ApiError(400, "No settings to update", "empty_settings");
   return Object.fromEntries(entries.map(([key, next]) => [text(key, "", 120), next]));

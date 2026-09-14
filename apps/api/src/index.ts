@@ -174,6 +174,7 @@ export function createApiV1Middleware(dependencies: ApiDependencies = {}) {
 
   return (req: IncomingMessage, res: ServerResponse, next: () => void) => {
     const startedAt = Date.now();
+    res.setHeader("X-Robots-Tag", "noindex, nofollow");
     res.once("finish", () => logApiRequest(req, res, startedAt));
     handleErrors(res, () => router.handle(req, res)).then((handled) => {
       if (!handled) next();

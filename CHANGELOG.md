@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added editable search descriptions and owner names, server-rendered public
+  metadata and structured data, public-only sitemaps, and crawler directives.
+- Replaced the outdated README with current feature/deployment documentation,
+  real-page screenshots, and a domain/search-engine launch guide.
+
 - Added an installable standalone web app manifest, iPhone home-screen icons,
   theme/status-bar metadata, and automated mobile UX guardrails.
 - Added the approved Figma V2 admin experience with responsive navigation,
@@ -28,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restore commands plus fresh-volume, restart, backup, and restore smoke tests.
 
 ### Changed
+
+- Updated sharp and pinned repaired fast-uri, Prisma deepmerge-ts, and mysql2
+  dependencies so the release passes the high-severity advisory gate.
 
 - Raised mobile form, button, navigation, and modal typography and touch targets
   to iOS-friendly 16 px and 44 px minimums, lazy-loaded admin attachment

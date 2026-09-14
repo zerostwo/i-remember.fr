@@ -147,6 +147,9 @@ export interface MenuItem {
 
 export interface AppSettings {
   siteTitle?: string;
+  siteDescription?: string;
+  ownerName?: string;
+  ownerAlternateName?: string;
   canonicalUrl?: string;
   timezone?: string;
   defaultLanguage?: "en" | "fr" | "zh";

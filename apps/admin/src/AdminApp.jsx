@@ -292,6 +292,9 @@ function v1MenuAdmin(item = {}) {
 function settingsFromV1(settings = {}, account = {}) {
   return {
     siteTitle: settings.siteTitle || "Songqi",
+    siteDescription: settings.siteDescription ?? "",
+    ownerName: settings.ownerName ?? "",
+    ownerAlternateName: settings.ownerAlternateName ?? "",
     canonicalUrl: settings.canonicalUrl || "https://songqi.org",
     timezone: settings.timezone || "Asia/Shanghai",
     defaultLanguage: settings.defaultLanguage || "en",
@@ -2992,6 +2995,9 @@ function SettingsView({
   const account = settings.account || {};
   const [siteDraft, setSiteDraft] = useState(() => ({
     siteTitle: settings.siteTitle || "Songqi",
+    siteDescription: settings.siteDescription ?? "",
+    ownerName: settings.ownerName ?? "",
+    ownerAlternateName: settings.ownerAlternateName ?? "",
     canonicalUrl: settings.canonicalUrl || "https://songqi.org",
     timezone: settings.timezone || "Asia/Shanghai",
     defaultLanguage: settings.defaultLanguage || "en",
@@ -3016,6 +3022,9 @@ function SettingsView({
   useEffect(() => {
     setSiteDraft({
       siteTitle: settings.siteTitle || "Songqi",
+      siteDescription: settings.siteDescription ?? "",
+      ownerName: settings.ownerName ?? "",
+      ownerAlternateName: settings.ownerAlternateName ?? "",
       canonicalUrl: settings.canonicalUrl || "https://songqi.org",
       timezone: settings.timezone || "Asia/Shanghai",
       defaultLanguage: settings.defaultLanguage || "en",
@@ -3029,6 +3038,9 @@ function SettingsView({
     setAccountDraft((current) => ({ ...current, email: account.email || "" }));
   }, [
     settings.siteTitle,
+    settings.siteDescription,
+    settings.ownerName,
+    settings.ownerAlternateName,
     settings.canonicalUrl,
     settings.timezone,
     settings.defaultLanguage,
@@ -3061,7 +3073,7 @@ function SettingsView({
               <CardHeader>
                 <CardTitle>Site</CardTitle>
                 <CardDescription>
-                  The defaults used by songqi.org and every new entry.
+                  Your public identity, search metadata, and publishing defaults.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -3087,6 +3099,10 @@ function SettingsView({
                       onChange={(value) => updateSite("canonicalUrl", value)}
                       type="url"
                     />
+                    <p className="admin-settings-section-label">Search engines</p>
+                    <TextField label="Site description" description="A concise introduction for search results and shared links." value={siteDraft.siteDescription} onChange={(value) => updateSite("siteDescription", value)} />
+                    <TextField label="Owner name" description="Your public name, used in homepage metadata and structured data." value={siteDraft.ownerName} onChange={(value) => updateSite("ownerName", value)} />
+                    <TextField label="Alternate name" description="Another name or spelling, such as your Chinese name. Leave blank if unused." value={siteDraft.ownerAlternateName} onChange={(value) => updateSite("ownerAlternateName", value)} />
                     <div className="grid gap-4 sm:grid-cols-2">
                       <Field>
                         <FieldLabel>Default language</FieldLabel>

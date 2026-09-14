@@ -48,6 +48,9 @@ import { ApiError } from "./errors.js";
 
 export type RuntimeSettings = {
   siteTitle: string;
+  siteDescription: string;
+  ownerName: string;
+  ownerAlternateName: string;
   canonicalUrl: string;
   timezone: string;
   defaultLanguage: "en" | "fr" | "zh";
@@ -81,6 +84,9 @@ function initialRuntimeSettings(): RuntimeSettings {
   const umamiSrc = String(process.env.UMAMI_SRC || "");
   const umamiWebsiteId = String(process.env.UMAMI_WEBSITE_ID || "");
   return {
+    siteDescription: String(process.env.I_REMEMBER_SITE_DESCRIPTION ?? "Songqi Duan (段松岐): a personal home for memories, photographs, and beautiful moments worth keeping."),
+    ownerName: String(process.env.I_REMEMBER_OWNER_NAME ?? "Songqi Duan"),
+    ownerAlternateName: String(process.env.I_REMEMBER_OWNER_ALTERNATE_NAME ?? "段松岐"),
     siteTitle: String(process.env.I_REMEMBER_SITE_TITLE || "Songqi"),
     canonicalUrl: String(process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org"),
     timezone: String(process.env.TZ || "Asia/Shanghai"),
@@ -101,6 +107,9 @@ function normalizedRuntimeSettings(values: Record<string, unknown>): RuntimeSett
       ? (values.tracking as Record<string, unknown>)
       : {};
   return {
+    siteDescription: typeof values.siteDescription === "string" ? values.siteDescription.trim().slice(0, 320) : "",
+    ownerName: typeof values.ownerName === "string" ? values.ownerName.trim().slice(0, 120) : "",
+    ownerAlternateName: typeof values.ownerAlternateName === "string" ? values.ownerAlternateName.trim().slice(0, 120) : "",
     siteTitle:
       typeof values.siteTitle === "string" && values.siteTitle.trim()
         ? values.siteTitle.trim().slice(0, 120)
