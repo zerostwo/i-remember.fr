@@ -417,16 +417,21 @@ try {
 
   const chineseV1PublicMemoryResponse = await fetch(`${baseUrl}/zh/memory/${v1PublicId}`);
   assert.equal(chineseV1PublicMemoryResponse.status, 404);
-  assert.equal(v1ViewCount, 1);
+  assert.equal(v1ViewCount, 0, "HTML reads do not count as displayed memory opens");
 
   const englishV1PublicMemoryResponse = await fetch(`${baseUrl}/en/memory/${v1PublicId}`);
   assert.equal(englishV1PublicMemoryResponse.status, 404);
-  assert.equal(v1ViewCount, 1);
+  assert.equal(v1ViewCount, 0, "HTML reads do not count as displayed memory opens");
 
   const frenchDisplayMemoryResponse = await fetch(`${baseUrl}/memory/${v1PublicId}?ln=fr`);
   assert.equal(frenchDisplayMemoryResponse.status, 200);
   assert.match(await frenchDisplayMemoryResponse.text(), /var LANG = 'fr';/);
-  assert.equal(v1ViewCount, 2);
+  assert.equal(v1ViewCount, 0, "Language and metadata reads must not count views");
+  const randomMemory = await (await fetch(`${baseUrl}/api/random-memory?current=${v1PublicId}`)).json();
+  assert.equal(randomMemory.data.post.public_id, v1ChinesePublicId, "Random discovery excludes the current memory and includes every content language");
+  const exhaustedRandom = await (await fetch(`${baseUrl}/api/random-memory?current=${v1PublicId}&seen=${v1PublicId},${v1ChinesePublicId}`)).json();
+  assert.equal(exhaustedRandom.data.post.public_id, v1ChinesePublicId, "Exhausting recent history still never selects the current memory");
+  assert.equal(v1ViewCount, 0, "Random discovery does not count undisplayed previews");
 
   const invalidOriginResponse = await fetch(`${baseUrl}/api/post`, {
     method: "POST",

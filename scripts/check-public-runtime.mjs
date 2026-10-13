@@ -65,6 +65,33 @@ assert.ok(patchedMain.includes("window.SongqiPhotos.showMemory(e)"), "All memory
 assert.ok(patchedMain.includes("JSON.stringify(r.data.photos)"), "Submission must persist every crop");
 assert.ok(patchedMain.includes("window.SongqiPhotos.createAdjustmentStep"), "The old drag-only editor must be replaced");
 new Function(patchedMain);
+assert.ok(patchedMain.includes('window.SongqiMemoryNavigation.opened(e)'));
+assert.ok(patchedMain.includes('window.SongqiMemoryNavigation.closed()'));
+assert.ok(patchedMain.includes('e.replace=function(t){U(t);O=t;'));
+const navigationSource = await readFile(new URL("../public/js/memory-navigation.js", import.meta.url), "utf8");
+const navigationWindow = {}, viewRequests = [];
+runInNewContext(navigationSource, {
+  window: navigationWindow,
+  document: { querySelector: () => null },
+  fetch: (url) => { viewRequests.push(url); return Promise.resolve({ ok: true }); },
+});
+const navigation = navigationWindow.SongqiMemoryNavigation;
+const firstMemory = { public_id: "m11111111111111111111" };
+navigation.opened(firstMemory);
+navigation.opened(firstMemory);
+assert.equal(viewRequests.length, 1, "Repeated renders must not add views");
+navigation.opened({ public_id: "m22222222222222222222" });
+assert.equal(viewRequests.length, 2, "Switching memories counts the new open");
+navigation.closed();
+navigation.opened(firstMemory);
+assert.equal(viewRequests.length, 3, "Reopening counts a new visit");
+navigation.opened({ public_id: "123" });
+assert.equal(viewRequests.length, 3, "Placeholder identities must not count");
+assert.equal(navigation.swipeDirection(10, -100, 200), 1);
+assert.equal(navigation.swipeDirection(10, 100, 200), -1);
+assert.equal(navigation.swipeDirection(100, 10, 200), 0, "Horizontal photo swipe must not change memory");
+assert.equal(navigation.swipeDirection(10, 20, 200), 0, "A tap must not change memory");
+assert.equal(navigation.swipeDirection(10, 100, 2000), 0, "Slow scrolling must not change memory");
 const gallerySource = await readFile(new URL("../public/js/photo-gallery.js", import.meta.url), "utf8");
 const galleryWindow = {};
 runInNewContext(gallerySource, { window: galleryWindow, Map });

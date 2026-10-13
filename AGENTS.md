@@ -186,3 +186,9 @@ Current backend/product decisions:
   the complete photo. Support drag and zoom in composition, and up to 10 photos
   per memory with independent crops and gallery navigation. Keep the existing
   archive style and omit visible View full photo instructions.
+
+- Owner request on 2026-10-13: opened memories support animated random-memory
+  navigation while retaining the galaxy style. Use vertical swipes for memories
+  and horizontal swipes for photos within a memory. Count actual memory opens
+  (not photo changes, prefetches, or server-rendered metadata reads), and expose
+  per-memory view totals and sorting in the admin.

@@ -227,6 +227,11 @@
     return "/memory/" + encodeURIComponent(String(id || ""));
   };
 
+  window.__REVIVAL_REPLACE_MEMORY__ = function(post) {
+    var panel = legacyModule("ui/post2d");
+    if (!panel || !panel.replace) throw new Error("Memory viewer is not ready");
+    panel.replace(post);
+  };
   window.__REVIVAL_PUBLIC_SHARE_URL__ = publicShareUrl;
   window.__REVIVAL_CREATE_MEMORY_MAP_INDEX__ = createMemoryMapIndex;
   window.__REVIVAL_UNIQUE_MAP_POSTS__ = uniqueMapPosts;
@@ -623,6 +628,9 @@
         patched.slice(adjustmentEnd);
     }
     patched = patched.replace('function U(e){M=e;var t=new Image', 'function U(e){window.SongqiPhotos.showMemory(e);M=e;var t=new Image');
+    patched = patched.replace('function z(e){f.trackPage({trackPage:"memory-view"})', 'function z(e){window.SongqiMemoryNavigation.opened(e);f.trackPage({trackPage:"memory-view"})');
+    patched = patched.replace('function Q(){history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()', 'function Q(){window.SongqiMemoryNavigation.closed();history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()');
+    patched = patched.replace('e.preShow=U,e.show=z,e.hide=Q,e.updateFading=Y', 'e.preShow=U,e.show=z,e.hide=Q,e.replace=function(t){U(t);O=t;history.replaceState(null,"",window.__REVIVAL_PUBLIC_MEMORY_PATH__(t));b[0].scrollpane.onResize();window.SongqiMemoryNavigation.opened(t)},e.updateFading=Y');
     patched = patched.replace('e.append("fileId",r.data.fileId),', 'e.append("fileId",r.data.fileId),r.data.photos&&r.data.photos.length&&e.append("photos",JSON.stringify(r.data.photos)),');
     // Retain the original noise field, geometry and transitions. Only replace
     // cyclic memory allocation and stale mesh/hover handling in the old renderer.
@@ -2328,14 +2336,6 @@
       return;
     }
     if (id !== lastViewedMemory) setMemoryExplore(null);
-    if (!initial && id !== lastViewedMemory) {
-      window.fetch("/api/v1/memories/" + encodeURIComponent(id) + "/view", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-        keepalive: true
-      }).catch(function () {});
-    }
     lastViewedMemory = id;
     fetchJson("/api/v1/memories/" + encodeURIComponent(id), memoryRequestController.signal)
       .then(function(memory){if(requestSequence === memoryRequestSequence) { setMemoryExplore(memory); if (memory && window.SONGQI_SITE_SETTINGS) document.title = memory.title + " · " + window.SONGQI_SITE_SETTINGS.siteTitle; }})

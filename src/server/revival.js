@@ -1,6 +1,6 @@
 import { renderSeo, sitemapXml, siteOrigin, publicPosts } from "./seo.js";
 import { markdownToHtml, memoryBody, memoryPreview } from "../../packages/content/src/markdown.js";
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID, randomInt, createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -1020,11 +1020,8 @@ class RevivalBackend {
     return [...new Map(records.map((memory) => [memory.id, memory])).values()].map((memory, index) => v1MemoryToPost(memory, index, language));
   }
 
-  async v1PublicMemory(publicId, language, trackView = false) {
-    const path = trackView
-      ? `/api/v1/memories/${encodeURIComponent(publicId)}/view`
-      : `/api/v1/memories/${encodeURIComponent(publicId)}`;
-    const data = await this.v1Data(path, trackView ? { method: "POST", body: "{}" } : {});
+  async v1PublicMemory(publicId, language) {
+    const data = await this.v1Data(`/api/v1/memories/${encodeURIComponent(publicId)}`);
     return data?.id || data?.publicId ? v1MemoryToPost(data, 0, language) : null;
   }
 
@@ -1106,7 +1103,7 @@ class RevivalBackend {
   }
 
   async directPost(publicId, language = "en") {
-    const v1Post = await this.v1PublicMemory(publicId, language, true);
+    const v1Post = await this.v1PublicMemory(publicId, language);
     if (v1Post) return v1Post;
     return null;
   }
@@ -1956,6 +1953,17 @@ async function handleRequest(backend, req, res, next, options = {}) {
         list: await backend.autocomplete(memoryLanguage, fragment),
       },
     });
+    return;
+  }
+
+  if (req.method === "GET" && pathname === "/api/random-memory") {
+    assertRateLimit(req, "random-memory", 120, 60 * 1000);
+    const current = url.searchParams.get("current") || "";
+    const seen = new Set((url.searchParams.get("seen") || "").split(",").slice(-50));
+    const alternatives = publicPosts(await backend.allPosts(memoryLanguage)).filter(post => post.public_id !== current);
+    const unseen = alternatives.filter(post => !seen.has(post.public_id));
+    const candidates = unseen.length ? unseen : alternatives;
+    sendJson(req, res, { success: true, data: { post: candidates.length ? candidates[randomInt(candidates.length)] : null } });
     return;
   }
 

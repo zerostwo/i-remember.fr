@@ -1226,6 +1226,7 @@ export function AdminApp() {
             {loading && !data ? <LoadingState /> : null}
             {data ? (
               <AdminRoute
+                refreshData={refreshData}
                 reportDirty={reportDirty}
                 uploadEditorFile={uploadEditorFile}
                 savingMemory={savingMemory}
@@ -2138,8 +2139,10 @@ function MemoryActions({ memory, canonicalUrl, editMemory }) {
   );
 }
 
-function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, editMemory }) {
+function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, editMemory, refreshData }) {
   const [page, setPage] = useState(1);
+  const [viewOrder, setViewOrder] = useState(null);
+  const [refreshingViews, setRefreshingViews] = useState(false);
   const memories = data.memories || [];
   const filtered = memories.filter((memory) => {
     const matchesFilter =
@@ -2154,6 +2157,7 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
       )
     );
   });
+  if (viewOrder) filtered.sort((a, b) => viewOrder === "descending" ? b.viewCount - a.viewCount : a.viewCount - b.viewCount);
   const pageSize = 25;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -2161,7 +2165,7 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
 
   useEffect(() => {
     setPage(1);
-  }, [search, memoryFilter]);
+  }, [search, memoryFilter, viewOrder]);
 
   return (
     <div className="grid gap-5">
@@ -2187,12 +2191,24 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
               />
             </div>
           </div>
+          <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+            <span>Views count memory opens, not unique visitors.</span>
+            <Button variant="ghost" size="sm" disabled={refreshingViews} onClick={async () => {
+              setRefreshingViews(true);
+              try { await refreshData(); } finally { setRefreshingViews(false); }
+            }}>{refreshingViews ? "Refreshing…" : "Refresh views"}</Button>
+          </div>
           <Table className="admin-responsive-memory-table">
             <TableHeader>
               <TableRow>
                 <TableHead>Memory</TableHead>
                 <TableHead>Author</TableHead>
-                <TableHead>Views</TableHead>
+                <TableHead aria-sort={viewOrder || "none"}>
+                  <button type="button" className="min-h-11 cursor-pointer" aria-label="Sort by views"
+                    onClick={() => setViewOrder(value => value === "descending" ? "ascending" : "descending")}>
+                    Views {viewOrder === "descending" ? "↓" : viewOrder === "ascending" ? "↑" : "↕"}
+                  </button>
+                </TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead className="text-right">More</TableHead>

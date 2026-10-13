@@ -22,6 +22,10 @@ Other self-hosters can set their own public name, description, and domain in the
 - **Keep a photo collection together.** Add up to 10 photos per memory, adjust each
   square preview with drag and zoom, and click to view the complete photos. Use the
   arrows or swipe to browse; uploaded originals are preserved.
+- **Discover another moment.** Swipe vertically on an opened photo or choose
+  **Another memory** to visit a random memory with a short transition. Horizontal
+  swipes browse its photos. Admin **Memories** shows sortable view totals;
+  opening a memory counts once, while prefetching and changing photos do not.
 - **Invite contributions.** Optional anonymous submissions follow a staged
   photo/text/name/email/terms flow and publish immediately when enabled.
 - **Manage a personal site.** Dashboard, Memories, Pages, Attachments, and Navigation;
