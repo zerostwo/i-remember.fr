@@ -180,3 +180,9 @@ Current backend/product decisions:
   and overall dimensions to the photo's natural aspect ratio instead of padding
   photos into squares. Preserve the established visual style and click-to-enlarge
   behavior, without a visible View full photo label or tooltip.
+
+- Latest owner decision on 2026-10-13 supersedes aspect-ratio-adaptive cards:
+  use a square crop chosen during upload for the memory card; clicking opens
+  the complete photo. Support drag and zoom in composition, and up to 10 photos
+  per memory with independent crops and gallery navigation. Keep the existing
+  archive style and omit visible View full photo instructions.

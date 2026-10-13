@@ -1,6 +1,6 @@
 import { renderSeo, sitemapXml, siteOrigin, publicPosts } from "./seo.js";
 import { markdownToHtml, memoryBody, memoryPreview } from "../../packages/content/src/markdown.js";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -718,11 +718,42 @@ function v1LegacyPostId(memory, index = 0) {
   return match ? String(Number.parseInt(match[1].slice(0, 13), 16)) : String(900000 - index);
 }
 
+function v1MemoryPhotos(memory) {
+  return (memory?.attachments || []).filter(a => String(a.type).startsWith("image/"))
+    .map((a, index) => {
+      const key = safeUploadedFileId(a.metadata?.imageKey || a.url?.match(/\/posts\/(revival-[a-z0-9-]+)\//i)?.[1]);
+      return { image_url: key && !a.metadata?.crop ? `/uploads/posts/${key}/square.jpg` : a.url, full_image_url: key ? legacyImagePath(key, "full") : a.url,
+        order: Number.isFinite(a.metadata?.order) ? a.metadata.order : index };
+    }).sort((a, b) => a.order - b.order);
+}
+
+function validatedPhotos(fields) {
+  if (fields.photos == null || fields.photos === "") return null;
+  let photos;
+  try { photos = typeof fields.photos === "string" ? JSON.parse(fields.photos) : fields.photos; } catch { /* validated below */ }
+  if (!Array.isArray(photos) || !photos.length || photos.length > 10) {
+    throw new HttpError(400, "Invalid photo collection", "Choose between 1 and 10 photos.");
+  }
+  const seen = new Set();
+  return photos.map(photo => {
+    const fileId = safeUploadedFileId(photo?.fileId);
+    const crop = photo?.crop;
+    if (!fileId || seen.has(fileId) || !crop ||
+        ![crop.x, crop.y, crop.zoom].every(Number.isFinite) ||
+        crop.x < 0 || crop.x > 1 || crop.y < 0 || crop.y > 1 || crop.zoom < 1 || crop.zoom > 4) {
+      throw new HttpError(400, "Invalid photo crop", "Please adjust each photo again.");
+    }
+    seen.add(fileId);
+    return { fileId, crop: { x: crop.x, y: crop.y, zoom: crop.zoom } };
+  });
+}
+
 function v1MemoryToPost(memory, index = 0, language = "en") {
   const content = String(memory?.content || "");
   const preview = memoryPreview(memory);
   const excerpt = preview.text + (preview.truncated ? "…" : "");
   const imageKey = v1ImageKey(memory);
+  const photos = v1MemoryPhotos(memory);
   const isLongForm = preview.longForm;
   return {
     id: v1LegacyPostId(memory, index),
@@ -732,9 +763,10 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     title: htmlText(memory?.title || "I Remember"),
     title_text: String(memory?.title || "I Remember"),
     img: imageKey,
-    image_url: memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey),
-    thumb_url: safeUploadedFileId(imageKey) ? legacyImagePath(imageKey, "thumb") : (memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey, "thumb")),
-    full_image_url: safeUploadedFileId(imageKey) ? legacyImagePath(imageKey, "full") : (memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey)),
+    photos,
+    image_url: photos[0]?.image_url || legacyImagePath(imageKey),
+    thumb_url: photos[0]?.image_url || (safeUploadedFileId(imageKey) ? legacyImagePath(imageKey, "thumb") : (memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey, "thumb"))),
+    full_image_url: photos[0]?.full_image_url || legacyImagePath(imageKey, "full"),
     img_offset_x: "0",
     img_offset_y: "0",
     text: htmlText(excerpt),
@@ -1170,7 +1202,36 @@ class RevivalBackend {
     return fileId;
   }
 
+  async cropPhoto(photo, order) {
+    const original = await this.imageForPath(legacyImagePath(photo.fileId, "full"));
+    if (!original) throw new HttpError(400, "Photo not found", "Please upload the photo again.");
+    const { width, height } = await sharp(original.data).metadata();
+    const size = Math.max(1, Math.floor(Math.min(width, height) / photo.crop.zoom));
+    const left = Math.round(Math.max(0, Math.min(width - size, photo.crop.x * width - size / 2)));
+    const top = Math.round(Math.max(0, Math.min(height - size, photo.crop.y * height - size / 2)));
+    const digest = createHash("sha256").update(JSON.stringify({ left, top, size })).digest("hex").slice(0, 20);
+    const filename = `crop-${digest}.jpg`;
+    const folder = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", photo.fileId);
+    const path = join(folder, filename);
+    if (!existsSync(path)) {
+      const data = await sharp(original.data).extract({ left, top, width: size, height: size }).resize(600, 600).jpeg({ quality: 90 }).toBuffer();
+      writeFileSync(path, data, { mode: 0o660 });
+    }
+    return { url: `/uploads/posts/${photo.fileId}/${filename}`, type: "image/jpeg",
+      metadata: { imageKey: photo.fileId, crop: photo.crop, order } };
+  }
+
   async imageForPath(pathname) {
+    const squareMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/square\.jpg$/i);
+    if (squareMatch) {
+      const attachment = await this.cropPhoto({ fileId: squareMatch[1], crop: { x: 0.5, y: 0.5, zoom: 1 } }, 0);
+      return this.imageForPath(attachment.url);
+    }
+    const cropMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/(crop-[a-f0-9]{20}\.jpg)$/i);
+    if (cropMatch) {
+      const file = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", cropMatch[1], cropMatch[2]);
+      return existsSync(file) ? { data: readFileSync(file), mimeType: "image/jpeg" } : null;
+    }
     const fullMatch = pathname.match(/^\/uploads\/(?:tmp|posts)\/(revival-[a-z0-9-]+)\/full\.jpg$/i);
     if (fullMatch) {
       const folder = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", fullMatch[1]);
@@ -1239,6 +1300,12 @@ class RevivalBackend {
   async createPost(fields = {}, defaultLanguage = this.siteSettings().defaultLanguage) {
     const clean = validatedPostFields(fields, defaultLanguage);
     const language = clean.language;
+    const photos = validatedPhotos(fields);
+    const attachments = [];
+    if (photos) {
+      for (let index = 0; index < photos.length; index++) attachments.push(await this.cropPhoto(photos[index], index));
+      clean.fileId = photos[0].fileId;
+    }
     const v1Memory = await this.v1Data("/api/v1/memories", {
       method: "POST",
       body: JSON.stringify({
@@ -1253,7 +1320,7 @@ class RevivalBackend {
           source: "public-submission",
           imageKey: clean.fileId,
         },
-        attachments:
+        attachments: photos ? attachments :
           clean.fileId && clean.fileId !== "revival-upload"
             ? [{ url: legacyImagePath(clean.fileId, "resized"), type: "image/jpeg" }]
             : undefined,

@@ -558,6 +558,32 @@ try {
   const squarePhoto = Buffer.from(await squareResponse.arrayBuffer());
   const corner = await sharp(squarePhoto).extract({ left: 1, top: 1, width: 1, height: 1 }).raw().toBuffer();
   assert.ok([...corner].every((value) => value < 10), "Square preview should letterbox, not crop");
+  const crops = [
+    { fileId: cameraId, crop: { x: 1, y: 0.5, zoom: 4 } },
+    { fileId: publicUploadBody.data.fileId, crop: { x: 0.5, y: 0.5, zoom: 1 } },
+  ];
+  const albumResponse = await fetch(`${baseUrl}/api/post`, {
+    method: "POST", headers: { "Content-Type": "application/json", Origin: baseUrl },
+    body: JSON.stringify({ name: "Gallery test", message: "Two independently cropped photos.", photos: crops }),
+  });
+  assert.equal(albumResponse.status, 200);
+  const album = (await albumResponse.json()).data;
+  assert.equal(album.photos.length, 2);
+  assert.ok(album.photos[0].image_url.includes("/crop-"));
+  assert.equal(album.photos[0].full_image_url, `/uploads/posts/${cameraId}/full.jpg`);
+  assert.deepEqual(v1CreateBodies.at(-1).attachments.map(a => a.metadata.crop), crops.map(p => p.crop));
+  const cropped = await fetch(`${baseUrl}${album.photos[0].image_url}`).then(r => r.arrayBuffer());
+  const croppedDimensions = await sharp(Buffer.from(cropped)).metadata();
+  assert.equal(croppedDimensions.width, 600);
+  assert.equal(croppedDimensions.height, 600);
+  const cropCenter = await sharp(Buffer.from(cropped)).extract({ left: 300, top: 300, width: 1, height: 1 }).raw().toBuffer();
+  assert.ok(cropCenter[2] > 230 && cropCenter[0] < 20, "Saved crop must reflect zoom and rightward pan, not the center of the original");
+  const originalAfter = await fetch(`${baseUrl}${album.photos[0].full_image_url}`).then(r => r.arrayBuffer());
+  assert.deepEqual(Buffer.from(originalAfter), fullPhoto, "Cropping must never modify the full photograph");
+  for (const photos of [[], Array(11).fill(crops[0]), [crops[0], crops[0]], [{ fileId: "../../bad", crop: crops[0].crop }], [{ fileId: cameraId, crop: { x: 0.5, y: 0.5, zoom: 0 } }]]) {
+    const rejected = await fetch(`${baseUrl}/api/post`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photos }) });
+    assert.equal(rejected.status, 400, "Malformed or oversized galleries must be rejected");
+  }
   const invalidForm = new FormData();
   invalidForm.set("local", new Blob(["not an image"], { type: "image/jpeg" }), "broken.jpg");
   const invalidImage = await fetch(`${baseUrl}/api/upload-image`, { method: "POST", body: invalidForm });

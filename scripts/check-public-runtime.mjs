@@ -59,9 +59,26 @@ assert.ok(
   !patchedMain.includes("s=n.SITE_URL+s,"),
   "Sharing must use the configured canonical origin",
 );
-assert.ok(patchedMain.includes("window.__REVIVAL_UPLOAD_ERROR__(e)"));
+assert.ok(patchedMain.includes("window.SongqiPhotos.uploadFiles(this.files,false)"));
 assert.ok(!patchedMain.includes("r.width>5e3||r.height>5e3"), "Camera photos must reach server pixel validation");
-assert.ok(patchedMain.includes("e.full_image_url||e.image_url"), "Opened cards must use the uncropped variant");
+assert.ok(patchedMain.includes("window.SongqiPhotos.showMemory(e)"), "All memory entry paths must initialize the gallery");
+assert.ok(patchedMain.includes("JSON.stringify(r.data.photos)"), "Submission must persist every crop");
+assert.ok(patchedMain.includes("window.SongqiPhotos.createAdjustmentStep"), "The old drag-only editor must be replaced");
+new Function(patchedMain);
+const gallerySource = await readFile(new URL("../public/js/photo-gallery.js", import.meta.url), "utf8");
+const galleryWindow = {};
+runInNewContext(gallerySource, { window: galleryWindow, Map });
+const cropBounds = galleryWindow.SongqiPhotos.cropBounds;
+for (const [width, height] of [[2400, 1587], [600, 900], [600, 600]]) {
+  for (const zoom of [1, 2, 4]) {
+    for (const [x, y] of [[0, 0], [0.5, 0.5], [1, 1]]) {
+      const crop = cropBounds(width, height, { x, y, zoom });
+      assert.equal(crop.size, Math.min(width, height) / zoom);
+      assert.ok(crop.left >= 0 && crop.left + crop.size <= width);
+      assert.ok(crop.top >= 0 && crop.top + crop.size <= height);
+    }
+  }
+}
 const validateUpload = runtimeFunction("uploadFileError", {
   window: { SONGQI_UPLOAD_LIMITS: { maxBytes: 8388608 } }, siteLanguage: () => "en",
 });

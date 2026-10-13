@@ -18,7 +18,7 @@ html body .add-steps-message-input:focus {
   .app.revival-card-fit .post-2d-img {
     width: var(--revival-card-image-width) !important;
     height: var(--revival-card-image-height) !important;
-    background-size: contain;
+    background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
   }
@@ -195,7 +195,7 @@ html body .add-steps-message-input:focus {
     aspect-ratio: var(--revival-photo-ratio, 1);
     max-height: none !important;
     background-position: center !important;
-    background-size: contain !important;
+    background-size: cover !important;
   }
   html body .post-2d .post-2d-content-wrapper {
     position: static !important;
@@ -505,10 +505,51 @@ html body .error-blocker-message {
 }
 html body .error-blocker-message::before { flex: 0 0 21px; top: 0; }
 html body .revival-menu-image { background-size: contain; background-repeat: no-repeat; }
-html body .post-2d-img { outline: none; position: relative; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: zoom-in; }
+html body .post-2d-img { outline: none; position: relative; background-size: cover; background-repeat: no-repeat; background-position: center; cursor: zoom-in; }
 .revival-photo-viewer { position: fixed; inset: 0; margin: auto; padding: 48px 12px 12px; border: 0; background: #080808; color: white; width: calc(100vw - 24px); max-width: 1600px; height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); box-sizing: border-box; }
 .revival-photo-viewer::backdrop { background: #000e; }
 .revival-photo-viewer img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .revival-photo-viewer button { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: #222; color: #fff; font: 28px/1 Arial,sans-serif; cursor: pointer; }
 
 html body .post-2d-img:focus-visible { outline: none !important; box-shadow: inset 0 0 0 1px #ffffff55; }
+
+/* Photo composition and multi-photo memories retain the quiet archive controls. */
+.add-steps.photo-adjusting { z-index: 6; }
+.photo-editor { --photo-editor-size: min(290px, 36dvh); width: var(--photo-editor-size) !important; height: auto !important; margin: 0 !important; transform: translate(-50%, -50%) !important; z-index: 5; }
+.photo-editor canvas { display: block; width: 100%; aspect-ratio: 1; border: 1px solid #ffffff55; box-sizing: border-box; cursor: grab; touch-action: none; }
+.photo-editor canvas:active { cursor: grabbing; }
+.photo-editor button { min-width: 44px; height: 44px; border: 0; background: transparent; color: #ddd; font: 22px Georgia, serif; cursor: pointer; }
+.photo-editor button:disabled { opacity: .25; cursor: default; }
+.photo-editor button:focus-visible, .photo-editor canvas:focus-visible { outline: 1px solid #aaa !important; outline-offset: 2px !important; }
+.photo-zoom-controls, .photo-edit-actions { display: flex; align-items: center; justify-content: center; gap: 4px; }
+.photo-zoom-controls input { width: calc(100% - 96px); accent-color: #ccc; min-height: 44px; }
+.photo-edit-actions { min-width: 180px; position: relative; left: 50%; transform: translateX(-50%); }
+.photo-edit-actions span { color: #aaa; font: 13px Georgia, serif; margin-right: auto; white-space: nowrap; }
+.photo-edit-strip { display: flex; gap: 6px; overflow-x: auto; overscroll-behavior: contain; touch-action: pan-x; padding: 4px 0; }
+.photo-edit-strip button { flex: 0 0 44px; width: 44px; padding: 2px; opacity: .55; }
+.photo-edit-strip button[aria-pressed="true"] { opacity: 1; box-shadow: inset 0 0 0 1px #aaa; }
+.photo-edit-strip img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.photo-upload-status { position: absolute; bottom: 20%; left: 50%; transform: translateX(-50%); z-index: 10; color: #eee; font: 16px Georgia, serif; background: #000b; padding: 8px 16px; }
+.photo-gallery-controls { position: absolute; left: 0; top: 0; width: var(--revival-card-image-width, 600px); height: var(--revival-card-image-height, 600px); pointer-events: none; }
+.photo-gallery-controls[hidden], .revival-photo-viewer button[hidden] { display: none !important; }
+.photo-gallery-controls button, .revival-photo-viewer .photo-gallery-prev, .revival-photo-viewer .photo-gallery-next { position: absolute; top: 50%; bottom: auto; transform: translateY(-50%); width: 44px; height: 44px; border: 0; border-radius: 50%; background: #0008; color: #eee; font: 32px Georgia, serif; pointer-events: auto; cursor: pointer; }
+.photo-gallery-prev { left: 6px !important; right: auto !important; }
+.photo-gallery-next { right: 6px !important; left: auto !important; }
+.photo-gallery-count { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: #0009; border-radius: 12px; padding: 4px 9px; color: #eee; font: 12px Georgia, serif; }
+@media (max-width: 760px), (max-width: 1024px) and (max-height: 500px) {
+  .photo-adjusting .add-steps-back-btn, .photo-adjusting .add-steps-validate-btn { top: auto !important; bottom: calc(64px + env(safe-area-inset-bottom)) !important; margin: 0 !important; width: 120px !important; }
+  .photo-adjusting .add-steps-back-btn { left: 12px !important; right: auto !important; }
+  .photo-adjusting .add-steps-validate-btn { right: 12px !important; left: auto !important; }
+  .photo-gallery-controls { width: 100%; height: auto; aspect-ratio: 1; }
+}
+@media (max-width: 1024px) and (max-height: 500px) {
+  .photo-editor { --photo-editor-size: min(160px, 36dvh); top: 48% !important; }
+  .photo-gallery-controls { width: 35%; }
+}
+
+@media (max-width: 760px), (max-width: 1024px) and (max-height: 500px) {
+  .photo-adjusting .add-steps-back-btn, .photo-adjusting .add-steps-validate-btn { display: flex !important; align-items: center; justify-content: center; gap: 8px; height: 44px; white-space: nowrap; }
+  .photo-adjusting .add-steps-back-btn { flex-direction: row-reverse; }
+  .photo-adjusting .add-steps-back-btn > *, .photo-adjusting .add-steps-validate-btn > * { float: none !important; margin: 0 !important; }
+}
+.photo-editor input:focus-visible { outline: 1px solid #aaa !important; outline-offset: 0 !important; }

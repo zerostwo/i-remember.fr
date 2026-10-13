@@ -614,9 +614,16 @@
       .replace('backgroundImage:"url(uploads/posts/"+e.img+"/resized.jpg)"', 'backgroundImage:"url("+(e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"');
     // The server validates decoded pixels; camera photos are not limited to 5000px.
     patched = patched.replace(/function tt\(\)\{var e=this\.files\[0\],t=e\.size;[\s\S]*?(?=function nt\(e\))/,
-      'function tt(){var e=this.files&&this.files[0];if(!e)return;var error=window.__REVIVAL_UPLOAD_ERROR__(e);if(error){s.showErrorMsgs(error);return}nt(e)}');
-    patched = patched.replace('backgroundImage:"url("+(e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"',
-      'backgroundImage:"url("+(e.full_image_url||e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"');
+      'function tt(){window.SongqiPhotos.uploadFiles(this.files,false)}');
+    var adjustmentStart = patched.indexOf('define("steps/adjustmentStep",');
+    var adjustmentEnd = patched.indexOf('define("mout/string/interpolate",', adjustmentStart);
+    if (adjustmentStart >= 0 && adjustmentEnd > adjustmentStart) {
+      patched = patched.slice(0, adjustmentStart) +
+        'define("steps/adjustmentStep",["exports","stepController","uiController","scene3d/postSubmitCircle","EKTweener"],function(e,r,i,s,f){Object.assign(e,window.SongqiPhotos.createAdjustmentStep(r,i,s,f))}),' +
+        patched.slice(adjustmentEnd);
+    }
+    patched = patched.replace('function U(e){M=e;var t=new Image', 'function U(e){window.SongqiPhotos.showMemory(e);M=e;var t=new Image');
+    patched = patched.replace('e.append("fileId",r.data.fileId),', 'e.append("fileId",r.data.fileId),r.data.photos&&r.data.photos.length&&e.append("photos",JSON.stringify(r.data.photos)),');
     // Retain the original noise field, geometry and transitions. Only replace
     // cyclic memory allocation and stale mesh/hover handling in the old renderer.
     patched = patched
@@ -1376,10 +1383,9 @@
     var lastSize = "";
     var photo = document.querySelector(".post-2d-img");
     var photoSource = "";
-    var photoRatio = 1;
     function update() {
       frame = 0;
-      var layout = desktopCardLayout(app.clientWidth, app.clientHeight, header.offsetHeight, footer.offsetHeight, photoRatio);
+      var layout = desktopCardLayout(app.clientWidth, app.clientHeight, header.offsetHeight, footer.offsetHeight, 1);
       if (!layout) return;
       var sizeKey = layout.imageWidth + ":" + layout.imageHeight + ":" + layout.top;
       if (sizeKey === lastSize) return;
@@ -1409,8 +1415,7 @@
       image.onload = function () {
         // A previous memory can finish loading after a new one was opened.
         if (photoSource !== requestedSource || !image.naturalWidth || !image.naturalHeight) return;
-        photoRatio = image.naturalWidth / image.naturalHeight;
-        app.style.setProperty("--revival-photo-ratio", String(photoRatio));
+        app.style.setProperty("--revival-photo-ratio", "1");
         schedule();
       };
       image.src = match[1];
@@ -2140,122 +2145,7 @@
   }
 
   function installFullPhotoViewer() {
-    var photo = document.querySelector(".post-2d-img");
-    if (!photo || photo.dataset.fullPhotoReady) return;
-    photo.dataset.fullPhotoReady = "true";
-    photo.setAttribute("role", "button");
-    photo.setAttribute("tabindex", "0");
-    var language = siteLanguage();
-    var viewLabel = language === "zh" ? "查看完整照片" : language === "fr" ? "Voir la photo entière" : "View full photo";
-    var closeLabel = language === "zh" ? "关闭照片" : language === "fr" ? "Fermer la photo" : "Close photo";
-    photo.setAttribute("aria-label", viewLabel);
-    var dialog = document.createElement("dialog");
-    dialog.className = "revival-photo-viewer";
-    dialog.setAttribute("aria-label", viewLabel);
-    var close = document.createElement("button");
-    close.type = "button";
-    close.textContent = "×";
-    close.setAttribute("aria-label", closeLabel);
-    var image = document.createElement("img");
-    image.alt = viewLabel;
-    dialog.appendChild(close);
-    dialog.appendChild(image);
-    document.body.appendChild(dialog);
-    function show(event) {
-      if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
-      var background = photo.style.backgroundImage;
-      var match = background.match(/^url\(["']?(.*?)["']?\)$/);
-      if (!match) return;
-      event.preventDefault();
-      event.stopPropagation();
-      image.src = match[1];
-      dialog.showModal();
-      close.focus();
-    }
-    photo.addEventListener("click", show);
-    photo.addEventListener("keydown", show);
-    close.addEventListener("click", function () { dialog.close(); });
-    dialog.addEventListener("click", function (event) { if (event.target === dialog) dialog.close(); });
-    dialog.addEventListener("close", function () { image.removeAttribute("src"); photo.focus(); });
-  }
-
-  function uploadStillLoading() {
-    var loading = document.querySelector(".add-steps-upload-methods-loading");
-    if (!loading) return false;
-    var style = window.getComputedStyle ? window.getComputedStyle(loading) : loading.style;
-    return style.display !== "none" && Number(style.opacity || 0) > 0.15;
-  }
-
-  function advanceLegacyUpload(fileId) {
-    var steps = legacyModule("stepController");
-    var input = legacyModule("inputController");
-    if (!steps) return;
-    steps.data = steps.data || {};
-    steps.data.fileId = fileId;
-    if (input && input.unlock) input.unlock("upload-image");
-    var image = new Image();
-    image.onload = function () {
-      steps.data.image = image;
-      if (steps.goToStep) steps.goToStep("adjustment");
-    };
-    image.src = "/uploads/tmp/" + encodeURIComponent(fileId) + "/resized.jpg";
-    if (image.width && image.onload) image.onload();
-  }
-
-  function fallbackUploadLocalFile(input) {
-    var file = input && input.files && input.files[0];
-    if (!file || input.__revivalUploadFallbackActive) return;
-    input.__revivalUploadFallbackActive = true;
-    window.setTimeout(function () {
-      var steps = legacyModule("stepController");
-      var inputController = legacyModule("inputController");
-      if (steps && steps.data && steps.data.fileId) {
-        input.__revivalUploadFallbackActive = false;
-        return;
-      }
-      if ((window.__REVIVAL_UPLOAD_REQUESTS__ || 0) > 0) {
-        input.__revivalUploadFallbackActive = false;
-        return;
-      }
-      if (!uploadStillLoading()) {
-        input.__revivalUploadFallbackActive = false;
-        return;
-      }
-      var form = new FormData();
-      form.append("local", file);
-      form.append("ln", siteLanguage());
-      window.fetch("/api/upload-image", {
-        method: "POST",
-        body: form,
-        credentials: "same-origin"
-      })
-        .then(function (response) {
-          return response.json();
-        })
-        .then(function (payload) {
-          if (payload && payload.success && payload.data && payload.data.fileId) {
-            advanceLegacyUpload(payload.data.fileId);
-          } else if (inputController && inputController.unlock) {
-            inputController.unlock("upload-image");
-          }
-        })
-        .catch(function () {
-          if (inputController && inputController.unlock) {
-            inputController.unlock("upload-image");
-          }
-        })
-        .then(function () {
-          input.__revivalUploadFallbackActive = false;
-        });
-    }, 3200);
-  }
-
-  function installUploadWatchdog() {
-    document.addEventListener("change", function (event) {
-      if (event.target && event.target.id === "local-upload") {
-        fallbackUploadLocalFile(event.target);
-      }
-    }, true);
+    window.SongqiPhotos.installViewer();
   }
 
   function installTouchInteraction() {
@@ -2521,7 +2411,6 @@
   installIntroFastForward();
   installSearchFallback();
   window.__REVIVAL_UPLOAD_ERROR__ = uploadFileError;
-  installUploadWatchdog();
 
   document.addEventListener(
     "click",
