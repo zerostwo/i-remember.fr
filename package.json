@@ -12,7 +12,7 @@
       "sharp"
     ],
     "overrides": {
-      "fast-uri": "3.1.6",
+      "fast-uri": "3.1.7",
       "@prisma/config>deepmerge-ts": "8.0.2",
       "prisma>mysql2": "3.22.0"
     }
@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "micromark": "4.0.2",
-    "sharp": "^0.35.4"
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@fontsource-variable/geist": "^5.2.9",
