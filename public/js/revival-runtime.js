@@ -612,6 +612,11 @@
       .replace('e.UPLOADS_FOLDER+"posts/"+this.img+"/resized.jpg"', '(this.image_url||e.UPLOADS_FOLDER+"posts/"+this.img+"/resized.jpg")')
       .replace('t.src="uploads/posts/"+e.img+"/resized.jpg"', 't.src=e.image_url||"uploads/posts/"+e.img+"/resized.jpg"')
       .replace('backgroundImage:"url(uploads/posts/"+e.img+"/resized.jpg)"', 'backgroundImage:"url("+(e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"');
+    // The server validates decoded pixels; camera photos are not limited to 5000px.
+    patched = patched.replace(/function tt\(\)\{var e=this\.files\[0\],t=e\.size;[\s\S]*?(?=function nt\(e\))/,
+      'function tt(){var e=this.files&&this.files[0];if(!e)return;var error=window.__REVIVAL_UPLOAD_ERROR__(e);if(error){s.showErrorMsgs(error);return}nt(e)}');
+    patched = patched.replace('backgroundImage:"url("+(e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"',
+      'backgroundImage:"url("+(e.full_image_url||e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"');
     // Retain the original noise field, geometry and transitions. Only replace
     // cyclic memory allocation and stale mesh/hover handling in the old renderer.
     patched = patched
@@ -915,6 +920,7 @@
         jqxhr.readyState = 4;
         jqxhr.status = error.response ? error.response.status : 0;
         jqxhr.responseJSON = error.payload || null;
+        jqxhr.errorMsg = error.payload && error.payload.errorMsg || "unexpected";
         jqxhr.responseText = error.text || "";
         if (settings.error) settings.error(jqxhr, "error", error);
         if (settings.complete) settings.complete(jqxhr, "error");
@@ -2096,6 +2102,61 @@
     );
   }
 
+  function uploadFileError(file) {
+    var limits = window.SONGQI_UPLOAD_LIMITS || { maxBytes: 8388608 };
+    if (file.size <= limits.maxBytes) return "";
+    var mb = Math.round(limits.maxBytes / 1048576);
+    var language = siteLanguage();
+    if (language === "zh") return "请选择小于 " + mb + " MB 的照片。";
+    if (language === "fr") return "Choisissez une photo de moins de " + mb + " Mo.";
+    return "Please choose a photo under " + mb + " MB.";
+  }
+
+  function installFullPhotoViewer() {
+    var photo = document.querySelector(".post-2d-img");
+    if (!photo || photo.dataset.fullPhotoReady) return;
+    photo.dataset.fullPhotoReady = "true";
+    photo.setAttribute("role", "button");
+    photo.setAttribute("tabindex", "0");
+    var language = siteLanguage();
+    var viewLabel = language === "zh" ? "查看完整照片" : language === "fr" ? "Voir la photo entière" : "View full photo";
+    var closeLabel = language === "zh" ? "关闭照片" : language === "fr" ? "Fermer la photo" : "Close photo";
+    photo.setAttribute("aria-label", viewLabel);
+    photo.setAttribute("title", viewLabel);
+    var hint = document.createElement("span");
+    hint.className = "revival-photo-hint";
+    hint.textContent = viewLabel;
+    photo.appendChild(hint);
+    var dialog = document.createElement("dialog");
+    dialog.className = "revival-photo-viewer";
+    dialog.setAttribute("aria-label", viewLabel);
+    var close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "×";
+    close.setAttribute("aria-label", closeLabel);
+    var image = document.createElement("img");
+    image.alt = viewLabel;
+    dialog.appendChild(close);
+    dialog.appendChild(image);
+    document.body.appendChild(dialog);
+    function show(event) {
+      if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
+      var background = photo.style.backgroundImage;
+      var match = background.match(/^url\(["']?(.*?)["']?\)$/);
+      if (!match) return;
+      event.preventDefault();
+      event.stopPropagation();
+      image.src = match[1];
+      dialog.showModal();
+      close.focus();
+    }
+    photo.addEventListener("click", show);
+    photo.addEventListener("keydown", show);
+    close.addEventListener("click", function () { dialog.close(); });
+    dialog.addEventListener("click", function (event) { if (event.target === dialog) dialog.close(); });
+    dialog.addEventListener("close", function () { image.removeAttribute("src"); photo.focus(); });
+  }
+
   function uploadStillLoading() {
     var loading = document.querySelector(".add-steps-upload-methods-loading");
     if (!loading) return false;
@@ -2420,6 +2481,7 @@
     ensureManagedMenuStyles();
     installMobileViewportSupport();
     installDesktopCardFit();
+    installFullPhotoViewer();
     installImeCompositionSupport();
     installLegacySearchState();
     installMobileMapHint();
@@ -2436,6 +2498,7 @@
   window.setTimeout(applyLanguagePreference, 1800);
   installIntroFastForward();
   installSearchFallback();
+  window.__REVIVAL_UPLOAD_ERROR__ = uploadFileError;
   installUploadWatchdog();
 
   document.addEventListener(

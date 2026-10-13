@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import sharp from "sharp";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -532,6 +533,35 @@ try {
   );
   assert.equal(publicUploadPreviewResponse.status, 200);
   assert.match(publicUploadPreviewResponse.headers.get("content-type") || "", /^image\//);
+
+  // A 40.6 MP camera photo with colored edges catches both the old resolution
+  // rejection and destructive square cropping. No personal photo is committed.
+  const cameraPhoto = await sharp({ create: { width: 7840, height: 5184, channels: 3, background: "#00ff00" } })
+    .composite([{ input: Buffer.from('<svg width="7840" height="5184"><rect width="1000" height="5184" fill="red"/><rect x="6840" width="1000" height="5184" fill="blue"/></svg>') }])
+    .jpeg().toBuffer();
+  const cameraForm = new FormData();
+  cameraForm.set("local", new Blob([cameraPhoto], { type: "image/jpeg" }), "camera.jpg");
+  const cameraResponse = await fetch(`${baseUrl}/api/upload-image`, { method: "POST", body: cameraForm });
+  assert.equal(cameraResponse.status, 200);
+  const cameraId = (await cameraResponse.json()).data.fileId;
+  const fullResponse = await fetch(`${baseUrl}/uploads/posts/${cameraId}/full.jpg`);
+  assert.equal(fullResponse.status, 200);
+  const fullPhoto = Buffer.from(await fullResponse.arrayBuffer());
+  const dimensions = await sharp(fullPhoto).metadata();
+  assert.equal(dimensions.width, 2400);
+  assert.equal(dimensions.height, 1587);
+  for (const [left, channel] of [[10, 0], [2380, 2]]) {
+    const pixel = await sharp(fullPhoto).extract({ left, top: 790, width: 1, height: 1 }).raw().toBuffer();
+    assert.ok(pixel[channel] > 230, "Both outer edges of the photograph must remain visible");
+  }
+  const squareResponse = await fetch(`${baseUrl}/uploads/posts/${cameraId}/resized.jpg`);
+  const squarePhoto = Buffer.from(await squareResponse.arrayBuffer());
+  const corner = await sharp(squarePhoto).extract({ left: 1, top: 1, width: 1, height: 1 }).raw().toBuffer();
+  assert.ok([...corner].every((value) => value < 10), "Square preview should letterbox, not crop");
+  const invalidForm = new FormData();
+  invalidForm.set("local", new Blob(["not an image"], { type: "image/jpeg" }), "broken.jpg");
+  const invalidImage = await fetch(`${baseUrl}/api/upload-image`, { method: "POST", body: invalidForm });
+  assert.equal(invalidImage.status, 400, "Invalid images should return a useful client error");
 
   const legacyUploadResponse = await fetch(`${baseUrl}/uploads/posts/revival-upload/thumb.jpg`);
   assert.equal(legacyUploadResponse.status, 200);

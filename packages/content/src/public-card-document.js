@@ -30,7 +30,7 @@ html,body{margin:0;width:100%;height:100%;overflow:auto;background:#000}
 html body .post-2d{display:block;position:relative;height:100%}
 html body .post-2d .post-2d-center-wrapper{opacity:1;top:0!important;max-height:100%!important}
 html body .post-2d .post-2d-close-btn{position:absolute!important;top:6px!important;right:6px!important}
-.post-2d-img img{display:block;width:100%;height:100%;object-fit:cover}
+.post-2d-img img{display:block;width:100%;height:100%;object-fit:contain}
 .post-2d-center-wrapper{width:948px;height:600px;left:0;transform:none}
 .post-2d-img{width:600px}
 .post-2d-content{position:relative}

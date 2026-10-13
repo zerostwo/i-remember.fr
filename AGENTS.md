@@ -169,3 +169,9 @@ Current backend/product decisions:
   self-hosters. Preserve the public visual experience; ship server-rendered SEO
   metadata and public-only crawl discovery. README screenshots are intentional
   documentation assets, distinct from disposable QA artifacts.
+
+- Owner feedback on 2026-10-13: center complete upload error messages, including
+  the icon, and wrap them on narrow screens. Support high-resolution camera
+  photos such as 7840 x 5184 within explicit byte/pixel limits. Preserve the
+  complete photo in opened memories rather than destructively cropping it to
+  a square; keep the existing galaxy appearance and staged submission flow.

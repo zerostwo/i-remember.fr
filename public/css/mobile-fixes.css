@@ -194,7 +194,7 @@ html body .add-steps-message-input:focus {
     height: min(30vh, 230px) !important;
     max-height: 230px !important;
     background-position: center !important;
-    background-size: cover !important;
+    background-size: contain !important;
   }
   html body .post-2d .post-2d-content-wrapper {
     position: static !important;
@@ -490,3 +490,22 @@ html body .add-steps-message-input:focus {
     pointer-events: none;
   }
 }
+
+/* Center the complete message, including its icon, and allow narrow screens to wrap. */
+html body .error-blocker-messages-wrapper {
+  left: 50%; top: 50%; width: max-content; height: auto;
+  max-width: min(760px, calc(100% - 40px)); margin: 0;
+  transform: translate(-50%, -50%);
+}
+html body .error-blocker-message {
+  height: auto; white-space: normal; overflow-wrap: anywhere;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+}
+html body .error-blocker-message::before { flex: 0 0 21px; top: 0; }
+html body .revival-menu-image { background-size: contain; background-repeat: no-repeat; }
+html body .post-2d-img { position: relative; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: zoom-in; }
+.revival-photo-hint { position: absolute; bottom: 12px; right: 12px; padding: 8px 12px; border-radius: 20px; background: #000b; color: #eee; font: 12px/1.4 Georgia,serif; }
+.revival-photo-viewer { position: fixed; inset: 0; margin: auto; padding: 48px 12px 12px; border: 0; background: #080808; color: white; width: calc(100vw - 24px); max-width: 1600px; height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); box-sizing: border-box; }
+.revival-photo-viewer::backdrop { background: #000e; }
+.revival-photo-viewer img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.revival-photo-viewer button { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: #222; color: #fff; font: 28px/1 Arial,sans-serif; cursor: pointer; }

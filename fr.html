@@ -91,13 +91,13 @@
                 <div class="add-steps-upload-methods-icons-container">
                     <div class="circle-btn circle-btn-symbol-facebook circle-btn-style-dim" data-id="facebook"><div class="circle-btn-icon-wrapper"><div class="circle-btn-icon"></div></div></div>
                     <div class="circle-btn circle-btn-symbol-instagram circle-btn-style-dim" data-id="instagram"><div class="circle-btn-icon-wrapper"><div class="circle-btn-icon"></div></div></div>
-                    <form class="add-steps-upload-methods-local-form" enctype="multipart/form-data"><input id="local-upload" name="local" type="file" accept="image/png, image/x-png, image/gif, image/jpeg">
+                    <form class="add-steps-upload-methods-local-form" enctype="multipart/form-data"><input id="local-upload" name="local" type="file" accept="image/png, image/x-png, image/gif, image/jpeg, image/webp">
                         <div class="circle-btn circle-btn-symbol-local circle-btn-style-dim" data-id="local"><div class="circle-btn-icon-wrapper"><label class="circle-btn-icon" for="local-upload"></label></div></div>
                     </form>
                 </div>
 
                 <div class="add-steps-upload-methods-texts-container font-light">
-                    <div class="add-steps-upload-methods-text add-steps-upload-methods-text-default">télécharger<br/><span class="font-light-italic">une image</span><br/><span class="add-steps-upload-methods-text-size">(res min: 500px)</span></div>
+                    <div class="add-steps-upload-methods-text add-steps-upload-methods-text-default">télécharger<br/><span class="font-light-italic">une image</span><br/><span class="add-steps-upload-methods-text-size">(8 Mo · 64 MP)</span></div>
                     <div class="add-steps-upload-methods-text add-steps-upload-methods-text-facebook">depuis<br/><span class="font-light-italic">Facebook</span></div>
                     <div class="add-steps-upload-methods-text add-steps-upload-methods-text-instagram">depuis<br/><span class="font-light-italic">Instagram</span></div>
                     <div class="add-steps-upload-methods-text add-steps-upload-methods-text-local">depuis<br/><span class="font-light-italic">votre ordinateur</span></div>
@@ -451,7 +451,7 @@ Les titres des articles n'ont qu'une valeur indicative.<br/><br/><span class='fo
     var SETTINGS = {"fading":87};
     var INSTAGRAM_ID = '40af423f2a3e49bf9dd802f2f7476ad0';
     var FACEBOOK_ID = '295459023939521';
-    var ERROR_MESSAGES = {"incorrectImageFormat":"Format d'image incorrect","imageUrlIsNotValid":"L'url de l'image est incorrect","imageSizeNotValid":"Maximum 5MB.","imageResolutionNotValid":"La largeur\/hauteur de l'image doit<br\/> \u00eatre comprise entre 500 et 5000 pixels","name":"Veuillez renseigner <span class=\"font-bold\">votre nom<\/span>","email":"Veuillez renseigner <span class=\"font-bold\">votre email<\/span>","message":"Veuillez renseigner <span class=\"font-bold\">votre message<\/span>","fileId":"Veuillez reuploader votre image.","badWord":"Merci d'utiliser un autre mot que <span class='font-bold-italic'>{{interpolation}}<\/span>.","postNotFound":"Post inconnu.","postIdIsMissing":"Post id manquant.","search3OrAbove":"Veuillez renseigner au moins 3 lettres.","deleteCodeIncorrect":"Le code de suppression est incorrect.","postAlreadyDeleted":"Le post a d\u00e9j\u00e0 \u00e9t\u00e9 supprim\u00e9.","apiNotFound":"Api method not found.","missingLang":"Language attribute is missing.","adminRequired":"Admin required.","unexpected":"Unexpected Error.","keywordEmpty":"keyword field cannot be empty"};
+    var ERROR_MESSAGES = {"incorrectImageFormat":"Format d'image incorrect","imageUrlIsNotValid":"L'url de l'image est incorrect","imageSizeNotValid":"Choisissez une image plus petite.","imageResolutionNotValid":"Cette image dépasse la limite de pixels.","name":"Veuillez renseigner <span class=\"font-bold\">votre nom</span>","email":"Veuillez renseigner <span class=\"font-bold\">votre email</span>","message":"Veuillez renseigner <span class=\"font-bold\">votre message</span>","fileId":"Veuillez reuploader votre image.","badWord":"Merci d'utiliser un autre mot que <span class='font-bold-italic'>{{interpolation}}</span>.","postNotFound":"Post inconnu.","postIdIsMissing":"Post id manquant.","search3OrAbove":"Veuillez renseigner au moins 3 lettres.","deleteCodeIncorrect":"Le code de suppression est incorrect.","postAlreadyDeleted":"Le post a déjà été supprimé.","apiNotFound":"Api method not found.","missingLang":"Language attribute is missing.","adminRequired":"Admin required.","unexpected":"Unexpected Error.","keywordEmpty":"keyword field cannot be empty"};
 </script>
 <div id="fb-root"></div>
 <!--GA_BEGIN-->

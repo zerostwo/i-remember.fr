@@ -52,6 +52,15 @@ assert.ok(
   !patchedMain.includes("s=n.SITE_URL+s,"),
   "Sharing must use the configured canonical origin",
 );
+assert.ok(patchedMain.includes("window.__REVIVAL_UPLOAD_ERROR__(e)"));
+assert.ok(!patchedMain.includes("r.width>5e3||r.height>5e3"), "Camera photos must reach server pixel validation");
+assert.ok(patchedMain.includes("e.full_image_url||e.image_url"), "Opened cards must use the uncropped variant");
+const validateUpload = runtimeFunction("uploadFileError", {
+  window: { SONGQI_UPLOAD_LIMITS: { maxBytes: 8388608 } }, siteLanguage: () => "en",
+});
+assert.equal(validateUpload({ size: 2117493 }), "");
+assert.equal(validateUpload({ size: 8388608 }), "");
+assert.match(validateUpload({ size: 8388609 }), /8 MB/);
 // Execute URL changes through the actual history wrapper, including existing
 // links, in-place language switching, memory open/close, and back navigation.
 const languageEvents = new Map();
@@ -153,6 +162,17 @@ assert.equal(xhr.readyState, 0);
 finishRequest({ ok: true, status: 200, text: async () => '{"success":true,"data":[]}' });
 await new Promise((resolve) => setImmediate(resolve));
 assert.equal(successCalls, 0, "A cancelled request must not overwrite current UI results");
+
+let uploadFailure;
+const failedUpload = runtimeFunction("localApiAjax", {
+  URL, AbortController, window: {}, uploadImageInFlight: 0,
+  localApiUrl: (url) => url, memoryEnginePayload: () => null,
+  parseAjaxPayload: JSON.parse,
+  fetch: async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ errorMsg: "Please choose a valid image." }) }),
+});
+failedUpload({ url: "http://local/api/upload-image", type: "POST", error: (xhr) => { uploadFailure = xhr; } });
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(uploadFailure.errorMsg, "Please choose a valid image.", "Upload validation must survive the legacy AJAX error adapter");
 
 const classes = new Map();
 const css = new Map();

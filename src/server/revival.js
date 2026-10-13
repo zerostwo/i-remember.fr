@@ -25,7 +25,7 @@ const maxUploadBodyBytes = Number.parseInt(
   10,
 );
 const maxImagePixels = Number.parseInt(
-  process.env.I_REMEMBER_MAX_IMAGE_PIXELS || `${30_000_000}`,
+  process.env.I_REMEMBER_MAX_IMAGE_PIXELS || `${64_000_000}`,
   10,
 );
 const htmlUrls = {
@@ -618,17 +618,6 @@ function firstUploadedImage(files) {
   });
 }
 
-function storedMimeType(file) {
-  if (/^image\/(gif|jpeg|jpg|png|webp)$/i.test(file.contentType)) {
-    return file.contentType.replace(/^image\/jpg$/i, "image/jpeg");
-  }
-
-  if (/\.png$/i.test(file.filename)) return "image/png";
-  if (/\.gif$/i.test(file.filename)) return "image/gif";
-  if (/\.webp$/i.test(file.filename)) return "image/webp";
-  return "image/jpeg";
-}
-
 function mimeTypeForPath(pathname) {
   if (/\.png$/i.test(pathname)) return "image/png";
   if (/\.gif$/i.test(pathname)) return "image/gif";
@@ -701,7 +690,7 @@ function runtimeUploadedImageForPath(pathname) {
 }
 
 function legacyImagePath(imageKey, variant = "resized") {
-  const safeVariant = variant === "thumb" ? "thumb" : "resized";
+  const safeVariant = ["thumb", "full"].includes(variant) ? variant : "resized";
   return `/uploads/posts/${imageKey || "revival-upload"}/${safeVariant}.jpg`;
 }
 
@@ -744,7 +733,8 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     title_text: String(memory?.title || "I Remember"),
     img: imageKey,
     image_url: memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey),
-    thumb_url: memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey, "thumb"),
+    thumb_url: safeUploadedFileId(imageKey) ? legacyImagePath(imageKey, "thumb") : (memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey, "thumb")),
+    full_image_url: safeUploadedFileId(imageKey) ? legacyImagePath(imageKey, "full") : (memory?.attachments?.find((attachment) => String(attachment.type).startsWith("image/"))?.url || legacyImagePath(imageKey)),
     img_offset_x: "0",
     img_offset_y: "0",
     text: htmlText(excerpt),
@@ -1129,7 +1119,15 @@ class RevivalBackend {
     const fileId = `revival-${randomUUID().slice(0, 12)}`;
     const original = file.data;
     const input = sharp(file.data, { limitInputPixels: maxImagePixels, animated: false });
-    const metadata = await input.metadata();
+    let metadata;
+    try {
+      metadata = await input.metadata();
+    } catch (error) {
+      const pixelLimit = /pixel limit/i.test(error.message);
+      throw new HttpError(400, pixelLimit ? "Image exceeds the pixel limit" : "Invalid image", pixelLimit
+        ? `Please choose a photo under ${Math.round(maxImagePixels / 1_000_000)} megapixels.`
+        : "Please choose a valid JPEG, PNG, WebP or GIF image.");
+    }
     if (!["jpeg", "jpg", "png", "webp", "gif"].includes(metadata.format || "")) {
       throw new HttpError(400, "Unsupported image type", "invalid_image");
     }
@@ -1137,20 +1135,15 @@ class RevivalBackend {
       throw new HttpError(400, "Invalid image", "invalid_image");
     }
 
-    const mimeType = storedMimeType({
-      ...file,
-      contentType: metadata.format === "png"
-        ? "image/png"
-        : metadata.format === "webp"
-          ? "image/webp"
-          : metadata.format === "gif"
-            ? "image/gif"
-            : "image/jpeg",
-    });
     const resized = await sharp(file.data, { limitInputPixels: maxImagePixels, animated: false })
       .rotate()
-      .resize(600, 600, { fit: "cover" })
+      .resize(600, 600, { fit: "contain", background: "#000" })
       .jpeg({ quality: 88 })
+      .toBuffer();
+    const full = await sharp(file.data, { limitInputPixels: maxImagePixels, animated: false })
+      .rotate()
+      .resize(2400, 2400, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 90 })
       .toBuffer();
     const thumb = await sharp(file.data, { limitInputPixels: maxImagePixels, animated: false })
       .rotate()
@@ -1159,7 +1152,7 @@ class RevivalBackend {
       .toBuffer();
 
     uploadedImages.set(fileId, {
-      original: { data: original, mimeType },
+      full: { data: full, mimeType: "image/jpeg" },
       resized: { data: resized, mimeType: "image/jpeg" },
       thumb: { data: thumb, mimeType: "image/jpeg" },
     });
@@ -1170,6 +1163,7 @@ class RevivalBackend {
     const resizedPath = join(uploadDir, "resized.jpg");
     const thumbPath = join(uploadDir, "thumb.jpg");
     writeFileSync(originalPath, original, { mode: 0o660 });
+    writeFileSync(join(uploadDir, "full.jpg"), full, { mode: 0o660 });
     writeFileSync(resizedPath, resized, { mode: 0o660 });
     writeFileSync(thumbPath, thumb, { mode: 0o660 });
 
@@ -1177,6 +1171,21 @@ class RevivalBackend {
   }
 
   async imageForPath(pathname) {
+    const fullMatch = pathname.match(/^\/uploads\/(?:tmp|posts)\/(revival-[a-z0-9-]+)\/full\.jpg$/i);
+    if (fullMatch) {
+      const folder = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", fullMatch[1]);
+      const fullPath = join(folder, "full.jpg");
+      const originalPath = join(folder, "original");
+      if (!existsSync(fullPath) && existsSync(originalPath)) {
+        const full = await sharp(originalPath, { limitInputPixels: maxImagePixels, animated: false })
+          .rotate().resize(2400, 2400, { fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality: 90 }).toBuffer();
+        writeFileSync(fullPath, full, { mode: 0o660 });
+      }
+      const imagePath = existsSync(fullPath) ? fullPath : join(folder, "resized.jpg");
+      if (existsSync(imagePath)) return { data: readFileSync(imagePath), mimeType: "image/jpeg" };
+      return null;
+    }
     const localRuntime = runtimeUploadedImageForPath(pathname);
     if (localRuntime) return localRuntime;
 
@@ -1396,8 +1405,10 @@ async function renderAppHtml(
   let html = readFileSync(appHtmlUrlForLanguage(normalized), "utf8");
   if (normalized === "zh") html = localizeChineseHtml(html);
   if (backend.production) html = html.replace("/src/public-markdown.js", "/assets/public-markdown.js");
-  html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};</script>`);
+  html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};window.SONGQI_UPLOAD_LIMITS=${safeScriptJson({ maxBytes: maxUploadBodyBytes, maxPixels: maxImagePixels })};</script>`);
 
+  const uploadHint = `${Math.round(maxUploadBodyBytes / 1048576)} MB · ${Math.round(maxImagePixels / 1_000_000)} MP`;
+  html = html.replace(/(class="add-steps-upload-methods-text-size">)[^<]*/g, `$1(${uploadHint})`);
   html = patchLanguageShell(html, normalized, pathname);
   html = injectTracking(html, siteSettings);
 
@@ -1803,7 +1814,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
   if (pathname === "/api/upload-image" && req.method === "POST") {
     assertSameOrigin(req);
     assertRateLimit(req, "upload-image", 20, 10 * 60 * 1000);
-    const body = await collectRequest(req, maxUploadBodyBytes);
+    const body = await collectRequest(req, maxUploadBodyBytes + 64 * 1024);
     const { fields, files } = parseMultipart(req, body);
     const directImage = firstUploadedImage(files);
     const urlImage = directImage ? null : await backend.imageFromUrl(fields.url);

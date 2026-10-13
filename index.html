@@ -91,13 +91,13 @@
                 <div class="add-steps-upload-methods-icons-container">
                     <div class="circle-btn circle-btn-symbol-facebook circle-btn-style-dim" data-id="facebook"><div class="circle-btn-icon-wrapper"><div class="circle-btn-icon"></div></div></div>
                     <div class="circle-btn circle-btn-symbol-instagram circle-btn-style-dim" data-id="instagram"><div class="circle-btn-icon-wrapper"><div class="circle-btn-icon"></div></div></div>
-                    <form class="add-steps-upload-methods-local-form" enctype="multipart/form-data"><input id="local-upload" name="local" type="file" accept="image/png, image/x-png, image/gif, image/jpeg">
+                    <form class="add-steps-upload-methods-local-form" enctype="multipart/form-data"><input id="local-upload" name="local" type="file" accept="image/png, image/x-png, image/gif, image/jpeg, image/webp">
                         <div class="circle-btn circle-btn-symbol-local circle-btn-style-dim" data-id="local"><div class="circle-btn-icon-wrapper"><label class="circle-btn-icon" for="local-upload"></label></div></div>
                     </form>
                 </div>
 
                 <div class="add-steps-upload-methods-texts-container font-light">
-                    <div class="add-steps-upload-methods-text add-steps-upload-methods-text-default">upload<br/><span class="font-light-italic">a picture</span><br/><span class="add-steps-upload-methods-text-size">(min res: 500px)</span></div>
+                    <div class="add-steps-upload-methods-text add-steps-upload-methods-text-default">upload<br/><span class="font-light-italic">a picture</span><br/><span class="add-steps-upload-methods-text-size">(8 MB · 64 MP)</span></div>
                     <div class="add-steps-upload-methods-text add-steps-upload-methods-text-facebook">from<br/><span class="font-light-italic">Facebook</span></div>
                     <div class="add-steps-upload-methods-text add-steps-upload-methods-text-instagram">from<br/><span class="font-light-italic">Instagram</span></div>
                     <div class="add-steps-upload-methods-text add-steps-upload-methods-text-local">from<br/><span class="font-light-italic">your desktop</span></div>
@@ -423,7 +423,7 @@
     var SETTINGS = {"fading":87};
     var INSTAGRAM_ID = '40af423f2a3e49bf9dd802f2f7476ad0';
     var FACEBOOK_ID = '295459023939521';
-    var ERROR_MESSAGES = {"incorrectImageFormat":"Incorrect image format","imageUrlIsNotValid":"Image url is not valid","imageSizeNotValid":"Maximum 5MB.","imageResolutionNotValid":"Image width\/height should be between 521px and 5000px","name":"Please enter <span class=\"font-bold\">your name<\/span>","email":"Please enter a <span class=\"font-bold\">valid email<\/span>","message":"Please enter <span class=\"font-bold\">your message<\/span>","fileId":"Image fileId does not match. Please re-upload the image again.","badWord":"Please use another word for <span class=\"font-bold-italic\">{{interpolation}}<\/span>.","postNotFound":"Post not found.","postIdIsMissing":"Post id is missing.","search3OrAbove":"Please enter 3 or above characters in the search input.","deleteCodeIncorrect":"Delete code is incorrect.","postAlreadyDeleted":"Post has already deleted.","apiNotFound":"Api method not found.","missingLang":"Language attribute is missing.","adminRequired":"Admin required.","unexpected":"Unexpected Error.","keywordEmpty":"keyword field cannot be empty"};
+    var ERROR_MESSAGES = {"incorrectImageFormat":"Incorrect image format","imageUrlIsNotValid":"Image url is not valid","imageSizeNotValid":"Please choose a smaller image.","imageResolutionNotValid":"Image exceeds the supported pixel limit.","name":"Please enter <span class=\"font-bold\">your name<\/span>","email":"Please enter a <span class=\"font-bold\">valid email<\/span>","message":"Please enter <span class=\"font-bold\">your message<\/span>","fileId":"Image fileId does not match. Please re-upload the image again.","badWord":"Please use another word for <span class=\"font-bold-italic\">{{interpolation}}<\/span>.","postNotFound":"Post not found.","postIdIsMissing":"Post id is missing.","search3OrAbove":"Please enter 3 or above characters in the search input.","deleteCodeIncorrect":"Delete code is incorrect.","postAlreadyDeleted":"Post has already deleted.","apiNotFound":"Api method not found.","missingLang":"Language attribute is missing.","adminRequired":"Admin required.","unexpected":"Unexpected Error.","keywordEmpty":"keyword field cannot be empty"};
 </script>
 <div id="fb-root"></div>
 <!--GA_BEGIN-->
