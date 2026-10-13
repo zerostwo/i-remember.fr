@@ -505,8 +505,10 @@ html body .error-blocker-message {
 }
 html body .error-blocker-message::before { flex: 0 0 21px; top: 0; }
 html body .revival-menu-image { background-size: contain; background-repeat: no-repeat; }
-html body .post-2d-img { position: relative; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: zoom-in; }
+html body .post-2d-img { outline: none; position: relative; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: zoom-in; }
 .revival-photo-viewer { position: fixed; inset: 0; margin: auto; padding: 48px 12px 12px; border: 0; background: #080808; color: white; width: calc(100vw - 24px); max-width: 1600px; height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); box-sizing: border-box; }
 .revival-photo-viewer::backdrop { background: #000e; }
 .revival-photo-viewer img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .revival-photo-viewer button { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; border: 0; border-radius: 50%; background: #222; color: #fff; font: 28px/1 Arial,sans-serif; cursor: pointer; }
+
+html body .post-2d-img:focus-visible { box-shadow: inset 0 0 0 1px #ffffff55; }
