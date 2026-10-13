@@ -9,15 +9,15 @@ html body .add-steps-message-input:focus {
 }
 @media (min-width: 761px) and (min-height: 501px), (min-width: 1025px) {
   .app.revival-card-fit .post-2d-center-wrapper {
-    width: calc(var(--revival-card-image-size) + 348px) !important;
-    height: var(--revival-card-image-size) !important;
+    width: calc(var(--revival-card-image-width) + 348px) !important;
+    height: var(--revival-card-image-height) !important;
     top: var(--revival-card-top) !important;
     margin: 0 !important;
     transform: translateX(-50%) !important;
   }
   .app.revival-card-fit .post-2d-img {
-    width: var(--revival-card-image-size) !important;
-    height: var(--revival-card-image-size) !important;
+    width: var(--revival-card-image-width) !important;
+    height: var(--revival-card-image-height) !important;
     background-size: contain;
     background-position: center;
     background-repeat: no-repeat;
@@ -191,8 +191,9 @@ html body .add-steps-message-input:focus {
   html body .post-2d .post-2d-img {
     float: none !important;
     width: 100% !important;
-    height: min(30vh, 230px) !important;
-    max-height: 230px !important;
+    height: auto !important;
+    aspect-ratio: var(--revival-photo-ratio, 1);
+    max-height: none !important;
     background-position: center !important;
     background-size: contain !important;
   }
@@ -410,9 +411,10 @@ html body .add-steps-message-input:focus {
     grid-template-columns: minmax(140px, 35%) minmax(0, 1fr);
   }
   html body .post-2d .post-2d-img {
-    height: 100% !important;
+    height: auto !important;
     max-height: none !important;
-    min-height: 230px;
+    min-height: 0;
+    align-self: start;
   }
   html body .post-2d .post-2d-content {
     padding: 24px 58px 24px 26px !important;
@@ -504,7 +506,6 @@ html body .error-blocker-message {
 html body .error-blocker-message::before { flex: 0 0 21px; top: 0; }
 html body .revival-menu-image { background-size: contain; background-repeat: no-repeat; }
 html body .post-2d-img { position: relative; background-size: contain; background-repeat: no-repeat; background-position: center; cursor: zoom-in; }
-.revival-photo-hint { position: absolute; bottom: 12px; right: 12px; padding: 8px 12px; border-radius: 20px; background: #000b; color: #eee; font: 12px/1.4 Georgia,serif; }
 .revival-photo-viewer { position: fixed; inset: 0; margin: auto; padding: 48px 12px 12px; border: 0; background: #080808; color: white; width: calc(100vw - 24px); max-width: 1600px; height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); box-sizing: border-box; }
 .revival-photo-viewer::backdrop { background: #000e; }
 .revival-photo-viewer img { display: block; width: 100%; height: 100%; object-fit: contain; }

@@ -1354,13 +1354,15 @@
     window.I_REMEMBER_REVIVAL.preModalFocus = null;
   }
 
-  function desktopCardLayout(width, height, headerHeight, footerHeight) {
+  function desktopCardLayout(width, height, headerHeight, footerHeight, aspectRatio) {
     var availableHeight = height - headerHeight - footerHeight - 32;
-    var imageSize = Math.floor(Math.min(600, width - 348 - 48, availableHeight));
-    if (imageSize <= 0) return null;
+    var ratio = Number(aspectRatio) > 0 && isFinite(aspectRatio) ? Number(aspectRatio) : 1;
+    var imageHeight = Math.min(600, availableHeight, Math.min(900, width - 348 - 48) / ratio);
+    if (imageHeight <= 0) return null;
     return {
-      imageSize: imageSize,
-      top: headerHeight + 16 + (availableHeight - imageSize) / 2
+      imageWidth: imageHeight * ratio,
+      imageHeight: imageHeight,
+      top: headerHeight + 16 + (availableHeight - imageHeight) / 2
     };
   }
 
@@ -1372,14 +1374,18 @@
     app.__revivalCardFitReady = true;
     var frame = 0;
     var lastSize = "";
+    var photo = document.querySelector(".post-2d-img");
+    var photoSource = "";
+    var photoRatio = 1;
     function update() {
       frame = 0;
-      var layout = desktopCardLayout(app.clientWidth, app.clientHeight, header.offsetHeight, footer.offsetHeight);
+      var layout = desktopCardLayout(app.clientWidth, app.clientHeight, header.offsetHeight, footer.offsetHeight, photoRatio);
       if (!layout) return;
-      var sizeKey = layout.imageSize + ":" + layout.top;
+      var sizeKey = layout.imageWidth + ":" + layout.imageHeight + ":" + layout.top;
       if (sizeKey === lastSize) return;
       lastSize = sizeKey;
-      app.style.setProperty("--revival-card-image-size", layout.imageSize + "px");
+      app.style.setProperty("--revival-card-image-width", layout.imageWidth + "px");
+      app.style.setProperty("--revival-card-image-height", layout.imageHeight + "px");
       app.style.setProperty("--revival-card-top", layout.top + "px");
       app.classList.add("revival-card-fit");
       var content = document.querySelector(".post-2d-content-wrapper");
@@ -1391,6 +1397,27 @@
     if (window.ResizeObserver) {
       var observer = new ResizeObserver(schedule);
       [app, header, footer].forEach(function (element) { observer.observe(element); });
+    }
+    function readPhotoSize() {
+      var background = photo.style.backgroundImage;
+      if (background === photoSource) return;
+      photoSource = background;
+      var match = background.match(/^url\(["']?(.*?)["']?\)$/);
+      if (!match) return;
+      var requestedSource = background;
+      var image = new Image();
+      image.onload = function () {
+        // A previous memory can finish loading after a new one was opened.
+        if (photoSource !== requestedSource || !image.naturalWidth || !image.naturalHeight) return;
+        photoRatio = image.naturalWidth / image.naturalHeight;
+        app.style.setProperty("--revival-photo-ratio", String(photoRatio));
+        schedule();
+      };
+      image.src = match[1];
+    }
+    if (photo) {
+      new MutationObserver(readPhotoSize).observe(photo, { attributes: true, attributeFilter: ["style"] });
+      readPhotoSize();
     }
     window.addEventListener("resize", schedule, { passive: true });
     update();
@@ -2122,11 +2149,6 @@
     var viewLabel = language === "zh" ? "查看完整照片" : language === "fr" ? "Voir la photo entière" : "View full photo";
     var closeLabel = language === "zh" ? "关闭照片" : language === "fr" ? "Fermer la photo" : "Close photo";
     photo.setAttribute("aria-label", viewLabel);
-    photo.setAttribute("title", viewLabel);
-    var hint = document.createElement("span");
-    hint.className = "revival-photo-hint";
-    hint.textContent = viewLabel;
-    photo.appendChild(hint);
     var dialog = document.createElement("dialog");
     dialog.className = "revival-photo-viewer";
     dialog.setAttribute("aria-label", viewLabel);

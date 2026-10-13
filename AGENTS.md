@@ -175,3 +175,8 @@ Current backend/product decisions:
   photos such as 7840 x 5184 within explicit byte/pixel limits. Preserve the
   complete photo in opened memories rather than destructively cropping it to
   a square; keep the existing galaxy appearance and staged submission flow.
+
+- Owner feedback on 2026-10-13: opened memory cards must adapt their photo area
+  and overall dimensions to the photo's natural aspect ratio instead of padding
+  photos into squares. Preserve the established visual style and click-to-enlarge
+  behavior, without a visible View full photo label or tooltip.

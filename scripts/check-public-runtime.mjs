@@ -24,11 +24,18 @@ const cardLayout = runtimeFunction("desktopCardLayout");
 for (const [width, height, header, footer] of [[1512, 861, 166, 166], [1280, 720, 140, 140], [768, 900, 140, 140]]) {
   const layout = cardLayout(width, height, header, footer);
   assert.ok(layout.top >= header + 16);
-  assert.ok(layout.top + layout.imageSize <= height - footer - 16);
-  assert.ok(layout.imageSize + 348 <= width - 48);
+  assert.ok(layout.top + layout.imageHeight <= height - footer - 16);
+  assert.ok(layout.imageWidth + 348 <= width - 48);
 }
-assert.equal(cardLayout(1920, 1200, 140, 140).imageSize, 600, "Large desktops keep the original image size");
+assert.equal(cardLayout(1920, 1200, 140, 140).imageHeight, 600, "Large desktops keep the original image size");
 assert.equal(cardLayout(1024, 180, 100, 100), null);
+for (const ratio of [7840 / 5184, 2 / 3, 1, 3]) {
+  const layout = cardLayout(1280, 720, 140, 140, ratio);
+  assert.ok(Math.abs(layout.imageWidth / layout.imageHeight - ratio) < 0.00001, "Photo bounds must preserve natural aspect ratio");
+  assert.ok(layout.imageWidth + 348 <= 1280 - 48);
+  assert.ok(layout.top + layout.imageHeight <= 720 - 140 - 16);
+}
+assert.doesNotMatch(source, /revival-photo-hint|photo\.setAttribute\("title"/, "Photos enlarge without a visible label or tooltip");
 const shareWindow = {
   SONGQI_SITE_SETTINGS: { canonicalUrl: "https://songqi.org" },
   location: { origin: "http://localhost:7890" },
