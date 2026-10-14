@@ -589,6 +589,50 @@ try {
     const rejected = await fetch(`${baseUrl}/api/post`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photos }) });
     assert.equal(rejected.status, 400, "Malformed or oversized galleries must be rejected");
   }
+  // Distinct frames catch silent first-frame flattening at every image endpoint.
+  const rgba = Buffer.alloc(80 * 40 * 4);
+  for (let offset = 0; offset < rgba.length; offset += 4) {
+    rgba[offset] = offset < 80 * 20 * 4 ? 255 : 0;
+    rgba[offset + 2] = offset < 80 * 20 * 4 ? 0 : 255;
+    rgba[offset + 3] = 255;
+  }
+  const animation = await sharp(rgba, { raw: { width: 80, height: 40, channels: 4, pageHeight: 20 } })
+    .gif({ delay: [120, 230], loop: 0 }).toBuffer();
+  const gifForm = new FormData();
+  gifForm.set("local", new Blob([animation], { type: "image/gif" }), "animation.gif");
+  const gifUpload = await fetch(`${baseUrl}/api/upload-image`, { method: "POST", body: gifForm });
+  assert.equal(gifUpload.status, 200);
+  const gifId = (await gifUpload.json()).data.fileId;
+  const gifPost = await fetch(`${baseUrl}/api/post`, {
+    method: "POST", headers: { "Content-Type": "application/json", Origin: baseUrl },
+    body: JSON.stringify({ name: "Animation test", message: "Animated memory.", photos: [{ fileId: gifId, crop: { x: 0.75, y: 0.5, zoom: 2 } }] }),
+  });
+  assert.equal(gifPost.status, 200);
+  const gifMemory = (await gifPost.json()).data;
+  for (const url of [gifMemory.photos[0].image_url, gifMemory.photos[0].full_image_url, `/uploads/posts/${gifId}/resized.jpg`]) {
+    const response = await fetch(`${baseUrl}${url}`);
+    assert.equal(response.headers.get("content-type"), "image/gif");
+    const data = Buffer.from(await response.arrayBuffer());
+    const meta = await sharp(data).metadata();
+    assert.equal(meta.pages, 2, "Both animation frames must survive upload and cropping");
+    assert.deepEqual(meta.delay, [120, 230]);
+    assert.equal(meta.loop, 0);
+    const frames = await sharp(data, { animated: true }).raw().toBuffer();
+    const second = meta.width * meta.height * meta.channels;
+    const center = (Math.floor(meta.height / 2) * meta.width + Math.floor(meta.width / 2)) * meta.channels;
+    assert.ok(frames[center] > 240 && frames[second + center + 2] > 240, "The frame content must remain distinct");
+  }
+  await rm(join(dataDir, "uploads", "posts", gifId, "full.jpg"));
+  const recovered = await fetch(`${baseUrl}${gifMemory.photos[0].full_image_url}`).then(r => r.arrayBuffer());
+  assert.equal((await sharp(Buffer.from(recovered)).metadata()).pages, 2, "Regenerating a missing full image must preserve animation");
+  const excessiveFrames = Buffer.alloc(301 * 4);
+  for (let frame = 0; frame < 301; frame++) { excessiveFrames[frame * 4] = frame % 2 ? 255 : 0; excessiveFrames[frame * 4 + 3] = 255; }
+  const oversizedAnimation = await sharp(excessiveFrames, { raw: { width: 1, height: 301, channels: 4, pageHeight: 1 } }).gif({ delay: 100 }).toBuffer();
+  const oversizedGifForm = new FormData();
+  oversizedGifForm.set("local", new Blob([oversizedAnimation], { type: "image/gif" }), "too-many-frames.gif");
+  const oversizedGif = await fetch(`${baseUrl}/api/upload-image`, { method: "POST", body: oversizedGifForm });
+  assert.equal(oversizedGif.status, 400, "Unbounded animation decoding must be rejected");
+  assert.match((await oversizedGif.json()).errorMsg, /300 frames/);
   const invalidForm = new FormData();
   invalidForm.set("local", new Blob(["not an image"], { type: "image/jpeg" }), "broken.jpg");
   const invalidImage = await fetch(`${baseUrl}/api/upload-image`, { method: "POST", body: invalidForm });

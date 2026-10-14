@@ -1164,31 +1164,28 @@ class RevivalBackend {
       throw new HttpError(400, "Invalid image", "invalid_image");
     }
 
-    const resized = await sharp(file.data, { limitInputPixels: maxImagePixels, animated: false })
-      .rotate()
-      .resize(600, 600, { fit: "contain", background: "#000" })
-      .jpeg({ quality: 88 })
-      .toBuffer();
-    const full = await sharp(file.data, { limitInputPixels: maxImagePixels, animated: false })
-      .rotate()
-      .resize(2400, 2400, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 90 })
-      .toBuffer();
-    const thumb = await sharp(file.data, { limitInputPixels: maxImagePixels, animated: false })
-      .rotate()
-      .resize(220, 220, { fit: "cover" })
-      .jpeg({ quality: 82 })
-      .toBuffer();
+    const animated = (metadata.pages || 1) > 1;
+    if (animated && (metadata.pages > 300 || metadata.width * metadata.height * metadata.pages > maxImagePixels)) {
+      throw new HttpError(400, "Animation exceeds the decoding limit", `Please choose an animation with at most 300 frames and ${Math.round(maxImagePixels / 1_000_000)} megapixels across all frames.`);
+    }
+    const encode = (pipeline, quality) => animated ? pipeline.gif() : pipeline.jpeg({ quality });
+    const source = () => sharp(file.data, { limitInputPixels: maxImagePixels, animated }).rotate();
+    const resized = await encode(source().resize(600, 600, { fit: "contain", background: "#000" }), 88).toBuffer();
+    const full = await encode(source().resize(2400, 2400, { fit: "inside", withoutEnlargement: true }), 90).toBuffer();
+    const thumb = await sharp(file.data, { limitInputPixels: maxImagePixels })
+      .rotate().resize(220, 220, { fit: "cover" }).jpeg({ quality: 82 }).toBuffer();
+    const mimeType = animated ? "image/gif" : "image/jpeg";
 
     uploadedImages.set(fileId, {
-      full: { data: full, mimeType: "image/jpeg" },
-      resized: { data: resized, mimeType: "image/jpeg" },
+      full: { data: full, mimeType },
+      resized: { data: resized, mimeType },
       thumb: { data: thumb, mimeType: "image/jpeg" },
     });
 
     const uploadDir = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", fileId);
     mkdirSync(uploadDir, { recursive: true, mode: 0o770 });
     const originalPath = join(uploadDir, "original");
+    // The public image endpoints keep their stable names; MIME follows the encoded bytes.
     const resizedPath = join(uploadDir, "resized.jpg");
     const thumbPath = join(uploadDir, "thumb.jpg");
     writeFileSync(originalPath, original, { mode: 0o660 });
@@ -1202,19 +1199,21 @@ class RevivalBackend {
   async cropPhoto(photo, order) {
     const original = await this.imageForPath(legacyImagePath(photo.fileId, "full"));
     if (!original) throw new HttpError(400, "Photo not found", "Please upload the photo again.");
-    const { width, height } = await sharp(original.data).metadata();
+    const { width, height, pages = 1 } = await sharp(original.data).metadata();
+    const animated = pages > 1;
     const size = Math.max(1, Math.floor(Math.min(width, height) / photo.crop.zoom));
     const left = Math.round(Math.max(0, Math.min(width - size, photo.crop.x * width - size / 2)));
     const top = Math.round(Math.max(0, Math.min(height - size, photo.crop.y * height - size / 2)));
     const digest = createHash("sha256").update(JSON.stringify({ left, top, size })).digest("hex").slice(0, 20);
-    const filename = `crop-${digest}.jpg`;
+    const filename = `crop-${digest}.${animated ? "gif" : "jpg"}`;
     const folder = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", photo.fileId);
     const path = join(folder, filename);
     if (!existsSync(path)) {
-      const data = await sharp(original.data).extract({ left, top, width: size, height: size }).resize(600, 600).jpeg({ quality: 90 }).toBuffer();
+      const pipeline = sharp(original.data, { animated, limitInputPixels: maxImagePixels }).extract({ left, top, width: size, height: size }).resize(600, 600);
+      const data = await (animated ? pipeline.gif() : pipeline.jpeg({ quality: 90 })).toBuffer();
       writeFileSync(path, data, { mode: 0o660 });
     }
-    return { url: `/uploads/posts/${photo.fileId}/${filename}`, type: "image/jpeg",
+    return { url: `/uploads/posts/${photo.fileId}/${filename}`, type: animated ? "image/gif" : "image/jpeg",
       metadata: { imageKey: photo.fileId, crop: photo.crop, order } };
   }
 
@@ -1224,10 +1223,10 @@ class RevivalBackend {
       const attachment = await this.cropPhoto({ fileId: squareMatch[1], crop: { x: 0.5, y: 0.5, zoom: 1 } }, 0);
       return this.imageForPath(attachment.url);
     }
-    const cropMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/(crop-[a-f0-9]{20}\.jpg)$/i);
+    const cropMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/(crop-[a-f0-9]{20}\.(?:jpg|gif))$/i);
     if (cropMatch) {
       const file = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", cropMatch[1], cropMatch[2]);
-      return existsSync(file) ? { data: readFileSync(file), mimeType: "image/jpeg" } : null;
+      return existsSync(file) ? { data: readFileSync(file), mimeType: cropMatch[2].endsWith(".gif") ? "image/gif" : "image/jpeg" } : null;
     }
     const fullMatch = pathname.match(/^\/uploads\/(?:tmp|posts)\/(revival-[a-z0-9-]+)\/full\.jpg$/i);
     if (fullMatch) {
@@ -1235,13 +1234,17 @@ class RevivalBackend {
       const fullPath = join(folder, "full.jpg");
       const originalPath = join(folder, "original");
       if (!existsSync(fullPath) && existsSync(originalPath)) {
-        const full = await sharp(originalPath, { limitInputPixels: maxImagePixels, animated: false })
-          .rotate().resize(2400, 2400, { fit: "inside", withoutEnlargement: true })
-          .jpeg({ quality: 90 }).toBuffer();
+        const { pages = 1 } = await sharp(originalPath, { limitInputPixels: maxImagePixels }).metadata();
+        const pipeline = sharp(originalPath, { limitInputPixels: maxImagePixels, animated: pages > 1 })
+          .rotate().resize(2400, 2400, { fit: "inside", withoutEnlargement: true });
+        const full = await (pages > 1 ? pipeline.gif() : pipeline.jpeg({ quality: 90 })).toBuffer();
         writeFileSync(fullPath, full, { mode: 0o660 });
       }
       const imagePath = existsSync(fullPath) ? fullPath : join(folder, "resized.jpg");
-      if (existsSync(imagePath)) return { data: readFileSync(imagePath), mimeType: "image/jpeg" };
+      if (existsSync(imagePath)) {
+        const data = readFileSync(imagePath);
+        return { data, mimeType: data.subarray(0, 3).toString() === "GIF" ? "image/gif" : "image/jpeg" };
+      }
       return null;
     }
     const localRuntime = runtimeUploadedImageForPath(pathname);
@@ -1261,10 +1264,11 @@ class RevivalBackend {
         `${variant}.jpg`,
       );
       if (existsSync(filePath) && statSync(filePath).isFile()) {
+        const data = readFileSync(filePath);
         return {
-          data: readFileSync(filePath),
+          data,
           filename: `${variant}.jpg`,
-          mimeType: "image/jpeg",
+          mimeType: data.subarray(0, 3).toString() === "GIF" ? "image/gif" : "image/jpeg",
         };
       }
     }

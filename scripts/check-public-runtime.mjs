@@ -64,6 +64,14 @@ assert.ok(!patchedMain.includes("r.width>5e3||r.height>5e3"), "Camera photos mus
 assert.ok(patchedMain.includes("window.SongqiPhotos.showMemory(e)"), "All memory entry paths must initialize the gallery");
 assert.ok(patchedMain.includes("JSON.stringify(r.data.photos)"), "Submission must persist every crop");
 assert.ok(patchedMain.includes("window.SongqiPhotos.createAdjustmentStep"), "The old drag-only editor must be replaced");
+const backgroundHandler = patchedMain.match(/function _\(e\)\{e.target===this&&w&&[^}]+\}/)[0];
+for (const id of ["upload-methods", "adjustment", "message"]) {
+  let exits = 0;
+  const container = {};
+  const handler = runInNewContext(`(${backgroundHandler})`, { w: { id }, j: () => exits++ });
+  handler.call(container, { target: container });
+  assert.equal(exits, 0, `${id} must retain the draft on an outside click`);
+}
 new Function(patchedMain);
 assert.ok(patchedMain.includes('window.SongqiMemoryNavigation.opened(e)'));
 assert.ok(patchedMain.includes('window.SongqiMemoryNavigation.closed()'));

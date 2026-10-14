@@ -14,6 +14,7 @@
   function button(text, name, action) {
     var element = document.createElement("button");
     element.type = "button";
+    element.__skipPreventDefault = true;
     element.textContent = text;
     element.setAttribute("aria-label", name);
     element.addEventListener("click", function (event) { event.stopPropagation(); action(); });
@@ -87,7 +88,7 @@
   function createAdjustmentStep(steps, input, circle, tween) {
     state.steps = steps;
     state.input = input;
-    var root, canvas, ctx, range, strip, count, remove, add, picker, reset, activeImage;
+    var root, viewport, preview, range, strip, count, remove, add, picker, reset, activeImage;
     var active = false;
     var confirming = false;
     var pointers = new Map();
@@ -103,8 +104,10 @@
       if (!activeImage || !selected()) return;
       normalize();
       var bounds = cropBounds(activeImage.naturalWidth, activeImage.naturalHeight, selected().crop);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(activeImage, bounds.left, bounds.top, bounds.size, bounds.size, 0, 0, canvas.width, canvas.height);
+      preview.style.width = (activeImage.naturalWidth / bounds.size * 100) + "%";
+      preview.style.height = (activeImage.naturalHeight / bounds.size * 100) + "%";
+      preview.style.left = (-bounds.left / bounds.size * 100) + "%";
+      preview.style.top = (-bounds.top / bounds.size * 100) + "%";
       range.value = selected().crop.zoom;
       range.setAttribute("aria-valuetext", Number(selected().crop.zoom).toFixed(1) + "×");
       sync();
@@ -118,7 +121,7 @@
       if (!active || !selected()) return;
       var photo = selected();
       activeImage = null;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      preview.removeAttribute("src");
       strip.replaceChildren();
       state.photos.forEach(function (entry, index) {
         var thumb = button("", label("Edit photo", "Modifier la photo", "编辑照片") + " " + (index + 1), function () { state.selected = index; refresh(); });
@@ -136,6 +139,7 @@
         var image = await loadImage(fullUrl(photo.fileId));
         if (selected() !== photo || !active) return;
         activeImage = image;
+        preview.src = image.src;
         draw();
       } catch (err) { error(err.message); }
     }
@@ -165,12 +169,13 @@
     function init() {
       root = document.querySelector(".add-steps-adjustment");
       root.classList.add("photo-editor");
-      canvas = document.createElement("canvas");
-      canvas.width = canvas.height = 600;
-      canvas.tabIndex = 0;
-      canvas.setAttribute("aria-label", label("Photo crop. Drag to move; use arrow keys to adjust.", "Cadrage. Faites glisser ou utilisez les flèches.", "照片裁切。拖拽或使用方向键调整。"));
-      ctx = canvas.getContext("2d");
-      root.appendChild(canvas);
+      viewport = document.createElement("div");
+      viewport.className = "photo-crop-viewport";
+      preview = document.createElement("img"); preview.alt = ""; preview.draggable = false;
+      viewport.appendChild(preview);
+      viewport.tabIndex = 0;
+      viewport.setAttribute("aria-label", label("Photo crop. Drag to move; use arrow keys to adjust.", "Cadrage. Faites glisser ou utilisez les flèches.", "照片裁切。拖拽或使用方向键调整。"));
+      root.appendChild(viewport);
       var controls = document.createElement("div"); controls.className = "photo-zoom-controls";
       range = document.createElement("input"); range.type = "range"; range.min = "1"; range.max = "4"; range.step = "0.01"; range.value = "1";
       range.setAttribute("aria-label", label("Photo zoom", "Zoom photo", "照片缩放"));
@@ -189,8 +194,8 @@
       actions.append(count, add, remove, reset, picker); root.appendChild(actions);
       ["mousedown", "touchstart", "touchmove", "touchend"].forEach(function (type) { root.addEventListener(type, function (event) { event.stopPropagation(); }, { passive: true }); });
       root.addEventListener("keydown", function (event) { event.stopPropagation(); });
-      canvas.addEventListener("pointerdown", function (event) { if (!activeImage || state.busy) return; event.preventDefault(); event.stopPropagation(); canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
-      canvas.addEventListener("pointermove", function (event) {
+      viewport.addEventListener("pointerdown", function (event) { if (!activeImage || state.busy) return; event.preventDefault(); event.stopPropagation(); viewport.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
+      viewport.addEventListener("pointermove", function (event) {
         if (!pointers.has(event.pointerId) || !activeImage || !selected()) return;
         event.preventDefault(); event.stopPropagation();
         var before = Array.from(pointers.values());
@@ -198,7 +203,7 @@
         var crop = selected().crop;
         if (pointers.size === 1) {
           var size = cropBounds(activeImage.naturalWidth, activeImage.naturalHeight, crop).size;
-          var scale = size / canvas.getBoundingClientRect().width;
+          var scale = size / viewport.getBoundingClientRect().width;
           crop.x -= (event.clientX - old.x) * scale / activeImage.naturalWidth;
           crop.y -= (event.clientY - old.y) * scale / activeImage.naturalHeight;
         }
@@ -211,9 +216,9 @@
         }
         draw();
       });
-      ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (type) { canvas.addEventListener(type, function (event) { pointers.delete(event.pointerId); }); });
-      canvas.addEventListener("wheel", function (event) { event.preventDefault(); event.stopPropagation(); zoom(selected().crop.zoom * Math.exp(-event.deltaY * 0.002)); }, { passive: false });
-      canvas.addEventListener("keydown", function (event) {
+      ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (type) { viewport.addEventListener(type, function (event) { pointers.delete(event.pointerId); }); });
+      viewport.addEventListener("wheel", function (event) { event.preventDefault(); event.stopPropagation(); zoom(selected().crop.zoom * Math.exp(-event.deltaY * 0.002)); }, { passive: false });
+      viewport.addEventListener("keydown", function (event) {
         if (!selected() || !activeImage) return;
         if (/^Arrow/.test(event.key)) { event.preventDefault(); var crop = selected().crop; var delta = 0.025 / crop.zoom; if (event.key === "ArrowLeft") crop.x -= delta; if (event.key === "ArrowRight") crop.x += delta; if (event.key === "ArrowUp") crop.y -= delta; if (event.key === "ArrowDown") crop.y += delta; draw(); }
         if (event.key === "+" || event.key === "=") { event.preventDefault(); zoom(selected().crop.zoom + 0.1); }
@@ -231,6 +236,9 @@
       }
       bindStepAction(".add-steps-validate-btn", confirm);
       bindStepAction(".add-steps-back-btn", function () { steps.goToStep("upload-methods"); });
+      var cancel = button("×", label("Cancel memory", "Annuler le souvenir", "取消添加回忆"), function () { if (!state.busy && !confirming) steps.hide(); });
+      cancel.className = "photo-draft-cancel";
+      document.querySelector(".add-steps").appendChild(cancel);
       var originalShow = steps.show;
       steps.show = function () { state.photos = []; state.selected = 0; state.steps.data.photos = []; state.steps.data.fileId = null; state.images.clear(); return originalShow.apply(this, arguments); };
       state.editor = { refresh: refresh, setBusy: setBusy };
@@ -254,6 +262,7 @@
     if (card) return;
     card = document.querySelector(".post-2d-img"); if (!card) return;
     card.setAttribute("role", "button"); card.tabIndex = 0;
+    card.__skipPreventDefault = true;
     card.setAttribute("aria-label", label("Open photo", "Ouvrir la photo", "打开照片"));
     var count = document.createElement("span"); count.className = "photo-gallery-count";
     var previous = button("‹", label("Previous photo", "Photo précédente", "上一张照片"), function () { move(-1); });
@@ -262,6 +271,7 @@
     // Controls are siblings of the photo button, not nested interactive elements.
     var controls = document.createElement("div"); controls.className = "photo-gallery-controls"; controls.append(previous, count, next); card.parentNode.appendChild(controls);
     viewer = document.createElement("dialog"); viewer.className = "revival-photo-viewer";
+    viewer.tabIndex = -1;
     viewer.setAttribute("aria-label", label("Memory photos", "Photos du souvenir", "回忆照片"));
     var image = document.createElement("img");
     var close = button("×", label("Close photo", "Fermer la photo", "关闭照片"), function () { viewer.close(); });
@@ -269,6 +279,10 @@
     var fullNext = button("›", next.getAttribute("aria-label"), function () { move(1); });
     fullPrevious.className = "photo-gallery-prev"; fullNext.className = "photo-gallery-next";
     viewer.append(close, image, fullPrevious, fullNext); document.body.appendChild(viewer);
+    // Keep native touch clicks and photo gestures out of the galaxy input controller.
+    ["touchstart", "touchmove", "touchend", "mousedown", "mouseup", "wheel"].forEach(function (type) {
+      viewer.addEventListener(type, function (event) { event.stopPropagation(); }, { passive: true });
+    });
     function render() {
       var photo = currentMemory[memoryIndex];
       controls.hidden = currentMemory.length < 2;
@@ -283,7 +297,7 @@
     function open(event) {
       if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
       if (!currentMemory.length) return;
-      event.preventDefault(); event.stopPropagation(); viewer.showModal(); render(); close.focus();
+      event.preventDefault(); event.stopPropagation(); viewer.showModal(); render(); viewer.focus({ preventScroll: true });
     }
     card.addEventListener("click", open); card.addEventListener("keydown", open);
     viewer.addEventListener("keydown", function (event) { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); move(event.key === "ArrowLeft" ? -1 : 1); } event.stopPropagation(); });

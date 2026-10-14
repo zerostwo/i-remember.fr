@@ -192,3 +192,11 @@ Current backend/product decisions:
   and horizontal swipes for photos within a memory. Count actual memory opens
   (not photo changes, prefetches, or server-rendered metadata reads), and expose
   per-memory view totals and sorting in the admin.
+
+- Owner feedback on 2026-10-13: keep the photo composition viewport and its
+  controls circular in the original archive style. Incidental background clicks
+  during upload, composition, or writing must not close the Add a memory flow.
+  Preserve GIF animation through composition, cropped cards, and full-photo
+  viewing. Replace the Another memory text action with matching circular arrows
+  on both sides of the opened card, and avoid an automatic white focus ring on
+  the full-photo close control while retaining keyboard focus feedback.

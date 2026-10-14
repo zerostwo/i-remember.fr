@@ -620,6 +620,11 @@
     // The server validates decoded pixels; camera photos are not limited to 5000px.
     patched = patched.replace(/function tt\(\)\{var e=this\.files\[0\],t=e\.size;[\s\S]*?(?=function nt\(e\))/,
       'function tt(){window.SongqiPhotos.uploadFiles(this.files,false)}');
+    // An incidental background click must never discard an in-progress draft.
+    patched = patched.replace('function _(e){e.target===this&&w&&(w.onBGClick?w.onBGClick():j())}',
+      'function _(e){e.target===this&&w&&(w.id==="add-options"||w.id==="congrats")&&(w.onBGClick?w.onBGClick():j())}');
+    patched = patched.replace('t.show(),w=t)}function B(e)',
+      'y.toggleClass("photo-drafting",t.id==="upload-methods"||t.id==="adjustment"||t.id==="message"),t.show(),w=t)}function B(e)');
     var adjustmentStart = patched.indexOf('define("steps/adjustmentStep",');
     var adjustmentEnd = patched.indexOf('define("mout/string/interpolate",', adjustmentStart);
     if (adjustmentStart >= 0 && adjustmentEnd > adjustmentStart) {

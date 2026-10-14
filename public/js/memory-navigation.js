@@ -1,7 +1,7 @@
 (function () {
   "use strict";
   var current = "", recent = [], busy = false, sequence = 0, controller, animation;
-  var root, panel, nextButton, status;
+  var root, panel, buttons = [], status;
   function copy(en, fr, zh) { return window.LANG === "fr" ? fr : window.LANG === "zh" ? zh : en; }
   function swipeDirection(dx, dy, elapsed) {
     return elapsed < 1200 && Math.abs(dy) >= 65 && Math.abs(dy) > Math.abs(dx) * 1.5 ? (dy < 0 ? 1 : -1) : 0;
@@ -10,7 +10,7 @@
     return current && root && root.getBoundingClientRect().height && getComputedStyle(root).display !== "none" &&
       !document.querySelector("dialog[open],.revival-menu-memory.is-visible") && !document.hidden;
   }
-  function setBusy(value) { busy = value; if (nextButton) nextButton.disabled = value; }
+  function setBusy(value) { busy = value; buttons.forEach(function (button) { button.disabled = value; }); }
   function cancel() {
     sequence++;
     if (controller) controller.abort();
@@ -64,12 +64,15 @@
     panel = document.querySelector(".post-2d-center-wrapper");
     if (!root || !panel) { root = null; return; }
     var controls = document.createElement("div"); controls.className = "memory-navigation";
-    nextButton = document.createElement("button"); nextButton.type = "button";
-    nextButton.textContent = copy("Another memory ↓", "Un autre souvenir ↓", "另一条回忆 ↓");
-    nextButton.setAttribute("aria-label", copy("Open a random memory", "Ouvrir un souvenir au hasard", "随机打开一条回忆"));
-    nextButton.__skipPreventDefault = true;
-    nextButton.addEventListener("click", function (event) { event.stopPropagation(); next(1); });
-    controls.appendChild(nextButton);
+    [-1, 1].forEach(function (direction) {
+      var button = document.createElement("button"); button.type = "button";
+      button.className = direction < 0 ? "memory-navigation-prev" : "memory-navigation-next";
+      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + (direction < 0 ? 'M14 6l-6 6 6 6' : 'M10 6l6 6-6 6') + '"/></svg>';
+      button.setAttribute("aria-label", direction < 0 ? copy("Previous random memory", "Souvenir aléatoire précédent", "上一条随机回忆") : copy("Next random memory", "Souvenir aléatoire suivant", "下一条随机回忆"));
+      button.__skipPreventDefault = true;
+      button.addEventListener("click", function (event) { event.stopPropagation(); next(direction); });
+      buttons.push(button); controls.appendChild(button);
+    });
     status = document.createElement("span"); status.className = "memory-navigation-status"; status.setAttribute("role", "status");
     controls.appendChild(status); panel.appendChild(controls);
     var start, suppressClickUntil = 0;
