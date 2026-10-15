@@ -23,8 +23,9 @@ export function renderSeo(html, settings, post, posts) {
   const origin = siteOrigin(settings.canonicalUrl);
   const canonical = origin + (post ? `/memory/${post.public_id}` : "/");
   const identity = [settings.ownerName, settings.ownerAlternateName].filter(Boolean).join(" · ");
-  const title = post ? `${post.title_text} · ${settings.siteTitle}` :
-    [settings.siteTitle, identity].filter(Boolean).join(" · ");
+  // The configured site name is the complete homepage title. Owner identity
+  // belongs in Person data, not in a second suffix appended to the site name.
+  const title = post ? `${post.title_text} · ${settings.siteTitle}` : settings.siteTitle;
   const description = post ? String(post.body_markdown || "").replace(/[#*_`>\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 300) : settings.siteDescription;
   let image;
   try {

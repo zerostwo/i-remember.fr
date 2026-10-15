@@ -76,11 +76,11 @@ or [Docker Hub tags](https://hub.docker.com/r/zerostwo/i-remember.fr/tags):
 DOCKERHUB_IMAGE=zerostwo/i-remember.fr
 TAG=sha-REPLACE_WITH_12_CHARACTER_COMMIT
 I_REMEMBER_HOST_PORT=7892
-I_REMEMBER_SITE_TITLE=Songqi
+I_REMEMBER_SITE_TITLE="Songqi Duan | 段松岐"
 I_REMEMBER_CANONICAL_URL=https://songqi.org
 I_REMEMBER_OWNER_NAME="Songqi Duan"
 I_REMEMBER_OWNER_ALTERNATE_NAME="段松岐"
-I_REMEMBER_SITE_DESCRIPTION="Songqi Duan (段松岐): a personal home for memories, photographs, and beautiful moments worth keeping."
+I_REMEMBER_SITE_DESCRIPTION="A quiet place for the moments we might one day forget."
 I_REMEMBER_DEFAULT_LANGUAGE=en
 I_REMEMBER_ANONYMOUS_SUBMISSIONS=false
 ```
@@ -128,7 +128,12 @@ These settings are stored in PostgreSQL and included in backups. Environment val
 initialize missing settings; once saved, edit them in the admin. Existing instances
 receive defaults for the new fields on upgrade: review these before public launch,
 especially when hosting under a different identity. Public metadata refreshes within
-about five seconds. SEO settings do not reskin the restored frontend or admin branding.
+about five seconds. SEO settings do not reskin the restored frontend or admin branding. The homepage
+uses the site title exactly as saved, without appending the owner names; owner
+identity remains in the structured data. For songqi.org, use `Songqi Duan | 段松岐`
+and `A quiet place for the moments we might one day forget.` Existing instances
+must save these values in Settings → Site; updated environment defaults do not
+replace settings already stored in PostgreSQL.
 
 Public `/memory/<random-id>` pages have their own title, description, canonical URL,
 sharing image, and structured content. Display-language variants canonicalize to the

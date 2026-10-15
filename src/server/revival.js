@@ -919,10 +919,10 @@ function validatedPostFields(fields = {}, defaultLanguage = "en") {
 
 function environmentSiteSettings() {
   return {
-    siteDescription: process.env.I_REMEMBER_SITE_DESCRIPTION ?? "Songqi Duan (段松岐): a personal home for memories, photographs, and beautiful moments worth keeping.",
+    siteDescription: process.env.I_REMEMBER_SITE_DESCRIPTION ?? "A quiet place for the moments we might one day forget.",
     ownerName: process.env.I_REMEMBER_OWNER_NAME ?? "Songqi Duan",
     ownerAlternateName: process.env.I_REMEMBER_OWNER_ALTERNATE_NAME ?? "段松岐",
-    siteTitle: process.env.I_REMEMBER_SITE_TITLE || "I Remember",
+    siteTitle: process.env.I_REMEMBER_SITE_TITLE || "Songqi Duan | 段松岐",
     canonicalUrl: process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org",
     timezone: process.env.TZ || "Asia/Shanghai",
     defaultLanguage: normalizeLanguage(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en"),

@@ -200,3 +200,9 @@ Current backend/product decisions:
   viewing. Replace the Another memory text action with matching circular arrows
   on both sides of the opened card, and avoid an automatic white focus ring on
   the full-photo close control while retaining keyboard focus feedback.
+
+- Owner feedback on 2026-10-15: use `Songqi Duan | 段松岐` consistently as the
+  songqi.org site name and homepage search title. Do not append the owner names
+  again to the homepage title or prefix the description with them. Use a poetic
+  description about keeping moments that may one day be forgotten. Preserve
+  editable Site settings and the existing public visual experience.

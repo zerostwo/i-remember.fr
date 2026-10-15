@@ -19,6 +19,20 @@ function runtimeFunction(name, context = {}) {
   return runInNewContext(`(${source.slice(start, end).trim()})`, context);
 }
 
+const routeDocument = { title: "A memory · Songqi Duan | 段松岐" };
+const refreshHomeRoute = runtimeFunction("refreshMemoryRoute", {
+  window: { SONGQI_SITE_SETTINGS: { siteTitle: "Songqi Duan | 段松岐", ownerName: "Songqi Duan", ownerAlternateName: "段松岐" } },
+  document: routeDocument,
+  memoryRequestSequence: 0,
+  memoryRequestController: null,
+  lastViewedMemory: "previous-memory",
+  AbortController,
+  memoryIdFromPath: () => "",
+  setMemoryExplore: () => {},
+});
+refreshHomeRoute("/", false);
+assert.equal(routeDocument.title, "Songqi Duan | 段松岐", "Returning home must preserve the exact configured site title");
+
 const page = runtimeFunction("memoryEnginePage");
 const cardLayout = runtimeFunction("desktopCardLayout");
 for (const [width, height, header, footer] of [[1512, 861, 166, 166], [1280, 720, 140, 140], [768, 900, 140, 140]]) {

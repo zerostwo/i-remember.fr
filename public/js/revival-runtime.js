@@ -2335,7 +2335,7 @@
     memoryRequestController = new AbortController();
     var id = memoryIdFromPath(path);
     if (!id) {
-      if (window.SONGQI_SITE_SETTINGS) document.title = [window.SONGQI_SITE_SETTINGS.siteTitle, window.SONGQI_SITE_SETTINGS.ownerName, window.SONGQI_SITE_SETTINGS.ownerAlternateName].filter(Boolean).join(" · ");
+      if (window.SONGQI_SITE_SETTINGS) document.title = window.SONGQI_SITE_SETTINGS.siteTitle;
       lastViewedMemory = "";
       setMemoryExplore(null);
       return;

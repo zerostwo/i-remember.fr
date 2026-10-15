@@ -84,10 +84,10 @@ function initialRuntimeSettings(): RuntimeSettings {
   const umamiSrc = String(process.env.UMAMI_SRC || "");
   const umamiWebsiteId = String(process.env.UMAMI_WEBSITE_ID || "");
   return {
-    siteDescription: String(process.env.I_REMEMBER_SITE_DESCRIPTION ?? "Songqi Duan (段松岐): a personal home for memories, photographs, and beautiful moments worth keeping."),
+    siteDescription: String(process.env.I_REMEMBER_SITE_DESCRIPTION ?? "A quiet place for the moments we might one day forget."),
     ownerName: String(process.env.I_REMEMBER_OWNER_NAME ?? "Songqi Duan"),
     ownerAlternateName: String(process.env.I_REMEMBER_OWNER_ALTERNATE_NAME ?? "段松岐"),
-    siteTitle: String(process.env.I_REMEMBER_SITE_TITLE || "Songqi"),
+    siteTitle: String(process.env.I_REMEMBER_SITE_TITLE || "Songqi Duan | 段松岐"),
     canonicalUrl: String(process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org"),
     timezone: String(process.env.TZ || "Asia/Shanghai"),
     defaultLanguage,
@@ -113,7 +113,7 @@ function normalizedRuntimeSettings(values: Record<string, unknown>): RuntimeSett
     siteTitle:
       typeof values.siteTitle === "string" && values.siteTitle.trim()
         ? values.siteTitle.trim().slice(0, 120)
-        : "Songqi",
+        : "Songqi Duan | 段松岐",
     canonicalUrl:
       typeof values.canonicalUrl === "string" && values.canonicalUrl.trim()
         ? values.canonicalUrl.trim().slice(0, 500)

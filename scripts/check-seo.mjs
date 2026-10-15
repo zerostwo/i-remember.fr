@@ -18,7 +18,16 @@ const template =
 const dollarTitle = renderSeo(template, { ...settings, siteTitle: "$& $` $'" }, null, []);
 assert.match(dollarTitle, /<title>\$&amp; \$` \$&#39;/);
 const home = renderSeo(template, settings, null, [post]);
-assert.match(home, /My archive · Jane Doe · 简/);
+assert.match(home, /<title>My archive<\/title>/);
+assert.match(home, /"name":"Jane Doe","alternateName":"简"/);
+const personalSettings = { ...settings, siteTitle: "Songqi Duan | 段松岐", ownerName: "Songqi Duan", ownerAlternateName: "段松岐", siteDescription: "A quiet place for the moments we might one day forget." };
+const personalHome = renderSeo(template, personalSettings, null, []);
+assert.match(personalHome, /<title>Songqi Duan \| 段松岐<\/title>/);
+assert.match(personalHome, /<meta property="og:site_name" content="Songqi Duan \| 段松岐">/);
+assert.match(personalHome, /<meta name="description" content="A quiet place for the moments we might one day forget\.">/);
+const personalGraph = JSON.parse(personalHome.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1])["@graph"];
+assert.equal(personalGraph.find(node => node["@type"] === "WebSite").name, personalSettings.siteTitle);
+assert.equal(personalGraph.find(node => node["@type"] === "Person").name, personalSettings.ownerName);
 assert.match(home, /href="https:\/\/example.org\/"/);
 assert.match(home, /A home for &lt;moments&gt; &amp; &quot;stories&quot;/);
 assert.equal((home.match(/name="description"/g) || []).length, 1);
