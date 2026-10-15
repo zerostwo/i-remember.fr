@@ -25,6 +25,7 @@ export type Principal = {
 export type MemoryRecord = {
   id: string;
   publicId: string;
+  mapId?: string;
   title: string;
   content: string;
   excerpt?: string | null;

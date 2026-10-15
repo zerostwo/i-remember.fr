@@ -60,9 +60,11 @@ export function v1MemoryPayload(memory = {}, defaultLanguage = memory.defaultLan
 export async function syncV1Memory(v1Api, memory) {
   const settings = await v1Api("/api/v1/settings");
   const payload = v1MemoryPayload(memory, settings.defaultLanguage);
-  if (payload.publicId) {
-    const id = payload.publicId;
-    delete payload.publicId;
+  const id = String(memory.publicId || "").trim();
+  delete payload.publicId;
+  const requestedId = memory.linkId === undefined ? id : String(memory.linkId).trim();
+  if (requestedId !== id && (id || requestedId)) payload.publicId = requestedId;
+  if (id) {
     return v1Api(`/api/v1/memories/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(payload),

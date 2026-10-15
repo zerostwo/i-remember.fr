@@ -2427,9 +2427,16 @@ function MemoryEditor({ memory, isNew = false, onSave, onDelete, reportDirty, on
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 label="Public ID"
-                value={draft.publicId || "Created after first save"}
-                onChange={() => {}}
-                disabled
+                value={draft.linkId ?? draft.publicId ?? ""}
+                onChange={(value) => update("linkId", value)}
+                placeholder="Generated automatically"
+                description={draft.publicId ? "4–32 letters, numbers or hyphens; start with a letter. Old links will still work." : "Leave blank for a short random ID, or choose your own. Start with a letter; 4–32 characters."}
+                pattern="[A-Za-z][A-Za-z0-9-]{3,31}"
+                minLength={4}
+                maxLength={32}
+                required={Boolean(draft.publicId)}
+                autoCapitalize="none"
+                spellCheck={false}
               />
               <Field>
                 <FieldLabel>Visibility</FieldLabel>

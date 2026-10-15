@@ -52,6 +52,7 @@ import {
 function memoryDto(memory: MemoryRecord, includePrivate = false) {
   const dto = {
     id: memory.publicId,
+    mapId: memory.mapId,
     title: memory.title,
     content: memory.content,
     excerpt: memory.excerpt,

@@ -40,6 +40,16 @@ assert.equal(calls.length, 2);
 assert.equal(calls[1].method, "PATCH");
 assert.equal(JSON.parse(calls[1].body).publicId, undefined);
 assert.equal(JSON.parse(calls[1].body).metadata.language, "zh");
+for (const [original, chosen, expectedMethod] of [[id, "first-snow", "PATCH"], ["", "rainbow", "POST"], ["", "", "POST"]]) {
+  const linkCalls = [];
+  await syncV1Memory(async (path, options = {}) => {
+    linkCalls.push({ path, ...options });
+    return path.endsWith("settings") ? { defaultLanguage: "en" } : { id: chosen };
+  }, { publicId: original, linkId: chosen, title: "Short link", bodyMarkdown: "A moment" });
+  assert.equal(linkCalls[1].method, expectedMethod);
+  assert.equal(linkCalls[1].path, original ? `/api/v1/memories/${original}` : "/api/v1/memories");
+  assert.equal(JSON.parse(linkCalls[1].body).publicId, chosen || undefined);
+}
 const failureCalls = [];
 await assert.rejects(
   syncV1Memory(

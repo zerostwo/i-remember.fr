@@ -713,6 +713,7 @@ function v1ImageKey(memory) {
 }
 
 function v1LegacyPostId(memory, index = 0) {
+  if (/^\d+$/.test(String(memory?.mapId || ""))) return String(memory.mapId);
   const publicId = String(memory?.id || memory?.publicId || "");
   const match = publicId.match(/^m([0-9a-f]{20})$/);
   return match ? String(Number.parseInt(match[1].slice(0, 13), 16)) : String(900000 - index);
@@ -1443,7 +1444,7 @@ function directPostPublicId(pathname) {
 }
 
 function validPublicMemoryId(value) {
-  return /^m[a-f0-9]{20}$/i.test(String(value || ""));
+  return /^[A-Za-z][A-Za-z0-9-]{3,31}$/.test(String(value || ""));
 }
 
 function shouldLogRequest(pathname) {
@@ -1834,6 +1835,13 @@ async function handleRequest(backend, req, res, next, options = {}) {
       const post = await backend.directPost(directId, memoryLanguage);
       if (!post) {
         sendStatus(res, 404, "Not found");
+        return;
+      }
+      if (post.public_id !== directId) {
+        res.statusCode = 301;
+        res.setHeader("Location", `/memory/${encodeURIComponent(post.public_id)}${url.search}`);
+        res.setHeader("Cache-Control", "private, no-store");
+        res.end();
         return;
       }
       const payload = {

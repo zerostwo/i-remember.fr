@@ -85,9 +85,20 @@ views.
 
 Memory create and patch bodies may include `tags` and `attachments`; memory
 responses include both relation lists. Admin-authenticated import/sync clients
-may set `publicId` only when it matches the current `m` plus 20 lowercase hex
-contract used by language-free `/memory/:id` URLs. Legacy numeric IDs are
-rejected by the v1 memory API.
+may set or change `publicId`: use 4–32 case-sensitive letters, digits or hyphens,
+starting with a letter. New IDs default to eight cryptographically random
+alphanumeric characters; uniqueness is enforced in PostgreSQL with retries for
+random collisions. An ID already assigned to another memory (including a previous
+ID) returns `409 public_id_taken`. Empty IDs on PATCH and invalid formats return
+`400 invalid_public_id`; pure numeric IDs remain invalid.
+
+Changes preserve all previous IDs as aliases. The API resolves an alias to the
+current memory and returns its current `id`. Public HTML routes redirect to the
+current canonical `/memory/:id` with HTTP 301, preserving display-language queries.
+Aliases obey the same visibility/status checks as current IDs. Map identity,
+attachments, views and the database identity do not change when a URL changes.
+Existing long IDs remain usable; the schema migration reserves them before any
+renames. Admin editors expose this through the Public ID field.
 
 `GET /api/v1/dashboard` is admin-only and returns total memories, moderation
 counts, total users, and recent memory activity.

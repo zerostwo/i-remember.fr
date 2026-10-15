@@ -135,6 +135,11 @@ and `A quiet place for the moments we might one day forget.` Existing instances
 must save these values in Settings → Site; updated environment defaults do not
 replace settings already stored in PostgreSQL.
 
+New memories receive eight-character random IDs. In the memory editor, **Public
+ID** can be customized (4–32 letters, digits or hyphens; start with a letter).
+Changing it keeps earlier links working through redirects and preserves the
+memory's photos, map position and view count. Existing long links remain valid.
+
 Public `/memory/<random-id>` pages have their own title, description, canonical URL,
 sharing image, and structured content. Display-language variants canonicalize to the
 same content URL. JavaScript-free visitors receive readable text and memory links;

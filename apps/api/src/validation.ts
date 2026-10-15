@@ -92,9 +92,9 @@ function language(value: unknown, fallback = "en") {
 
 function publicMemoryId(value: unknown) {
   if (value === undefined || value === null || value === "") return undefined;
-  const next = text(value, "", 80);
-  if (!/^m[a-f0-9]{20}$/.test(next)) {
-    throw new ApiError(400, "Invalid public memory id", "invalid_public_id");
+  const next = String(value).trim();
+  if (!/^[A-Za-z][A-Za-z0-9-]{3,31}$/.test(next)) {
+    throw new ApiError(400, "Use 4–32 letters, numbers or hyphens, starting with a letter", "invalid_public_id");
   }
   return next;
 }
@@ -275,7 +275,8 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
     throw new ApiError(400, "Legacy memory ids are not supported", "unsupported_legacy_id");
   }
   if (has(value, "publicId") || has(value, "public_id")) {
-    throw new ApiError(400, "Public memory ids cannot be changed", "unsupported_public_id_patch");
+    input.publicId = publicMemoryId(value.publicId ?? value.public_id);
+    if (!input.publicId) throw new ApiError(400, "Public ID cannot be empty", "invalid_public_id");
   }
 
   if (has(value, "content") || has(value, "bodyMarkdown") || has(value, "text")) {

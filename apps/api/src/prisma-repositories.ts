@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomInt } from "node:crypto";
 import { getPrismaClient } from "@i-remember/database";
 import type {
   AttachmentInput,
@@ -40,8 +40,15 @@ const memoryInclude = {
   tags: { include: { tag: true }, orderBy: { createdAt: "asc" } },
 } as const;
 
+function publicIdConflict(error: any) {
+  const fields = error.meta?.target || error.meta?.driverAdapterError?.cause?.constraint?.fields;
+  return error.code === "P2002" && String(fields).includes("public_id");
+}
+
 export function createPublicMemoryId() {
-  return `m${randomBytes(10).toString("hex")}`;
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  const alphabet = letters + "0123456789";
+  return letters[randomInt(letters.length)] + Array.from({ length: 7 }, () => alphabet[randomInt(alphabet.length)]).join("");
 }
 
 // Unicode names remain distinct; the digest also disambiguates punctuation and truncation.
@@ -111,6 +118,10 @@ function memory(row: any): MemoryRecord {
   return {
     id: row.id,
     publicId: row.publicId,
+    // Keep the original map identity even when the public URL changes.
+    mapId: String(Number.parseInt(/^m[a-f0-9]{20}$/.test(row.mapKey)
+      ? row.mapKey.slice(1, 14)
+      : createHash("sha256").update(row.mapKey || row.publicId).digest("hex").slice(0, 13), 16)),
     title: row.title,
     content: row.content,
     excerpt: row.excerpt,
@@ -294,7 +305,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
   async get(id: string) {
     const row = await this.db.memory.findFirst({
       where: {
-        OR: [{ id }, { publicId: id }],
+        OR: [{ id }, { publicId: id }, { links: { some: { publicId: id } } }],
       },
       include: memoryInclude,
     });
@@ -302,32 +313,44 @@ export class PrismaMemoryRepository implements MemoryRepository {
   }
 
   async create(input: MemoryInput) {
-    return memory(
-      await this.db.memory.create({
-        data: {
-          publicId: input.publicId || createPublicMemoryId(),
-          title: input.title,
-          content: input.content,
-          excerpt: input.content.slice(0, 220),
-          authorId: input.authorId,
-          authorName: input.authorName || "Anonymous",
-          visibility: input.visibility || "PUBLIC",
-          status: input.status || "NORMAL",
-          latitude: input.latitude,
-          longitude: input.longitude,
-          emotion: input.emotion,
-          metadata: input.metadata as any,
-          embedding: input.embedding as any,
-          aiSummary: input.aiSummary,
-          knowledgeGraph: input.knowledgeGraph as any,
-          attachments: input.attachments?.length
-            ? { create: attachmentCreates(input.attachments) }
-            : undefined,
-          tags: input.tags?.length ? { create: await tagCreates(this.db, input.tags) } : undefined,
-        },
-        include: memoryInclude,
-      }),
-    );
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const publicId = input.publicId || createPublicMemoryId();
+      try {
+        return await this.db.$transaction(async (tx) => {
+          if (await tx.memory.findUnique({ where: { id: publicId } })) {
+            throw new ApiError(409, "This public ID is already in use. Choose another.", "public_id_taken");
+          }
+          return memory(await tx.memory.create({
+            data: {
+              publicId,
+              mapKey: publicId,
+              links: { create: { publicId } },
+              title: input.title,
+              content: input.content,
+              excerpt: input.content.slice(0, 220),
+              authorId: input.authorId,
+              authorName: input.authorName || "Anonymous",
+              visibility: input.visibility || "PUBLIC",
+              status: input.status || "NORMAL",
+              latitude: input.latitude,
+              longitude: input.longitude,
+              emotion: input.emotion,
+              metadata: input.metadata as any,
+              embedding: input.embedding as any,
+              aiSummary: input.aiSummary,
+              knowledgeGraph: input.knowledgeGraph as any,
+              attachments: input.attachments?.length ? { create: attachmentCreates(input.attachments) } : undefined,
+              tags: input.tags?.length ? { create: await tagCreates(tx, input.tags) } : undefined,
+            },
+            include: memoryInclude,
+          }));
+        });
+      } catch (error: any) {
+        if (!publicIdConflict(error)) throw error;
+        if (input.publicId) throw new ApiError(409, "This public ID is already in use. Choose another.", "public_id_taken");
+      }
+    }
+    throw new ApiError(503, "Unable to allocate a link. Please try again.", "public_id_unavailable");
   }
 
   async incrementView(id: string) {
@@ -347,35 +370,43 @@ export class PrismaMemoryRepository implements MemoryRepository {
   async update(id: string, input: MemoryUpdateInput) {
     const existing = await this.get(id);
     if (!existing) throw new ApiError(404, "Memory not found", "not_found");
-    const data: any = {
-      title: input.title,
-      content: input.content,
-      excerpt: input.content ? input.content.slice(0, 220) : undefined,
-      authorId: input.authorId,
-      authorName: input.authorName,
-      visibility: input.visibility,
-      latitude: input.latitude,
-      longitude: input.longitude,
-      emotion: input.emotion,
-      status: input.status,
-      metadata: input.metadata as any,
-      embedding: input.embedding as any,
-      aiSummary: input.aiSummary,
-      knowledgeGraph: input.knowledgeGraph as any,
-    };
-    if (input.attachments) {
-      data.attachments = attachmentChanges(existing, input.attachments);
+    try {
+      return await this.db.$transaction(async (tx) => {
+        if (input.publicId && input.publicId !== existing.publicId) {
+          const reserved = await tx.memoryLink.findUnique({ where: { publicId: input.publicId } });
+          const internal = await tx.memory.findUnique({ where: { id: input.publicId } });
+          if ((reserved && reserved.memoryId !== existing.id) || (internal && internal.id !== existing.id)) {
+            throw new ApiError(409, "This public ID is already in use. Choose another.", "public_id_taken");
+          }
+          if (!reserved) await tx.memoryLink.create({ data: { publicId: input.publicId, memoryId: existing.id } });
+        }
+        const data: any = {
+          publicId: input.publicId,
+          title: input.title,
+          content: input.content,
+          excerpt: input.content ? input.content.slice(0, 220) : undefined,
+          authorId: input.authorId,
+          authorName: input.authorName,
+          visibility: input.visibility,
+          latitude: input.latitude,
+          longitude: input.longitude,
+          emotion: input.emotion,
+          status: input.status,
+          metadata: input.metadata as any,
+          embedding: input.embedding as any,
+          aiSummary: input.aiSummary,
+          knowledgeGraph: input.knowledgeGraph as any,
+        };
+        if (input.attachments) data.attachments = attachmentChanges(existing, input.attachments);
+        if (input.tags) data.tags = { deleteMany: {}, create: await tagCreates(tx, input.tags) };
+        return memory(await tx.memory.update({ where: { id: existing.id }, data, include: memoryInclude }));
+      });
+    } catch (error: any) {
+      if (publicIdConflict(error)) {
+        throw new ApiError(409, "This public ID is already in use. Choose another.", "public_id_taken");
+      }
+      throw error;
     }
-    if (input.tags) {
-      data.tags = { deleteMany: {}, create: await tagCreates(this.db, input.tags) };
-    }
-    return memory(
-      await this.db.memory.update({
-        where: { id: existing.id },
-        data,
-        include: memoryInclude,
-      }),
-    );
   }
 
   async archive(id: string) {

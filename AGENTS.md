@@ -206,3 +206,13 @@ Current backend/product decisions:
   again to the homepage title or prefix the description with them. Use a poetic
   description about keeping moments that may one day be forgotten. Preserve
   editable Site settings and the existing public visual experience.
+
+- Owner request on 2026-10-15: deploy the upload/GIF/navigation and SEO repairs
+  while preserving production data and enabled Umami settings. New memory
+  links should be short and nonsequential; allow admins to customize IDs and
+  preserve previously shared links when IDs change. Keep map ownership and
+  view totals attached to the same memory.
+- Owner decision on 2026-10-15: show a visual proposal for the next admin/login
+  redesign before implementation. The layout plan in
+  `docs/admin-layout-plan-2026-10-15.md` is not yet approved. Keep the current
+  admin layout for the functional short-link release.

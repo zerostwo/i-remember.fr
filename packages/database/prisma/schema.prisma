@@ -70,6 +70,7 @@ model User {
 model Memory {
   id             String       @id @default(cuid())
   publicId       String       @unique @map("public_id")
+  mapKey         String       @map("map_key")
   title          String
   content        String
   excerpt        String?
@@ -91,9 +92,20 @@ model Memory {
   attachments    Attachment[]
   tags           MemoryTag[]
   comments       Comment[]
+  links          MemoryLink[]
 
   @@index([visibility, status, createdAt])
   @@map("memories")
+}
+
+// All current and previous public IDs share one reserved namespace.
+model MemoryLink {
+  publicId String @id @map("public_id")
+  memoryId String @map("memory_id")
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+
+  @@index([memoryId])
+  @@map("memory_links")
 }
 
 model Attachment {

@@ -490,10 +490,17 @@ async function json(path: string, options: RequestInit = {}) {
   return { response, body };
 }
 
+for (const invalidId of ["12345", "abc", "a".repeat(33), "bad/id", "with space", "中文名字", ""]) {
+  const invalidLink = await json("/api/v1/memories/pub_1", { method: "PATCH", headers: adminHeaders, body: JSON.stringify({ publicId: invalidId }) });
+  assert.equal(invalidLink.response.status, 400);
+  assert.equal(invalidLink.body.error.code, "invalid_public_id");
+}
+const anonymousRename = await json("/api/v1/memories/pub_1", { method: "PATCH", body: JSON.stringify({ publicId: "first-snow" }) });
+assert.equal(anonymousRename.response.status, 401);
 const generatedPublicIds = new Set(Array.from({ length: 32 }, createPublicMemoryId));
 assert.equal(generatedPublicIds.size, 32);
 for (const publicId of generatedPublicIds) {
-  assert.match(publicId, /^m[a-f0-9]{20}$/);
+  assert.match(publicId, /^[A-Za-z][A-Za-z0-9]{7}$/);
 }
 
 const firstAdminTransactionSteps: string[] = [];

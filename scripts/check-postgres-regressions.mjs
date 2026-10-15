@@ -28,6 +28,57 @@ const attachments = [
   { url: `/${prefix}/note.pdf`, type: "application/pdf" },
 ];
 try {
+  const legacyId = `m${randomBytes(10).toString("hex")}`;
+  const linkMemory = await repository.create({ publicId: legacyId, title: prefix, content: "Link identity", attachments });
+  const firstSlug = `s${randomBytes(6).toString("hex")}`;
+  const secondSlug = `s${randomBytes(6).toString("hex")}`;
+  await repository.incrementView(legacyId);
+  const renamed = await repository.update(legacyId, { publicId: firstSlug });
+  assert.equal(renamed.mapId, linkMemory.mapId);
+  assert.equal(renamed.viewCount, 1);
+  assert.deepEqual(renamed.attachments, linkMemory.attachments);
+  assert.equal((await repository.get(legacyId)).publicId, firstSlug);
+  await repository.update(firstSlug, { publicId: secondSlug });
+  assert.equal((await repository.get(legacyId)).publicId, secondSlug);
+  assert.equal((await repository.get(firstSlug)).id, linkMemory.id);
+  const collision = await repository.create({ title: prefix, content: "Collision check" });
+  assert.match(collision.publicId, /^[A-Za-z][A-Za-z0-9]{7}$/);
+  for (const reservedId of [legacyId, firstSlug, secondSlug]) {
+    await assert.rejects(repository.create({ publicId: reservedId, title: prefix, content: "Do not steal" }), error => error.code === "public_id_taken");
+    await assert.rejects(repository.update(collision.publicId, { publicId: reservedId }), error => error.code === "public_id_taken");
+  }
+  const rolledBackId = `r${randomBytes(6).toString("hex")}`;
+  await assert.rejects(repository.update(secondSlug, { publicId: rolledBackId, attachments: [{ id: "not-owned", url: "/bad.jpg" }] }), error => error.code === "invalid_attachment_id");
+  assert.equal(await db.memoryLink.findUnique({ where: { publicId: rolledBackId } }), null, "A failed edit must not reserve an unused link");
+  const racedId = `r${randomBytes(6).toString("hex")}`;
+  const raced = await Promise.allSettled([
+    repository.update(secondSlug, { publicId: racedId }),
+    repository.update(collision.publicId, { publicId: racedId }),
+  ]);
+  assert.equal(raced.filter(r => r.status === "fulfilled").length, 1);
+  assert.equal(raced.find(r => r.status === "rejected").reason.code, "public_id_taken");
+  await repository.update(legacyId, { publicId: legacyId });
+  for (const visibility of ["PRIVATE", "UNLISTED"]) {
+    await repository.update(legacyId, { visibility });
+    assert.equal(await service.get(anonymous, firstSlug), null);
+  }
+  await repository.update(legacyId, { visibility: "PUBLIC", status: "ARCHIVED" });
+  assert.equal(await service.get(anonymous, firstSlug), null);
+  await repository.update(legacyId, { status: "NORMAL", publicId: firstSlug });
+  if (process.env.I_REMEMBER_TEST_PUBLIC_URL) {
+    const base = new URL(process.env.I_REMEMBER_TEST_PUBLIC_URL);
+    assert.ok(["127.0.0.1", "localhost"].includes(base.hostname));
+    const redirect = await fetch(new URL(`/memory/${legacyId}?ln=fr`, base), { redirect: "manual" });
+    assert.equal(redirect.status, 301);
+    assert.equal(redirect.headers.get("location"), `/memory/${firstSlug}?ln=fr`);
+    const canonical = await fetch(new URL(`/memory/${firstSlug}`, base));
+    assert.equal(canonical.status, 200);
+    assert.ok((await canonical.text()).includes(`https://songqi.org/memory/${firstSlug}`));
+    assert.equal((await fetch(new URL("/memory/12345", base))).status, 404);
+    await repository.update(firstSlug, { visibility: "PRIVATE" });
+    assert.equal((await fetch(new URL(`/memory/${legacyId}`, base), { redirect: "manual" })).status, 404);
+  }
+  await db.memory.deleteMany({ where: { id: { in: [linkMemory.id, collision.id] } } });
   const memory = await repository.create({
     title: prefix,
     content: "Original body",
@@ -181,6 +232,7 @@ try {
   await db.memory.createMany({
     data: Array.from({ length: 405 }, (_, i) => ({
       publicId: `m${randomBytes(10).toString("hex")}`,
+      mapKey: `test-map-${prefix}-${i}`,
       title: `${prefix}-${i}`,
       content: `${prefix} cursor page ${i}`,
       status: "NORMAL",
@@ -239,7 +291,7 @@ try {
   assert.equal(new Set(owned.map((a) => a.id)).size, 207);
   assert.ok(owned.every((a) => a.memoryId === memory.publicId));
   console.log(
-    "PostgreSQL regressions passed: private/unlisted draft preservation, unchanged and edited attachment IDs/types/timestamps, attachment ownership and count validation, archive restore, Unicode/existing tags, 405 records and 207 attachment pagination",
+    "PostgreSQL regressions passed: short/custom IDs, alias redirects, concurrent conflicts, stable map/views/attachments, private alias protection, private/unlisted draft preservation, unchanged and edited attachment IDs/types/timestamps, attachment ownership and count validation, archive restore, Unicode/existing tags, 405 records and 207 attachment pagination",
   );
 } finally {
   await db.memory.deleteMany({ where: { title: { startsWith: prefix } } });
