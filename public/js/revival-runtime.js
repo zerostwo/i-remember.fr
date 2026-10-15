@@ -625,6 +625,8 @@
       'function _(e){e.target===this&&w&&(w.id==="add-options"||w.id==="congrats")&&(w.onBGClick?w.onBGClick():j())}');
     patched = patched.replace('t.show(),w=t)}function B(e)',
       'y.toggleClass("photo-drafting",t.id==="upload-methods"||t.id==="adjustment"||t.id==="message"),t.show(),w=t)}function B(e)');
+    patched = patched.replace('function j(){l.resetCamera({lockControl:!0,hasControl:!0,duration:2}),I(),z(),w&&w.hide()',
+      'function j(){y.removeClass("photo-drafting"),l.resetCamera({lockControl:!0,hasControl:!0,duration:2}),I(),z(),w&&w.hide()');
     var adjustmentStart = patched.indexOf('define("steps/adjustmentStep",');
     var adjustmentEnd = patched.indexOf('define("mout/string/interpolate",', adjustmentStart);
     if (adjustmentStart >= 0 && adjustmentEnd > adjustmentStart) {

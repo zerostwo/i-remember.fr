@@ -87,6 +87,16 @@ for (const id of ["upload-methods", "adjustment", "message"]) {
   assert.equal(exits, 0, `${id} must retain the draft on an outside click`);
 }
 new Function(patchedMain);
+const closeDraft = patchedMain.match(/function j\(\)\{y.removeClass\("photo-drafting"\)[\s\S]*?(?=function F\(e\))/)[0];
+let removedDraftClass = "";
+runInNewContext(`(${closeDraft})`, {
+  y: { removeClass: value => { removedDraftClass = value; } },
+  l: { resetCamera() {} }, I() {}, z() {}, w: null,
+  E: { removeClass() {} }, m: { to() {} },
+  a: { uniforms: { opacity: {} } }, f: { uniforms: { fade: {} } },
+  o: { show() {} }, i: { showNav() {} },
+})();
+assert.equal(removedDraftClass, "photo-drafting", "Cancel must restore the normal header");
 assert.ok(patchedMain.includes('window.SongqiMemoryNavigation.opened(e)'));
 assert.ok(patchedMain.includes('window.SongqiMemoryNavigation.closed()'));
 assert.ok(patchedMain.includes('e.replace=function(t){U(t);O=t;'));

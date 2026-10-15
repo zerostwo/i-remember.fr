@@ -20,10 +20,12 @@ Other self-hosters can set their own public name, description, and domain in the
 - **Keep short moments and longer stories.** Write Markdown, attach photographs,
   organize tags, and open longer entries with **Read more**.
 - **Keep a photo collection together.** Add up to 10 photos per memory, adjust each
-  square preview with drag and zoom, and click to view the complete photos. Use the
-  arrows or swipe to browse; uploaded originals are preserved.
+  square preview with drag and zoom inside the circular composition guide, and
+  drag thumbnails to reorder them (or use Alt + arrow keys). Thumbnails are
+  centered in rows of six. Click a memory photo to view the complete original;
+  GIF animation is preserved throughout the gallery.
 - **Discover another moment.** Swipe vertically on an opened photo or choose
-  **Another memory** to visit a random memory with a short transition. Horizontal
+  either circular side arrow to visit a random memory with a short transition. Horizontal
   swipes browse its photos. Admin **Memories** shows sortable view totals;
   opening a memory counts once, while prefetching and changing photos do not.
 - **Invite contributions.** Optional anonymous submissions follow a staged
