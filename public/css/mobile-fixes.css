@@ -514,7 +514,7 @@ html body .post-2d-img { outline: none; position: relative; background-size: cov
 html body .post-2d-img:focus-visible { outline: none !important; box-shadow: inset 0 0 0 1px #ffffff55; }
 
 /* Photo composition and multi-photo memories retain the quiet archive controls. */
-.add-steps.photo-adjusting { z-index: 6; }
+.add-steps.photo-drafting { z-index: 6; }
 .photo-editor { --photo-editor-size: min(290px, 36dvh); width: var(--photo-editor-size) !important; height: var(--photo-editor-size) !important; top: calc(50% - 31px); margin: 0 !important; transform: translate(-50%, -50%) !important; z-index: 5; }
 .photo-editor .photo-crop-viewport { display: block; width: 100%; aspect-ratio: 1; border: 1px solid #ffffff33; border-radius: 50%; overflow: hidden; position: relative; box-sizing: border-box; cursor: grab; touch-action: none; }
 .photo-editor .photo-crop-viewport:active { cursor: grabbing; }
