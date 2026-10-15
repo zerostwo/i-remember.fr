@@ -587,7 +587,7 @@ try {
   assert.ok(cropCenter[2] > 230 && cropCenter[0] < 20, "Saved crop must reflect zoom and rightward pan, not the center of the original");
   const originalAfter = await fetch(`${baseUrl}${album.photos[0].full_image_url}`).then(r => r.arrayBuffer());
   assert.deepEqual(Buffer.from(originalAfter), fullPhoto, "Cropping must never modify the full photograph");
-  for (const photos of [[], Array(11).fill(crops[0]), [crops[0], crops[0]], [{ fileId: "../../bad", crop: crops[0].crop }], [{ fileId: cameraId, crop: { x: 0.5, y: 0.5, zoom: 0 } }]]) {
+  for (const photos of [[], Array(7).fill(crops[0]), [crops[0], crops[0]], [{ fileId: "../../bad", crop: crops[0].crop }], [{ fileId: cameraId, crop: { x: 0.5, y: 0.5, zoom: 0 } }]]) {
     const rejected = await fetch(`${baseUrl}/api/post`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ photos }) });
     assert.equal(rejected.status, 400, "Malformed or oversized galleries must be rejected");
   }

@@ -1,6 +1,7 @@
 (function () {
   "use strict";
-  var MAX_PHOTOS = 10;
+  var MAX_UPLOAD_PHOTOS = 6;
+  var MAX_VIEW_PHOTOS = 10;
   var state = { steps: null, input: null, photos: [], selected: 0, busy: false, images: new Map(), editor: null };
   var currentMemory = [];
   var memoryIndex = 0;
@@ -46,7 +47,7 @@
     if (!list.length || state.busy || !state.steps) return;
     var existing = append ? state.photos.slice() : [];
     var previousCount = existing.length;
-    if (existing.length + list.length > MAX_PHOTOS) return error(label("Choose up to 10 photos per memory.", "Choisissez jusqu’à 10 photos par souvenir.", "每条回忆最多添加 10 张照片。"));
+    if (existing.length + list.length > MAX_UPLOAD_PHOTOS) return error(label("Choose up to 6 photos per memory.", "Choisissez jusqu’à 6 photos par souvenir.", "每条回忆最多添加 6 张照片。"));
     for (var file of list) {
       var problem = window.__REVIVAL_UPLOAD_ERROR__(file);
       if (problem) return error(problem);
@@ -88,7 +89,7 @@
   function createAdjustmentStep(steps, input, circle, tween) {
     state.steps = steps;
     state.input = input;
-    var root, viewport, preview, range, strip, count, remove, add, picker, reset, activeImage;
+    var root, viewport, preview, range, strip, controls, add, picker, activeImage;
     var active = false;
     var confirming = false;
     var pointers = new Map();
@@ -100,7 +101,7 @@
       state.selected = state.photos.indexOf(selectedPhoto);
       sync();
       refresh();
-      strip.children[to].focus({ preventScroll: true });
+      strip.children[to].querySelector("button[data-index]").focus({ preventScroll: true });
     }
     function endSort(event) {
       if (!sorting || (event && event.pointerId !== sorting.pointerId)) return;
@@ -142,13 +143,19 @@
       draw();
     }
     async function refresh() {
-      if (!active || !selected()) return;
+      if (!active) return;
       var photo = selected();
       activeImage = null;
       preview.removeAttribute("src");
+      preview.hidden = !photo;
+      controls.hidden = !photo;
+      viewport.classList.toggle("is-empty", !photo);
+      if (photo && !state.busy) steps.enableValidateBtn(); else steps.disableValidateBtn();
       strip.replaceChildren();
       state.photos.forEach(function (entry, index) {
+        var item = document.createElement("div"); item.className = "photo-thumb";
         var thumb = button("", label("Edit photo", "Modifier la photo", "编辑照片") + " " + (index + 1), function () { if (Date.now() < suppressThumbClickUntil || state.busy) return; state.selected = index; refresh(); });
+        thumb.className = "photo-thumb-select";
         thumb.dataset.index = index;
         thumb.title = label("Drag to reorder · Alt + arrow keys", "Glisser pour réordonner · Alt + flèches", "拖拽排序 · Alt + 方向键");
         thumb.disabled = state.busy;
@@ -159,14 +166,25 @@
         });
         var image = document.createElement("img");
         image.src = fullUrl(entry.fileId);
-        image.alt = "";
+        image.alt = ""; image.draggable = false;
         thumb.setAttribute("aria-pressed", String(index === state.selected));
         thumb.appendChild(image);
-        strip.appendChild(thumb);
+        var remove = button("×", label("Remove photo", "Retirer la photo", "移除照片") + " " + (index + 1), function () {
+          if (state.busy) return;
+          var current = selected();
+          state.photos.splice(index, 1);
+          state.selected = current === entry ? Math.min(index, state.photos.length - 1) : state.photos.indexOf(current);
+          state.selected = Math.max(0, state.selected);
+          sync(); refresh();
+          var next = strip.querySelector("button[data-index='" + state.selected + "']") || add;
+          next.focus({ preventScroll: true });
+        });
+        remove.className = "photo-thumb-remove"; remove.disabled = state.busy;
+        item.append(thumb, remove); strip.appendChild(item);
       });
-      count.textContent = (state.selected + 1) + " / " + state.photos.length;
-      remove.disabled = state.photos.length <= 1 || state.busy;
-      add.disabled = state.photos.length >= MAX_PHOTOS || state.busy;
+      add.disabled = state.busy;
+      if (state.photos.length < MAX_UPLOAD_PHOTOS) strip.appendChild(add);
+      if (!photo) return;
       try {
         var image = await loadImage(fullUrl(photo.fileId));
         if (selected() !== photo || !active) return;
@@ -178,7 +196,8 @@
     function setBusy(busy) {
       if (!root) return;
       root.querySelectorAll("button,input").forEach(function (element) { element.disabled = busy; });
-      if (busy) steps.disableValidateBtn(); else { steps.enableValidateBtn(); if (active) refresh(); }
+      if (busy || !state.photos.length) steps.disableValidateBtn();
+      if (!busy && active) refresh();
     }
     async function confirm() {
       if (state.busy || confirming || !state.photos.length) return;
@@ -208,12 +227,12 @@
       viewport.tabIndex = 0;
       viewport.setAttribute("aria-label", label("Photo crop. Drag to move; use arrow keys to adjust.", "Cadrage. Faites glisser ou utilisez les flèches.", "照片裁切。拖拽或使用方向键调整。"));
       root.appendChild(viewport);
-      var controls = document.createElement("div"); controls.className = "photo-zoom-controls";
+      controls = document.createElement("div"); controls.className = "photo-zoom-controls";
       range = document.createElement("input"); range.type = "range"; range.min = "1"; range.max = "4"; range.step = "0.01"; range.value = "1";
       range.setAttribute("aria-label", label("Photo zoom", "Zoom photo", "照片缩放"));
       range.addEventListener("input", function () { zoom(Number(range.value)); });
-      controls.append(button("−", label("Zoom out", "Réduire", "缩小"), function () { zoom(selected().crop.zoom - 0.1); }), range,
-        button("+", label("Zoom in", "Agrandir", "放大"), function () { zoom(selected().crop.zoom + 0.1); }));
+      controls.append(button("−", label("Zoom out", "Réduire", "缩小"), function () { if (selected()) zoom(selected().crop.zoom - 0.1); }), range,
+        button("+", label("Zoom in", "Agrandir", "放大"), function () { if (selected()) zoom(selected().crop.zoom + 0.1); }));
       root.appendChild(controls);
       strip = document.createElement("div"); strip.className = "photo-edit-strip"; root.appendChild(strip);
       strip.setAttribute("aria-label", label("Photos. Drag to reorder, or use Alt and arrow keys.", "Photos. Glissez ou utilisez Alt et les flèches pour réordonner.", "照片。拖拽或使用 Alt 加方向键排序。"));
@@ -234,7 +253,7 @@
         sorting.thumb.classList.add("is-dragging");
         sorting.thumb.style.transform = "translate(" + dx + "px," + dy + "px)";
         var closest = sorting.from, distance = Infinity;
-        Array.from(strip.children).forEach(function (thumb, index) {
+        Array.from(strip.querySelectorAll(".photo-thumb")).forEach(function (thumb, index) {
           // Offset boxes are unaffected by the dragged thumbnail's transform.
           var bounds = strip.getBoundingClientRect();
           var delta = Math.hypot(event.clientX - bounds.left - thumb.offsetLeft - thumb.offsetWidth / 2,
@@ -242,17 +261,14 @@
           if (delta < distance) { closest = index; distance = delta; }
         });
         sorting.to = closest;
-        Array.from(strip.children).forEach(function (thumb, index) { thumb.classList.toggle("is-drop-target", index === closest && index !== sorting.from); });
+        Array.from(strip.querySelectorAll(".photo-thumb")).forEach(function (thumb, index) { thumb.classList.toggle("is-drop-target", index === closest && index !== sorting.from); });
       });
       ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (type) { strip.addEventListener(type, endSort); });
-      var actions = document.createElement("div"); actions.className = "photo-edit-actions";
-      count = document.createElement("span"); count.setAttribute("aria-live", "polite");
       picker = document.createElement("input"); picker.type = "file"; picker.multiple = true; picker.accept = "image/jpeg,image/png,image/webp,image/gif"; picker.hidden = true;
       picker.addEventListener("change", function () { uploadFiles(picker.files, true); picker.value = ""; });
       add = button("+", label("Add photos", "Ajouter des photos", "添加照片"), function () { picker.click(); });
-      remove = button("×", label("Remove photo", "Retirer la photo", "移除照片"), function () { if (state.photos.length <= 1) return; state.photos.splice(state.selected, 1); state.selected = Math.min(state.selected, state.photos.length - 1); sync(); refresh(); });
-      reset = button("↺", label("Reset crop", "Réinitialiser le cadrage", "重置裁切"), function () { selected().crop = { x: 0.5, y: 0.5, zoom: 1 }; draw(); });
-      actions.append(count, add, remove, reset, picker); root.appendChild(actions);
+      add.className = "photo-add";
+      root.appendChild(picker);
       ["mousedown", "touchstart", "touchmove", "touchend"].forEach(function (type) { root.addEventListener(type, function (event) { event.stopPropagation(); }, { passive: true }); });
       root.addEventListener("keydown", function (event) { event.stopPropagation(); });
       viewport.addEventListener("pointerdown", function (event) { if (!activeImage || state.busy) return; event.preventDefault(); event.stopPropagation(); viewport.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
@@ -278,12 +294,12 @@
         draw();
       });
       ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (type) { viewport.addEventListener(type, function (event) { pointers.delete(event.pointerId); }); });
-      viewport.addEventListener("wheel", function (event) { event.preventDefault(); event.stopPropagation(); zoom(selected().crop.zoom * Math.exp(-event.deltaY * 0.002)); }, { passive: false });
+      viewport.addEventListener("wheel", function (event) { event.preventDefault(); event.stopPropagation(); if (selected()) zoom(selected().crop.zoom * Math.exp(-event.deltaY * 0.002)); }, { passive: false });
       viewport.addEventListener("keydown", function (event) {
         if (!selected() || !activeImage) return;
         if (/^Arrow/.test(event.key)) { event.preventDefault(); var crop = selected().crop; var delta = 0.025 / crop.zoom; if (event.key === "ArrowLeft") crop.x -= delta; if (event.key === "ArrowRight") crop.x += delta; if (event.key === "ArrowUp") crop.y -= delta; if (event.key === "ArrowDown") crop.y += delta; draw(); }
-        if (event.key === "+" || event.key === "=") { event.preventDefault(); zoom(selected().crop.zoom + 0.1); }
-        if (event.key === "-") { event.preventDefault(); zoom(selected().crop.zoom - 0.1); }
+        if (event.key === "+" || event.key === "=") { event.preventDefault(); if (selected()) zoom(selected().crop.zoom + 0.1); }
+        if (event.key === "-") { event.preventDefault(); if (selected()) zoom(selected().crop.zoom - 0.1); }
       });
       function bindStepAction(selector, action) {
         var element = document.querySelector(selector);
@@ -376,7 +392,7 @@
   function showMemory(post) {
     installViewer();
     var photos = post.photos && post.photos.length ? post.photos : [{ image_url: post.image_url, full_image_url: post.full_image_url || post.image_url }];
-    currentMemory = photos.slice(0, MAX_PHOTOS).map(function (photo) { return { image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
+    currentMemory = photos.slice(0, MAX_VIEW_PHOTOS).map(function (photo) { return { image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
     memoryIndex = 0;
     if (window.SongqiPhotos.renderMemory) window.SongqiPhotos.renderMemory();
   }

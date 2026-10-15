@@ -733,8 +733,8 @@ function validatedPhotos(fields) {
   if (fields.photos == null || fields.photos === "") return null;
   let photos;
   try { photos = typeof fields.photos === "string" ? JSON.parse(fields.photos) : fields.photos; } catch { /* validated below */ }
-  if (!Array.isArray(photos) || !photos.length || photos.length > 10) {
-    throw new HttpError(400, "Invalid photo collection", "Choose between 1 and 10 photos.");
+  if (!Array.isArray(photos) || !photos.length || photos.length > 6) {
+    throw new HttpError(400, "Invalid photo collection", "Choose between 1 and 6 photos.");
   }
   const seen = new Set();
   return photos.map(photo => {

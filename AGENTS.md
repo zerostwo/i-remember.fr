@@ -225,3 +225,10 @@ Current backend/product decisions:
   right screen position as the full-photo close button. Provide a working
   favicon. Short/custom and original memory IDs must work together in discovery,
   random navigation, view counting, and crawl listings.
+
+- Latest owner feedback on 2026-10-15: cap new public submissions at six photos,
+  preserving full access to existing larger albums. Thumbnails must be true
+  circles. Keep a single add button after the last thumbnail (alone when empty,
+  hidden at six); show removal at each thumbnail's upper right on hover/focus
+  and persistently on touch. Remove the composition counter and reset action.
+  Use a crisp monochrome favicon that echoes the site's serif and galaxy style.
