@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { versionPublicAssets } from "../src/server/public-asset-versions.js";
 import { renderSeo, sitemapXml, siteOrigin, publicPosts } from "../src/server/seo.js";
 const settings = {
   siteTitle: "My archive",
@@ -62,6 +65,15 @@ assert.equal((sitemapXml(settings, []).match(/<url>/g) || []).length, 1);
 assert.equal(siteOrigin("javascript:alert(1)"), "https://songqi.org");
 assert.equal(siteOrigin("https://example.org/path"), "https://example.org");
 console.log("SEO metadata, alternate deployment, escaping, and sitemap checks passed");
+
+for (const languageFile of ["index.html", "fr.html"]) {
+  const html = versionPublicAssets(readFileSync(new URL(`../${languageFile}`, import.meta.url), "utf8"));
+  for (const path of ["js/memory-navigation.js", "js/photo-gallery.js", "js/revival-runtime.js", "css/mobile-fixes.css"]) {
+    const hash = createHash("sha256").update(readFileSync(new URL(`../public/${path}`, import.meta.url))).digest("hex").slice(0, 16);
+    assert.ok(html.includes(`/${path}?v=${hash}`), `${languageFile}: ${path} must invalidate old browser/CDN copies`);
+  }
+  assert.equal(versionPublicAssets(html), html, "Asset versioning must be stable");
+}
 
 const shortPosts = ["ZDfRmeuj", "rainbow", "my-memory"].map(public_id => ({ ...post, public_id }));
 assert.deepEqual(publicPosts([post, ...shortPosts, ...shortPosts]), [post, ...shortPosts]);

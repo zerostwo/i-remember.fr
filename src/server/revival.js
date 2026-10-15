@@ -1,4 +1,5 @@
 import { renderSeo, sitemapXml, siteOrigin, publicPosts } from "./seo.js";
+import { versionPublicAssets } from "./public-asset-versions.js";
 import { markdownToHtml, memoryBody, memoryPreview } from "../../packages/content/src/markdown.js";
 import { randomUUID, randomInt, createHash } from "node:crypto";
 import {
@@ -1471,7 +1472,7 @@ async function renderAppHtml(
 ) {
   const normalized = normalizeLanguage(language);
   const normalizedMemoryLanguage = normalizeLanguage(memoryLanguage);
-  let html = readFileSync(appHtmlUrlForLanguage(normalized), "utf8");
+  let html = versionPublicAssets(readFileSync(appHtmlUrlForLanguage(normalized), "utf8"));
   if (normalized === "zh") html = localizeChineseHtml(html);
   if (backend.production) html = html.replace("/src/public-markdown.js", "/assets/public-markdown.js");
   html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};window.SONGQI_UPLOAD_LIMITS=${safeScriptJson({ maxBytes: maxUploadBodyBytes, maxPixels: maxImagePixels })};</script>`);
