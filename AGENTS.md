@@ -216,3 +216,12 @@ Current backend/product decisions:
   redesign before implementation. The layout plan in
   `docs/admin-layout-plan-2026-10-15.md` is not yet approved. Keep the current
   admin layout for the functional short-link release.
+
+- Owner feedback on 2026-10-15: show six centered photo thumbnails per row in
+  composition (retain the ten-photo limit), support drag reordering on desktop
+  and touch, align the circular preview with desktop Back/Confirm controls,
+  and keep the zoom bar visually small. Hide the header description and fade
+  indicator while adding a memory; place its cancel button at the same upper
+  right screen position as the full-photo close button. Provide a working
+  favicon. Short/custom and original memory IDs must work together in discovery,
+  random navigation, view counting, and crawl listings.

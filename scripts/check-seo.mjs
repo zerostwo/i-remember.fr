@@ -62,3 +62,11 @@ assert.equal((sitemapXml(settings, []).match(/<url>/g) || []).length, 1);
 assert.equal(siteOrigin("javascript:alert(1)"), "https://songqi.org");
 assert.equal(siteOrigin("https://example.org/path"), "https://example.org");
 console.log("SEO metadata, alternate deployment, escaping, and sitemap checks passed");
+
+const shortPosts = ["ZDfRmeuj", "rainbow", "my-memory"].map(public_id => ({ ...post, public_id }));
+assert.deepEqual(publicPosts([post, ...shortPosts, ...shortPosts]), [post, ...shortPosts]);
+for (const entry of shortPosts) {
+  assert.ok(sitemapXml(settings, [post, ...shortPosts]).includes(`/memory/${entry.public_id}`));
+  assert.ok(renderSeo(template, settings, null, shortPosts).includes(`/memory/${entry.public_id}`));
+}
+assert.equal(publicPosts([{ ...post, public_id: "bad/id" }, { ...post, public_id: "12345678" }]).length, 0);

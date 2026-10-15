@@ -1756,13 +1756,6 @@ async function handleRequest(backend, req, res, next, options = {}) {
     return;
   }
 
-  if (req.method === "GET" && pathname === "/favicon.ico") {
-    res.statusCode = 204;
-    res.setHeader("Cache-Control", "public, max-age=86400");
-    res.end();
-    return;
-  }
-
   const image = await backend.imageForPath(pathname);
   if (image) {
     res.statusCode = 200;

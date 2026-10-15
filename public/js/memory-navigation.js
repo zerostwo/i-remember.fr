@@ -102,7 +102,7 @@
   }
   function opened(post) {
     var id = post.public_id || post.publicId;
-    if (!/^m[a-f0-9]{20}$/i.test(id || "")) return;
+    if (!/^[A-Za-z][A-Za-z0-9-]{3,31}$/.test(id || "")) return;
     install();
     if (id === current) return;
     current = id;

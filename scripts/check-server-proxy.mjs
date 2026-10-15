@@ -9,8 +9,8 @@ import { createRevivalMiddleware } from "../src/server/revival.js";
 
 const dataDir = await mkdtemp(join(tmpdir(), "i-remember-proxy-"));
 const v1PublicId = "m11111111111111111111";
-const v1ChinesePublicId = "m33333333333333333333";
-const v1SubmittedId = "m22222222222222222222";
+const v1ChinesePublicId = "Ab3xY9qR";
+const v1SubmittedId = "new-memory";
 const v1MenuId = "menu-v1-about";
 const v1CreateBodies = [];
 const v1CreatedMemories = [];
@@ -429,6 +429,8 @@ try {
   assert.equal(v1ViewCount, 0, "Language and metadata reads must not count views");
   const randomMemory = await (await fetch(`${baseUrl}/api/random-memory?current=${v1PublicId}`)).json();
   assert.equal(randomMemory.data.post.public_id, v1ChinesePublicId, "Random discovery excludes the current memory and includes every content language");
+  const fromShortId = await (await fetch(`${baseUrl}/api/random-memory?current=${v1ChinesePublicId}`)).json();
+  assert.equal(fromShortId.data.post.public_id, v1PublicId, "Short-ID memories can navigate back to original-ID memories");
   const exhaustedRandom = await (await fetch(`${baseUrl}/api/random-memory?current=${v1PublicId}&seen=${v1PublicId},${v1ChinesePublicId}`)).json();
   assert.equal(exhaustedRandom.data.post.public_id, v1ChinesePublicId, "Exhausting recent history still never selects the current memory");
   assert.equal(v1ViewCount, 0, "Random discovery does not count undisplayed previews");

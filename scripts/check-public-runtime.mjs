@@ -109,6 +109,11 @@ navigation.opened(firstMemory);
 assert.equal(viewRequests.length, 3, "Reopening counts a new visit");
 navigation.opened({ public_id: "123" });
 assert.equal(viewRequests.length, 3, "Placeholder identities must not count");
+for (const public_id of ["ZDfRmeuj", "new-memory", "m11111111111111111111"]) {
+  navigation.opened({ public_id });
+  assert.equal(viewRequests.at(-1), `/api/v1/memories/${public_id}/view`);
+}
+assert.equal(viewRequests.length, 6, "Short, custom and original IDs all count real opens");
 assert.equal(navigation.swipeDirection(10, -100, 200), 1);
 assert.equal(navigation.swipeDirection(10, 100, 200), -1);
 assert.equal(navigation.swipeDirection(100, 10, 200), 0, "Horizontal photo swipe must not change memory");

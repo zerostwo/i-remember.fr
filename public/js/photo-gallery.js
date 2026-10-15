@@ -92,6 +92,30 @@
     var active = false;
     var confirming = false;
     var pointers = new Map();
+    var sorting = null, suppressThumbClickUntil = 0;
+    function reorder(from, to) {
+      if (state.busy || from === to || to < 0 || to >= state.photos.length) return;
+      var selectedPhoto = selected();
+      state.photos.splice(to, 0, state.photos.splice(from, 1)[0]);
+      state.selected = state.photos.indexOf(selectedPhoto);
+      sync();
+      refresh();
+      strip.children[to].focus({ preventScroll: true });
+    }
+    function endSort(event) {
+      if (!sorting || (event && event.pointerId !== sorting.pointerId)) return;
+      var drag = sorting;
+      sorting = null;
+      strip.classList.remove("is-sorting");
+      drag.thumb.style.transform = "";
+      drag.thumb.classList.remove("is-dragging");
+      strip.querySelectorAll(".is-drop-target").forEach(function (element) { element.classList.remove("is-drop-target"); });
+      if (drag.thumb.hasPointerCapture(drag.pointerId)) drag.thumb.releasePointerCapture(drag.pointerId);
+      if (drag.moved) {
+        suppressThumbClickUntil = Date.now() + 500;
+        if (event && event.type === "pointerup") reorder(drag.from, drag.to);
+      }
+    }
     function selected() { return state.photos[state.selected]; }
     function normalize() {
       if (!activeImage || !selected()) return;
@@ -124,7 +148,15 @@
       preview.removeAttribute("src");
       strip.replaceChildren();
       state.photos.forEach(function (entry, index) {
-        var thumb = button("", label("Edit photo", "Modifier la photo", "编辑照片") + " " + (index + 1), function () { state.selected = index; refresh(); });
+        var thumb = button("", label("Edit photo", "Modifier la photo", "编辑照片") + " " + (index + 1), function () { if (Date.now() < suppressThumbClickUntil || state.busy) return; state.selected = index; refresh(); });
+        thumb.dataset.index = index;
+        thumb.title = label("Drag to reorder · Alt + arrow keys", "Glisser pour réordonner · Alt + flèches", "拖拽排序 · Alt + 方向键");
+        thumb.disabled = state.busy;
+        thumb.addEventListener("keydown", function (event) {
+          if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+            event.preventDefault(); reorder(index, index + (event.key === "ArrowLeft" ? -1 : 1));
+          }
+        });
         var image = document.createElement("img");
         image.src = fullUrl(entry.fileId);
         image.alt = "";
@@ -184,6 +216,35 @@
         button("+", label("Zoom in", "Agrandir", "放大"), function () { zoom(selected().crop.zoom + 0.1); }));
       root.appendChild(controls);
       strip = document.createElement("div"); strip.className = "photo-edit-strip"; root.appendChild(strip);
+      strip.setAttribute("aria-label", label("Photos. Drag to reorder, or use Alt and arrow keys.", "Photos. Glissez ou utilisez Alt et les flèches pour réordonner.", "照片。拖拽或使用 Alt 加方向键排序。"));
+      strip.addEventListener("pointerdown", function (event) {
+        var thumb = event.target.closest("button[data-index]");
+        if (!thumb || state.busy || event.button !== 0) return;
+        endSort();
+        sorting = { pointerId: event.pointerId, from: Number(thumb.dataset.index), to: Number(thumb.dataset.index), x: event.clientX, y: event.clientY, thumb: thumb, moved: false };
+        thumb.setPointerCapture(event.pointerId);
+      });
+      strip.addEventListener("pointermove", function (event) {
+        if (!sorting || sorting.pointerId !== event.pointerId) return;
+        var dx = event.clientX - sorting.x, dy = event.clientY - sorting.y;
+        if (!sorting.moved && Math.hypot(dx, dy) < 6) return;
+        sorting.moved = true;
+        event.preventDefault();
+        strip.classList.add("is-sorting");
+        sorting.thumb.classList.add("is-dragging");
+        sorting.thumb.style.transform = "translate(" + dx + "px," + dy + "px)";
+        var closest = sorting.from, distance = Infinity;
+        Array.from(strip.children).forEach(function (thumb, index) {
+          // Offset boxes are unaffected by the dragged thumbnail's transform.
+          var bounds = strip.getBoundingClientRect();
+          var delta = Math.hypot(event.clientX - bounds.left - thumb.offsetLeft - thumb.offsetWidth / 2,
+            event.clientY - bounds.top - thumb.offsetTop - thumb.offsetHeight / 2);
+          if (delta < distance) { closest = index; distance = delta; }
+        });
+        sorting.to = closest;
+        Array.from(strip.children).forEach(function (thumb, index) { thumb.classList.toggle("is-drop-target", index === closest && index !== sorting.from); });
+      });
+      ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (type) { strip.addEventListener(type, endSort); });
       var actions = document.createElement("div"); actions.className = "photo-edit-actions";
       count = document.createElement("span"); count.setAttribute("aria-live", "polite");
       picker = document.createElement("input"); picker.type = "file"; picker.multiple = true; picker.accept = "image/jpeg,image/png,image/webp,image/gif"; picker.hidden = true;
@@ -252,7 +313,7 @@
       steps.showBackBtn(function () { steps.goToStep("upload-methods"); });
       steps.showValidateBtn(confirm); refresh();
     }
-    function hide() { active = false; pointers.clear(); root.style.display = "none"; document.querySelector(".add-steps").classList.remove("photo-adjusting"); }
+    function hide() { active = false; endSort(); pointers.clear(); root.style.display = "none"; document.querySelector(".add-steps").classList.remove("photo-adjusting"); }
     return { id: "adjustment", animationIndex: 3, indicatorIndex: 0, init: init, show: show, hide: hide, render: function () {} };
   }
   function safeImageUrl(value) {
@@ -275,6 +336,7 @@
     viewer.setAttribute("aria-label", label("Memory photos", "Photos du souvenir", "回忆照片"));
     var image = document.createElement("img");
     var close = button("×", label("Close photo", "Fermer la photo", "关闭照片"), function () { viewer.close(); });
+    close.className = "photo-viewer-close";
     var fullPrevious = button("‹", previous.getAttribute("aria-label"), function () { move(-1); });
     var fullNext = button("›", next.getAttribute("aria-label"), function () { move(1); });
     fullPrevious.className = "photo-gallery-prev"; fullNext.className = "photo-gallery-next";

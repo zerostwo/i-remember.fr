@@ -15,7 +15,7 @@ export function siteOrigin(value) {
 }
 
 export function publicPosts(posts) {
-  return [...new Map(posts.filter((post) => /^m[a-f0-9]{20}$/i.test(post.public_id || "") &&
+  return [...new Map(posts.filter((post) => /^[A-Za-z][A-Za-z0-9-]{3,31}$/.test(post.public_id || "") &&
     String(post.body_markdown || "").trim()).map((post) => [post.public_id, post])).values()];
 }
 

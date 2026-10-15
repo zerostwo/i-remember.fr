@@ -515,18 +515,26 @@ html body .post-2d-img:focus-visible { outline: none !important; box-shadow: ins
 
 /* Photo composition and multi-photo memories retain the quiet archive controls. */
 .add-steps.photo-adjusting { z-index: 6; }
-.photo-editor { --photo-editor-size: min(290px, 36dvh); width: var(--photo-editor-size) !important; height: auto !important; margin: 0 !important; transform: translate(-50%, -50%) !important; z-index: 5; }
+.photo-editor { --photo-editor-size: min(290px, 36dvh); width: var(--photo-editor-size) !important; height: var(--photo-editor-size) !important; top: calc(50% - 31px); margin: 0 !important; transform: translate(-50%, -50%) !important; z-index: 5; }
 .photo-editor .photo-crop-viewport { display: block; width: 100%; aspect-ratio: 1; border: 1px solid #ffffff33; border-radius: 50%; overflow: hidden; position: relative; box-sizing: border-box; cursor: grab; touch-action: none; }
 .photo-editor .photo-crop-viewport:active { cursor: grabbing; }
 .photo-editor button { min-width: 44px; height: 44px; border: 1px solid #ffffff26; border-radius: 50%; background: transparent; color: #ddd; font: 22px Georgia, serif; cursor: pointer; }
 .photo-editor button:disabled { opacity: .25; cursor: default; }
 .photo-editor button:focus-visible, .photo-editor .photo-crop-viewport:focus-visible { outline: 1px solid #aaa !important; outline-offset: 2px !important; }
 .photo-zoom-controls, .photo-edit-actions { display: flex; align-items: center; justify-content: center; gap: 4px; }
-.photo-zoom-controls input { width: calc(100% - 96px); accent-color: #ccc; min-height: 44px; }
+.photo-zoom-controls { width: 176px; max-width: 100%; margin: 8px auto 4px; gap: 0; opacity: .7; }
+.photo-zoom-controls button { min-width: 36px; width: 36px; height: 36px; border-color: transparent; font-size: 18px; }
+.photo-zoom-controls input { width: calc(100% - 72px); accent-color: #aaa; height: 36px; min-width: 0; background: transparent; appearance: none; cursor: pointer; }
+.photo-zoom-controls input::-webkit-slider-runnable-track { height: 2px; background: #ffffff40; border-radius: 2px; }
+.photo-zoom-controls input::-webkit-slider-thumb { appearance: none; width: 9px; height: 9px; margin-top: -3.5px; border-radius: 50%; background: #bbb; }
+.photo-zoom-controls input::-moz-range-track { height: 2px; background: #ffffff40; }
+.photo-zoom-controls input::-moz-range-thumb { width: 9px; height: 9px; border: 0; background: #bbb; }
 .photo-edit-actions { min-width: 180px; position: relative; left: 50%; transform: translateX(-50%); }
 .photo-edit-actions span { color: #aaa; font: 13px Georgia, serif; margin-right: auto; white-space: nowrap; }
-.photo-edit-strip { display: flex; gap: 6px; overflow-x: auto; overscroll-behavior: contain; touch-action: pan-x; padding: 4px 0; }
-.photo-edit-strip button { flex: 0 0 44px; width: 44px; padding: 2px; opacity: .55; }
+.photo-edit-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; position: relative; width: min(294px, calc(100vw - 48px)); left: 50%; transform: translateX(-50%); touch-action: none; padding: 4px 0; user-select: none; }
+.photo-edit-strip button { flex: 0 0 calc((100% - 30px) / 6); width: calc((100% - 30px) / 6); min-width: 0; height: auto; aspect-ratio: 1; padding: 2px; opacity: .55; touch-action: none; cursor: grab; }
+.photo-edit-strip button.is-dragging { z-index: 2; opacity: .9; cursor: grabbing; box-shadow: 0 4px 18px #0009; }
+.photo-edit-strip button.is-drop-target { border-color: #eee; box-shadow: 0 0 0 2px #ffffff55; }
 .photo-edit-strip button[aria-pressed="true"] { opacity: 1; box-shadow: inset 0 0 0 1px #aaa; }
 .photo-edit-strip img { border-radius: 50%; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 .photo-upload-status { position: absolute; bottom: 20%; left: 50%; transform: translateX(-50%); z-index: 10; color: #eee; font: 16px Georgia, serif; background: #000b; padding: 8px 16px; }
@@ -575,10 +583,20 @@ html body .post-2d-img:focus-visible { outline: none !important; box-shadow: ins
   .memory-navigation-status { left: 60px; right: 60px; bottom: 16px; }
 }
 
-.photo-draft-cancel { display: none; position: absolute; top: 132px; right: 24px; width: 44px; height: 44px; border: 1px solid #ffffff26; border-radius: 50%; background: transparent; color: #eee; font: 28px/1 Arial, sans-serif; cursor: pointer; }
+.photo-draft-cancel { display: none; position: fixed; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); width: 44px; height: 44px; border: 1px solid #ffffff26; border-radius: 50%; background: transparent; color: #eee; font: 28px/1 Arial, sans-serif; cursor: pointer; }
 .photo-drafting .photo-draft-cancel { display: block; }
 .photo-draft-cancel:focus { outline: none !important; }
 .photo-draft-cancel:focus-visible { box-shadow: 0 0 0 1px #ffffff66; }
 @media (max-width: 760px), (max-height: 500px) {
-  .photo-draft-cancel { top: 72px; right: 12px; }
+  .photo-draft-cancel { top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
+}
+
+/* Draft and full-photo overlays share one screen-corner dismissal point. */
+body:has(.add-steps.photo-drafting) .header-fade-container,
+body:has(.add-steps.photo-drafting) .header-description { visibility: hidden !important; pointer-events: none !important; }
+.revival-photo-viewer .photo-viewer-close { position: fixed; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); border: 1px solid #ffffff26; background: #080808; z-index: 2; }
+@media (min-width: 761px) and (min-height: 501px) {
+  .photo-adjusting .add-steps-back-btn, .photo-adjusting .add-steps-validate-btn { display: flex !important; align-items: center; gap: 18px; height: 44px; top: calc(50% - 31px) !important; margin-top: -22px !important; opacity: 1 !important; transform: none !important; }
+  .photo-adjusting .add-steps-back-btn { flex-direction: row-reverse; }
+  .photo-adjusting .add-steps-back-btn > *, .photo-adjusting .add-steps-validate-btn > * { float: none !important; margin: 0 !important; }
 }
