@@ -587,6 +587,57 @@
     };
   }
 
+  function bindLegacyInput(target, down, move, up, wheel, gesture) {
+    // Always listen for touch: hybrid devices and emulation can change mode
+    // after initialization. Non-passive handlers let the legacy controller own
+    // galaxy gestures without cancelling native form interactions.
+    var lastTouch = -Infinity;
+    var pinching = false, pinchDistance = 0, nativeTouch = false;
+    function distance(event) {
+      return event.touches.length < 2 ? 0 : Math.hypot(
+        event.touches[0].pageX - event.touches[1].pageX,
+        event.touches[0].pageY - event.touches[1].pageY);
+    }
+    function touch(event) {
+      lastTouch = Date.now();
+      if (event.type === "touchstart" && event.touches.length === 1) {
+        nativeTouch = !!event.target.closest("button,a,input,select,textarea,label,[contenteditable='true'],[data-menu-id],.search-btn,.photo-editor,.revival-menu-memory");
+      }
+      if (nativeTouch) return;
+      if (event.type === "touchstart") {
+        if (event.touches.length > 1) { pinching = true; pinchDistance = distance(event); return; }
+        pinching = false; down(event);
+      } else if (event.type === "touchmove") {
+        if (pinching) {
+          var next = distance(event);
+          if (next && pinchDistance && event.target.closest(".base-3d-container")) {
+            wheel({ wheelDelta: Math.log(next / pinchDistance) * 2400 });
+            event.preventDefault();
+          }
+          pinchDistance = next;
+        } else move(event);
+      } else if (!event.touches.length) {
+        if (pinching || event.type === "touchcancel") {
+          up({ type: "touchend", cancelled: true, touches: [], changedTouches: event.changedTouches,
+            target: event.target, preventDefault: function () { if (event.cancelable) event.preventDefault(); } });
+        } else up(event);
+        pinching = false; pinchDistance = 0;
+      }
+    }
+    ["touchstart", "touchmove", "touchend", "touchcancel"].forEach(function (type) {
+      target.addEventListener(type, touch, { passive: false });
+    });
+    [["mousedown", down], ["mousemove", move], ["mouseup", up]].forEach(function (entry) {
+      target.addEventListener(entry[0], function (event) {
+        // A browser may synthesize mouse events after a native touch tap.
+        if (Date.now() - lastTouch > 800) entry[1](event);
+      }, false);
+    });
+    target.addEventListener("mousewheel", wheel, { passive: false });
+    target.addEventListener("DOMMouseScroll", wheel, { passive: false });
+    target.addEventListener("gesturechange", gesture, { passive: false });
+  }
+
   function patchLegacyMainSource(source) {
     var marker = 'define.amd={jQuery:!0}})(),define("../../build/almond"';
     var replacement =
@@ -617,6 +668,10 @@
       .replace('e.UPLOADS_FOLDER+"posts/"+this.img+"/resized.jpg"', '(this.image_url||e.UPLOADS_FOLDER+"posts/"+this.img+"/resized.jpg")')
       .replace('t.src="uploads/posts/"+e.img+"/resized.jpg"', 't.src=e.image_url||"uploads/posts/"+e.img+"/resized.jpg"')
       .replace('backgroundImage:"url(uploads/posts/"+e.img+"/resized.jpg)"', 'backgroundImage:"url("+(e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"');
+    patched = patched.replace(/l\.hasTouch\?\(u\.addEventListener\("touchstart",O,!1\)[\s\S]*?(?=,l\.onDown\.add\(F\))/, 'window.__REVIVAL_BIND_INPUT__(u,O,M,_,L,A)');
+    patched = patched.replace('s=e.isClick=e.distanceTime!==null', 's=e.isClick=!e.originalEvent.cancelled&&e.distanceTime!==null');
+    patched = patched.replace('function _(e){if(r.hasControl){var t=p.offset()',
+      'function _(e){if(document.documentElement.classList.contains("revival-search-open")){window.__REVIVAL_EXIT_SEARCH__();return}if(r.hasControl){var t=p.offset()');
     // The server validates decoded pixels; camera photos are not limited to 5000px.
     patched = patched.replace(/function tt\(\)\{var e=this\.files\[0\],t=e\.size;[\s\S]*?(?=function nt\(e\))/,
       'function tt(){window.SongqiPhotos.uploadFiles(this.files,false)}');
@@ -1528,6 +1583,14 @@
     );
   }
 
+  function exitLegacySearch() {
+    var ui = legacyModule("uiController"), scene = legacyModule("scene3dController");
+    var field = document.querySelector(".search-input");
+    if (field) field.blur();
+    if (ui) ui.hideSearch();
+    if (scene) scene.enableControl();
+  }
+
   function installLegacySearchState() {
     var search = document.querySelector(".search");
     var notFound = document.querySelector(".search-not-found");
@@ -1666,7 +1729,7 @@
       ".revival-menu-actions button,.revival-menu-actions a,.revival-memory-explore{min-height:44px;font-size:16px}",
       ".revival-menu-close{display:grid;width:44px;height:44px;place-items:center;right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top))}",
       ".terms-close-btn,.credit-close-btn{min-width:44px!important;min-height:44px!important}",
-      "@media(max-width:760px),(max-width:1024px) and (max-height:500px){.tutorials{display:none!important;pointer-events:none!important}.base-3d-container,.base-3d-container canvas{touch-action:none!important}.header-logo{top:calc(20px + env(safe-area-inset-top))!important;left:max(18px,env(safe-area-inset-left))!important}.header-fade-container{top:calc(8px + env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}.nav{left:max(8px,env(safe-area-inset-left))!important}.nav-search-wrapper,.nav-add-wrapper,.search-btn,.circle-btn,[role='button']{min-width:44px;min-height:44px}.search-btn{width:44px!important;height:44px!important;top:57px!important}.search-hint{display:inline-flex;min-height:44px;align-items:center;padding:0 8px;font-size:16px}.footer{height:calc(132px + env(safe-area-inset-bottom))!important}.footer-content{height:calc(132px + env(safe-area-inset-bottom))!important;padding:0 max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))!important}.footer-content>.footer-managed-item,.footer-link-item{display:inline-flex!important;min-height:44px;align-items:center;padding:0 6px;font-size:16px!important;line-height:20px!important}.footer-share,.footer-sound-btn,.add-steps-congrats-share{display:inline-flex!important;width:44px!important;height:44px!important;align-items:center;justify-content:center}.footer-link-lang-list,.footer-menu-group-list{bottom:44px!important}.terms-wrapper,.credit-wrapper{width:100%!important;max-width:100%!important;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}.add-steps-back-btn,.add-steps-validate-btn,.add-steps-message-terms{min-height:44px;font-size:16px!important}.add-steps-message-terms{display:flex;align-items:center;justify-content:center;white-space:normal}.revival-menu-body p{font-size:16px}.revival-menu-image{min-height:150px}.revival-menu-body{padding:20px}.revival-menu-body h2{font-size:24px}html.revival-search-open .nav{opacity:0!important;pointer-events:none!important}.revival-mobile-map-hint{white-space:normal}}",
+      "@media(max-width:760px),(max-width:1024px) and (max-height:500px){.tutorials{display:none!important;pointer-events:none!important}.base-3d-container,.base-3d-container canvas{touch-action:none!important}.header-logo{top:calc(20px + env(safe-area-inset-top))!important;left:max(18px,env(safe-area-inset-left))!important}.header-fade-container{top:calc(8px + env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}.nav{left:max(8px,env(safe-area-inset-left))!important}.nav-search-wrapper,.nav-add-wrapper,.search-btn,.circle-btn,[role='button']{min-width:44px;min-height:44px}.search-btn{width:44px!important;height:44px!important;top:57px!important}.search-hint{display:inline-flex;min-height:44px;align-items:center;padding:0 8px;font-size:16px}.footer{height:calc(132px + env(safe-area-inset-bottom))!important}.footer-content{height:calc(132px + env(safe-area-inset-bottom))!important;padding:0 max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))!important}.footer-content>.footer-managed-item,.footer-link-item{display:inline-flex!important;min-height:44px;align-items:center;padding:0 6px;font-size:16px!important;line-height:20px!important}.footer-share,.footer-sound-btn,.add-steps-congrats-share{display:inline-flex!important;width:44px!important;height:44px!important;align-items:center;justify-content:center}.footer-link-lang-list,.footer-menu-group-list{bottom:44px!important}.terms-wrapper,.credit-wrapper{width:100%!important;max-width:100%!important;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}.add-steps-back-btn,.add-steps-validate-btn,.add-steps-message-terms{min-height:44px;font-size:16px!important}.add-steps-message-terms{display:flex;align-items:center;justify-content:center;white-space:normal}.revival-menu-body p{font-size:16px}.revival-menu-image{min-height:150px}.revival-menu-body{padding:20px}.revival-menu-body h2{font-size:24px}.revival-mobile-map-hint{white-space:normal}}",
       "html.revival-keyboard-open .header,html.revival-keyboard-open .footer{opacity:0!important;pointer-events:none!important}",
       "html.revival-keyboard-open .search-center-wrapper{margin-top:-42px!important}",
       "@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.revival-menu-card{transform:none!important}}"
@@ -2417,6 +2480,8 @@
   window.setTimeout(applyLanguagePreference, 1800);
   installIntroFastForward();
   installSearchFallback();
+  window.__REVIVAL_EXIT_SEARCH__ = exitLegacySearch;
+  window.__REVIVAL_BIND_INPUT__ = bindLegacyInput;
   window.__REVIVAL_UPLOAD_ERROR__ = uploadFileError;
 
   document.addEventListener(

@@ -618,3 +618,18 @@ body:has(.add-steps.photo-drafting) .header-description { visibility: hidden !im
 /* The first local upload uses the same add symbol as the thumbnail queue. */
 .circle-btn-symbol-local label.circle-btn-icon { background: none !important; display: grid; place-items: center; }
 .circle-btn-symbol-local label.circle-btn-icon::after { content: "+"; color: #ddd; font: 24px/1 Georgia, serif; }
+
+/* One shared row keeps text and the 36px search sprite on the same centerline. */
+@media (max-width: 760px), (max-width: 1024px) and (max-height: 500px) {
+  html body .search-input-wrapper { height: 68px !important; }
+  html body .search-input-move-container { height: 68px; }
+  html body .search-input, html body .search-input-placeholder {
+    width: calc(100% - 56px) !important; max-width: none !important;
+    height: 68px !important; line-height: 68px !important;
+    font-size: clamp(30px, 8vw, 50px) !important; letter-spacing: -1px;
+    text-indent: 0; overflow: hidden; transform: none !important;
+  }
+  html body .search-btn { top: 12px !important; right: 0 !important; width: 44px !important; height: 44px !important; background: none; }
+  html body .search-btn::before { content: ""; display: block; position: absolute; width: 36px; height: 36px; left: 4px; top: 4px; background: inherit; background-image: url("/img/ui_x2.png"); background-size: 400px 400px; background-position: 0 -200px; }
+  html.revival-search-open body .nav { opacity: 1 !important; pointer-events: auto !important; }
+}

@@ -78,6 +78,53 @@ assert.ok(!patchedMain.includes("r.width>5e3||r.height>5e3"), "Camera photos mus
 assert.ok(patchedMain.includes("window.SongqiPhotos.showMemory(e)"), "All memory entry paths must initialize the gallery");
 assert.ok(patchedMain.includes("JSON.stringify(r.data.photos)"), "Submission must persist every crop");
 assert.ok(patchedMain.includes("window.SongqiPhotos.createAdjustmentStep"), "The old drag-only editor must be replaced");
+// Exercise native touch sequences even when the page started with mouse input.
+const touchListeners = new Map();
+const inputEvents = [], zoomEvents = [];
+let inputClock = 1000;
+const bindInput = runtimeFunction("bindLegacyInput", { Date: { now: () => inputClock }, Math });
+bindInput({ addEventListener(type, handler, options) { touchListeners.set(type, { handler, options }); } },
+  e => inputEvents.push(["down", e]), e => inputEvents.push(["move", e]),
+  e => inputEvents.push(["up", e]), e => zoomEvents.push(e.wheelDelta), () => {});
+const galaxyTarget = { closest: selector => selector === ".base-3d-container" ? {} : null };
+const contact = (x, y) => ({ pageX: x, pageY: y, target: galaxyTarget });
+function sendTouch(type, touches, target = galaxyTarget) {
+  const event = { type, touches, changedTouches: [contact(20, 20)], target, cancelable: true, preventDefault() { this.prevented = true; } };
+  touchListeners.get(type).handler(event);
+  return event;
+}
+for (const type of ["touchstart", "touchmove", "touchend", "touchcancel"]) {
+  assert.equal(touchListeners.get(type).options.passive, false, `${type} must own galaxy gestures`);
+}
+sendTouch("touchstart", [contact(0, 0)]);
+sendTouch("touchmove", [contact(20, 20)]);
+sendTouch("touchend", []);
+for (const type of ["mousedown", "mousemove", "mouseup"]) touchListeners.get(type).handler({ type });
+assert.deepEqual(inputEvents.map(e => e[0]), ["down", "move", "up"], "Compatibility mouse events cannot activate a tap twice");
+inputClock += 900;
+touchListeners.get("mousedown").handler({ type: "mousedown" });
+assert.equal(inputEvents.length, 4, "Mouse remains usable on hybrid devices");
+sendTouch("touchstart", [contact(0, 0)]);
+sendTouch("touchstart", [contact(0, 0), contact(100, 0)]);
+sendTouch("touchmove", [contact(0, 0), contact(150, 0)]);
+sendTouch("touchend", []);
+assert.ok(zoomEvents[0] > 0, "Pinch outward must zoom the galaxy in");
+assert.equal(inputEvents.at(-1)[1].cancelled, true, "A pinch must not open a memory on release");
+sendTouch("touchstart", [contact(0, 0)]);
+sendTouch("touchcancel", []);
+assert.equal(inputEvents.at(-1)[1].cancelled, true);
+const beforeNative = inputEvents.length;
+const nativeField = { closest: () => ({}) };
+sendTouch("touchstart", [contact(0, 0)], nativeField);
+sendTouch("touchend", [], nativeField);
+assert.equal(inputEvents.length, beforeNative, "Native fields and buttons retain browser focus and click behavior");
+assert.ok(patchedMain.includes("window.__REVIVAL_BIND_INPUT__(u,O,M,_,L,A)"));
+assert.ok(patchedMain.includes("s=e.isClick=!e.originalEvent.cancelled"));
+assert.ok(!patchedMain.includes('l.hasTouch?(u.addEventListener("touchstart"'));
+let searchExits = 0;
+const mapClick = patchedMain.match(/function _\(e\)\{if\(document.documentElement.classList.contains\("revival-search-open"\)\)[\s\S]*?(?=function D\(\))/)[0];
+runInNewContext(`(${mapClick})`, { document: { documentElement: { classList: { contains: () => true } } }, window: { __REVIVAL_EXIT_SEARCH__: () => searchExits++ } })({});
+assert.equal(searchExits, 1, "The visible globe exits search without relying on shadowed legacy locals");
 const backgroundHandler = patchedMain.match(/function _\(e\)\{e.target===this&&w&&[^}]+\}/)[0];
 for (const id of ["upload-methods", "adjustment", "message"]) {
   let exits = 0;

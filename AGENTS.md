@@ -232,3 +232,8 @@ Current backend/product decisions:
   hidden at six); show removal at each thumbnail's upper right on hover/focus
   and persistently on touch. Remove the composition counter and reset action.
   Use a crisp monochrome favicon that echoes the site's serif and galaxy style.
+
+- Owner feedback on 2026-10-15: narrow-screen search text and its icon must
+  share a centerline. Keep the visible footer globe/navigation usable during
+  search. Support real touch gestures and switching between mouse and touch;
+  viewport resizing alone does not establish touch compatibility.
