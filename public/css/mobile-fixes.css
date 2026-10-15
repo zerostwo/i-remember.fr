@@ -600,3 +600,8 @@ body:has(.add-steps.photo-drafting) .header-description { visibility: hidden !im
   .photo-adjusting .add-steps-back-btn { flex-direction: row-reverse; }
   .photo-adjusting .add-steps-back-btn > *, .photo-adjusting .add-steps-validate-btn > * { float: none !important; margin: 0 !important; }
 }
+@media (max-width: 760px) and (max-height: 740px) {
+  /* Leave room for a second thumbnail row above the fixed step actions. */
+  .photo-editor { --photo-editor-size: min(220px, 30dvh); top: calc(50% - 120px) !important; }
+  .photo-adjusting .add-steps-indicators { visibility: hidden; }
+}
