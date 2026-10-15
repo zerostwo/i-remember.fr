@@ -237,3 +237,7 @@ Current backend/product decisions:
   share a centerline. Keep the visible footer globe/navigation usable during
   search. Support real touch gestures and switching between mouse and touch;
   viewport resizing alone does not establish touch compatibility.
+
+- Owner feedback on 2026-10-15: vertically center the upper-right Add a memory
+  close button with the rendered I remember logo. Keep the full-photo close
+  control at the same position, including responsive logo scaling.

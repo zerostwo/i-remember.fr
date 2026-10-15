@@ -597,14 +597,28 @@ html body .post-2d-img:focus-visible { outline: none !important; box-shadow: ins
 .photo-drafting .photo-draft-cancel { display: block; }
 .photo-draft-cancel:focus { outline: none !important; }
 .photo-draft-cancel:focus-visible { box-shadow: 0 0 0 1px #ffffff66; }
-@media (max-width: 760px), (max-height: 500px) {
-  .photo-draft-cancel { top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
-}
 
 /* Draft and full-photo overlays share one screen-corner dismissal point. */
 body:has(.add-steps.photo-drafting) .header-fade-container,
 body:has(.add-steps.photo-drafting) .header-description { visibility: hidden !important; pointer-events: none !important; }
 .revival-photo-viewer .photo-viewer-close { position: fixed; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); border: 1px solid #ffffff26; background: #080808; z-index: 2; }
+/* Match the rendered 44px logo, including its mobile scale and safe area. */
+:root { --photo-close-center-y: 51px; }
+@media (min-height: 700px) {
+  :root { --photo-close-center-y: 68px; }
+}
+@media (max-width: 760px) {
+  :root { --photo-close-center-y: calc(20px + env(safe-area-inset-top) + 44px * .72 / 2); }
+}
+@media (max-width: 1024px) and (max-height: 500px) {
+  :root { --photo-close-center-y: calc(12px + 44px * .55 / 2); }
+}
+.photo-draft-cancel, .revival-photo-viewer .photo-viewer-close {
+  top: calc(var(--photo-close-center-y) - 22px);
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+}
 @media (min-width: 761px) and (min-height: 501px) {
   .photo-adjusting .add-steps-back-btn, .photo-adjusting .add-steps-validate-btn { display: flex !important; align-items: center; gap: 18px; height: 44px; top: calc(50% - 31px) !important; margin-top: -22px !important; opacity: 1 !important; transform: none !important; }
   .photo-adjusting .add-steps-back-btn { flex-direction: row-reverse; }
