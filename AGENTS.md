@@ -241,3 +241,10 @@ Current backend/product decisions:
 - Owner feedback on 2026-10-15: vertically center the upper-right Add a memory
   close button with the rendered I remember logo. Keep the full-photo close
   control at the same position, including responsive logo scaling.
+
+- Owner feedback on 2026-10-15: provide touch gesture guidance in the same thin-line
+  icon style as the mouse tutorial, including tablets and hybrid input switching.
+  Managed footer pages such as About and long memories need a unified, uncluttered
+  reading surface without placeholder image columns or overlapping memory cards.
+- Owner request on 2026-10-15: implement video upload and playback alongside photos
+  in this release, preserving the galaxy and staged anonymous submission flow.

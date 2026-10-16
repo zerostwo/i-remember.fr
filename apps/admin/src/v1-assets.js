@@ -12,7 +12,7 @@ function adminAttachment(asset = {}) {
   return {
     imageKey: assetKey(asset),
     storageType: "v1",
-    thumbUrl: url,
+    thumbUrl: asset.metadata?.posterUrl || url,
     resizedUrl: url,
     mimeType: asset.type || "application/octet-stream",
     updatedAt: asset.createdAt,

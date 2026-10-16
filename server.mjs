@@ -312,7 +312,8 @@ const server = createServer((req, res) => {
 
   revivalMiddleware(req, res, () => serveStatic(req, res));
 });
-server.requestTimeout = 30_000;
+// Allow bounded camera-video uploads over mobile connections.
+server.requestTimeout = 180_000;
 server.headersTimeout = 35_000;
 server.keepAliveTimeout = 5_000;
 server.on("clientError", (_error, socket) => {

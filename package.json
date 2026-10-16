@@ -32,6 +32,7 @@
     "db:migrate": "pnpm --filter @i-remember/database migrate",
     "docker:build": "docker build -t ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:?Set TAG to an immutable sha-* or release version} .",
     "docker:push": "docker push ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:?Set TAG to an immutable sha-* or release version}",
+    "test:video": "node scripts/check-video.mjs",
     "test:postgres": "node scripts/check-postgres-regressions.mjs"
   },
   "dependencies": {

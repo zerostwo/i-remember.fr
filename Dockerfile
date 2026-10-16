@@ -49,6 +49,7 @@ WORKDIR /app
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
+    ffmpeg \
     openssl \
     postgresql-15 \
     postgresql-client-15 \

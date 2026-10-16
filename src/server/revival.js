@@ -1,3 +1,5 @@
+import { uploadVideo, videoLimits } from "./video.js";
+import { serveAsset } from "./static-assets.js";
 import { renderSeo, sitemapXml, siteOrigin, publicPosts } from "./seo.js";
 import { versionPublicAssets } from "./public-asset-versions.js";
 import { markdownToHtml, memoryBody, memoryPreview } from "../../packages/content/src/markdown.js";
@@ -721,9 +723,13 @@ function v1LegacyPostId(memory, index = 0) {
 }
 
 function v1MemoryPhotos(memory) {
-  return (memory?.attachments || []).filter(a => String(a.type).startsWith("image/"))
+  return (memory?.attachments || []).filter(a => /^(image|video)\//.test(String(a.type)))
     .map((a, index) => {
       const key = safeUploadedFileId(a.metadata?.imageKey || a.url?.match(/\/posts\/(revival-[a-z0-9-]+)\//i)?.[1]);
+      if (String(a.type).startsWith("video/")) return {
+        type: a.type, video_url: a.url, image_url: a.metadata?.posterUrl || legacyImagePath(key),
+        full_image_url: key ? legacyImagePath(key, "full") : a.metadata?.posterUrl,
+        order: Number.isFinite(a.metadata?.order) ? a.metadata.order : index };
       return { image_url: key && !a.metadata?.crop ? `/uploads/posts/${key}/square.jpg` : a.url, full_image_url: key ? legacyImagePath(key, "full") : a.url,
         order: Number.isFinite(a.metadata?.order) ? a.metadata.order : index };
     }).sort((a, b) => a.order - b.order);
@@ -734,7 +740,7 @@ function validatedPhotos(fields) {
   let photos;
   try { photos = typeof fields.photos === "string" ? JSON.parse(fields.photos) : fields.photos; } catch { /* validated below */ }
   if (!Array.isArray(photos) || !photos.length || photos.length > 6) {
-    throw new HttpError(400, "Invalid photo collection", "Choose between 1 and 6 photos.");
+    throw new HttpError(400, "Invalid photo collection", "Choose between 1 and 6 photos or videos.");
   }
   const seen = new Set();
   return photos.map(photo => {
@@ -1215,6 +1221,10 @@ class RevivalBackend {
       const data = await (animated ? pipeline.gif() : pipeline.jpeg({ quality: 90 })).toBuffer();
       writeFileSync(path, data, { mode: 0o660 });
     }
+    const videoPath = join(folder, "video.json");
+    if (existsSync(videoPath)) return { url: `/uploads/posts/${photo.fileId}/video.mp4`, type: "video/mp4",
+      metadata: { ...JSON.parse(readFileSync(videoPath, "utf8")), imageKey: photo.fileId,
+        posterUrl: `/uploads/posts/${photo.fileId}/${filename}`, crop: photo.crop, order } };
     return { url: `/uploads/posts/${photo.fileId}/${filename}`, type: animated ? "image/gif" : "image/jpeg",
       metadata: { imageKey: photo.fileId, crop: photo.crop, order } };
   }
@@ -1223,7 +1233,7 @@ class RevivalBackend {
     const squareMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/square\.jpg$/i);
     if (squareMatch) {
       const attachment = await this.cropPhoto({ fileId: squareMatch[1], crop: { x: 0.5, y: 0.5, zoom: 1 } }, 0);
-      return this.imageForPath(attachment.url);
+      return this.imageForPath(attachment.metadata?.posterUrl || attachment.url);
     }
     const cropMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/(crop-[a-f0-9]{20}\.(?:jpg|gif))$/i);
     if (cropMatch) {
@@ -1475,9 +1485,10 @@ async function renderAppHtml(
   let html = versionPublicAssets(readFileSync(appHtmlUrlForLanguage(normalized), "utf8"));
   if (normalized === "zh") html = localizeChineseHtml(html);
   if (backend.production) html = html.replace("/src/public-markdown.js", "/assets/public-markdown.js");
-  html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};window.SONGQI_UPLOAD_LIMITS=${safeScriptJson({ maxBytes: maxUploadBodyBytes, maxPixels: maxImagePixels })};</script>`);
+  html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};window.SONGQI_UPLOAD_LIMITS=${safeScriptJson({ maxBytes: maxUploadBodyBytes, maxPixels: maxImagePixels, ...videoLimits })};</script>`);
 
-  const uploadHint = `${Math.round(maxUploadBodyBytes / 1048576)} MB · ${Math.round(maxImagePixels / 1_000_000)} MP`;
+  if (normalized === "zh") html = html.replace('upload<br/><span class="font-light-italic">photos &amp; videos</span>', '上传<br/><span class="font-light-italic">照片和视频</span>');
+  const uploadHint = normalized === "fr" ? `6 fichiers · Photos ${Math.round(maxUploadBodyBytes / 1048576)} Mo · Vidéos 100 Mo / 2 min` : normalized === "zh" ? `最多 6 项 · 照片 ${Math.round(maxUploadBodyBytes / 1048576)} MB · 视频 100 MB / 2 分钟` : `Up to 6 · Photos ${Math.round(maxUploadBodyBytes / 1048576)} MB · Videos 100 MB / 2 min`;
   html = html.replace(/(class="add-steps-upload-methods-text-size">)[^<]*/g, `$1(${uploadHint})`);
   html = patchLanguageShell(html, normalized, pathname);
   html = injectTracking(html, siteSettings);
@@ -1757,6 +1768,13 @@ async function handleRequest(backend, req, res, next, options = {}) {
     return;
   }
 
+  const videoMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/video\.mp4$/i);
+  if (videoMatch && (req.method === "GET" || req.method === "HEAD")) {
+    const path = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", videoMatch[1], "video.mp4");
+    if (!existsSync(path)) { sendStatus(res, 404, "Not found"); return; }
+    serveAsset(req, res, path, statSync(path), "video/mp4");
+    return;
+  }
   const image = await backend.imageForPath(pathname);
   if (image) {
     res.statusCode = 200;
@@ -1878,6 +1896,19 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
   if (pathname === "/img/colorMap.png") {
     setTimeout(() => next(), colorMapStartupDelayMs);
+    return;
+  }
+
+  if (pathname === "/api/upload-video" && req.method === "POST") {
+    assertSameOrigin(req);
+    assertRateLimit(req, "upload-video", 6, 10 * 60 * 1000);
+    const body = await collectRequest(req, videoLimits.maxVideoBytes + 64 * 1024);
+    const { files } = parseMultipart(req, body);
+    let result;
+    try { result = await uploadVideo(firstUploadedImage(files), process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads")); }
+    catch (error) { throw new HttpError(error.statusCode || 500, error.message, error.errorMsg || "unexpected"); }
+    const attachment = await backend.cropPhoto({ fileId: result.fileId, crop: { x: .5, y: .5, zoom: 1 } }, 0);
+    sendJson(req, res, { success: true, data: { ...result, attachment } });
     return;
   }
 

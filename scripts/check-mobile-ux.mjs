@@ -106,7 +106,7 @@ assert.match(publicRuntime, /installImeCompositionSupport/);
 assert.match(publicRuntime, /data-revival-composing/);
 assert.match(publicRuntime, /revival-search-open/);
 assert.match(publicRuntime, /r\.offsetTop=D\.matchMedia/);
-assert.match(publicRuntime, /\.tutorials\{display:none!important/);
+assert.doesNotMatch(publicRuntime, /\.tutorials\{display:none!important/);
 assert.doesNotMatch(
   publicRuntime,
   /dispatchMouseFromTouch/,

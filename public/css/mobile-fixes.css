@@ -23,51 +23,6 @@ html body .add-steps-message-input:focus {
     background-repeat: no-repeat;
   }
 }
-.revival-menu-memory.is-expanded .revival-menu-excerpt,
-.revival-menu-memory.is-expanded .revival-menu-read {
-  display: none !important;
-}
-.revival-menu-memory.is-expanded .revival-menu-full {
-  border-top: 0 !important;
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-}
-.revival-menu-full {
-  overflow-wrap: anywhere;
-}
-.revival-menu-full pre {
-  white-space: pre;
-  overflow-x: auto;
-  max-width: 100%;
-  padding: 12px;
-  background: #151515;
-}
-.revival-menu-full img {
-  max-width: 100%;
-  height: auto;
-}
-.revival-menu-full ul,
-.revival-menu-full ol {
-  padding-left: 1.5em;
-}
-.revival-menu-full blockquote {
-  border-left: 2px solid #777;
-  padding-left: 16px;
-  margin-left: 0;
-}
-.revival-menu-full code {
-  font-family: monospace;
-}
-.revival-menu-full h1,
-.revival-menu-full h2,
-.revival-menu-full h3 {
-  line-height: 1.3;
-  margin: 1em 0 0.6em;
-}
-.revival-menu-full a {
-  color: #ddd;
-  text-decoration: underline;
-}
 @media (max-width: 760px), (max-width: 1024px) and (max-height: 500px) {
   html body .preloader-text-line-1,
   html body .preloader-text-line-2 {
@@ -161,10 +116,6 @@ html body .add-steps-message-input:focus {
     background-clip: content-box;
     flex-shrink: 0;
   }
-  html body .revival-menu-close {
-    z-index: 3;
-    background-color: #0009;
-  }
   html body .post-2d .post-2d-content-top {
     background: none !important;
   }
@@ -253,24 +204,6 @@ html body .add-steps-message-input:focus {
   .post-2d-share-container {
     margin-top: 18px !important;
   }
-  html body .revival-menu-memory .revival-menu-card {
-    width: 100% !important;
-    max-height: calc(var(--revival-visual-viewport-height, 100dvh) - 90px) !important;
-    overflow-y: auto !important;
-    display: block !important;
-    overscroll-behavior: contain;
-  }
-  html body .revival-menu-memory .revival-menu-image {
-    min-height: 0 !important;
-    height: 180px !important;
-  }
-  .revival-menu-memory .revival-menu-body {
-    overflow: visible !important;
-    min-width: 0;
-  }
-  .revival-menu-memory.is-expanded .revival-menu-image {
-    height: 130px !important;
-  }
   html body .add-steps-message {
     width: min(290px, calc(100vw - 48px)) !important;
     left: 50% !important;
@@ -351,12 +284,6 @@ html body .add-steps-message-input:focus {
   html body .add-steps-back-btn {
     right: auto !important;
   }
-  html body .revival-menu-memory {
-    background: rgba(0, 0, 0, 0.94) !important;
-  }
-  html body .revival-menu-card {
-    background: #000 !important;
-  }
   html.revival-keyboard-open body .add-steps-message {
     top: 12px !important;
     margin-top: 0 !important;
@@ -421,15 +348,6 @@ html body .add-steps-message-input:focus {
   }
   html body .post-2d .post-2d-close-btn {
     top: 76px !important;
-  }
-  html body .revival-menu-memory .revival-menu-card {
-    display: grid !important;
-    grid-template-columns: minmax(160px, 30%) minmax(0, 1fr);
-    max-height: calc(var(--revival-visual-viewport-height, 100dvh) - 32px) !important;
-  }
-  html body .revival-menu-memory .revival-menu-image {
-    height: 100% !important;
-    min-height: 180px !important;
   }
   html body .add-steps-message {
     top: 64px !important;
@@ -504,7 +422,6 @@ html body .error-blocker-message {
   display: flex; align-items: center; justify-content: center; text-align: center;
 }
 html body .error-blocker-message::before { flex: 0 0 21px; top: 0; }
-html body .revival-menu-image { background-size: contain; background-repeat: no-repeat; }
 html body .post-2d-img { outline: none; position: relative; background-size: cover; background-repeat: no-repeat; background-position: center; cursor: zoom-in; }
 .revival-photo-viewer { position: fixed; inset: 0; margin: auto; padding: 48px 12px 12px; border: 0; background: #080808; color: white; width: calc(100vw - 24px); max-width: 1600px; height: calc(100dvh - 24px); max-height: calc(100dvh - 24px); box-sizing: border-box; }
 .revival-photo-viewer::backdrop { background: #000e; }
@@ -646,4 +563,65 @@ body:has(.add-steps.photo-drafting) .header-description { visibility: hidden !im
   html body .search-btn { top: 12px !important; right: 0 !important; width: 44px !important; height: 44px !important; background: none; }
   html body .search-btn::before { content: ""; display: block; position: absolute; width: 36px; height: 36px; left: 4px; top: 4px; background: inherit; background-image: url("/img/ui_x2.png"); background-size: 400px 400px; background-position: 0 -200px; }
   html.revival-search-open body .nav { opacity: 1 !important; pointer-events: auto !important; }
+}
+
+/* The original tutorial rhythm, with input-specific line icons. */
+.touch-tutorial-icon { display: none; }
+html.touch-tutorial .tutorial-page-icon canvas { visibility: hidden; }
+html.touch-tutorial .touch-tutorial-icon { display: block; position: absolute; inset: 20px; width: 120px; height: 120px; color: #fff; }
+.tutorial-page-icon { position: relative; }
+.tutorials { pointer-events: none !important; }
+html.touch-tutorial .touch-tutorial-icon { animation: touch-guide-drift 2.4s ease-in-out infinite; }
+@keyframes touch-guide-drift { 0%,100% { transform: translateX(-7px); } 50% { transform: translateX(7px); } }
+@media (max-width: 760px), (max-height: 500px) {
+  .tutorial-page-icon { transform: scale(.72); margin-bottom: -24px !important; }
+  .tutorial-page-text { font-size: 19px !important; line-height: 1.45 !important; }
+}
+@media (prefers-reduced-motion: reduce) { html.touch-tutorial .touch-tutorial-icon { animation: none; } }
+/* One quiet reading surface for managed pages and long memories. */
+html.memory-reader-open .post-2d { visibility: hidden !important; }
+html body .revival-menu-memory { background: rgba(0,0,0,.88); padding: clamp(16px,5vh,64px) max(16px,env(safe-area-inset-right)) clamp(16px,5vh,64px) max(16px,env(safe-area-inset-left)); }
+html body .revival-menu-card { display: block; position: relative; width: min(760px,100%); max-height: 100%; min-height: 0; overflow: hidden; background: #090909; border: 1px solid #ffffff26; }
+html body .revival-menu-image, html body .revival-menu-excerpt, html body .revival-menu-actions { display: none; }
+html body .revival-menu-body { box-sizing: border-box; max-height: calc(var(--revival-visual-viewport-height,100dvh) - clamp(32px,10vh,128px)); padding: clamp(32px,5vw,64px); overflow: auto; scrollbar-width: thin; scrollbar-color: #555 transparent; }
+html body .revival-menu-body > h2 { margin: 0 42px 30px 0; font: 36px/1.2 'ITC Century W01 Book',Georgia,serif; }
+html body .revival-menu-full { display: block; border: 0; margin: 0; padding: 0; font: 18px/1.75 'ITC Century W01 Book',Georgia,serif; color: #d0cdca; overflow-wrap: anywhere; }
+html body .revival-menu-full p { font: inherit; color: inherit; margin: 0 0 1.25em; }
+html body .revival-menu-full h1, html body .revival-menu-full h2, html body .revival-menu-full h3 { font: 26px/1.3 'ITC Century W01 Book',Georgia,serif; margin: 1.7em 0 .7em; color: #fff; }
+html body .revival-menu-full h3 { font-size: 22px; }
+html body .revival-menu-full ul, html body .revival-menu-full ol { padding-left: 1.4em; margin: 0 0 1.4em; }
+html body .revival-menu-full li { margin: .45em 0; }
+html body .revival-menu-full a { color: #fff; text-underline-offset: 4px; text-decoration-color: #ffffff66; }
+html body .revival-menu-full img, html body .revival-menu-full video { max-width: 100%; height: auto; }
+html body .revival-menu-full blockquote { border-left: 1px solid #ffffff55; padding-left: 1.3em; margin: 1.5em 0; font-style: italic; }
+html body .revival-menu-full pre { max-width: 100%; overflow: auto; padding: 16px; background: #ffffff08; font-size: 14px; }
+html body .revival-menu-full table { display: block; overflow: auto; border-collapse: collapse; }
+html body .revival-menu-full th, html body .revival-menu-full td { border-bottom: 1px solid #ffffff22; padding: 10px; }
+html body .revival-menu-close { z-index: 2; position: fixed; top: max(16px,env(safe-area-inset-top)); right: max(16px,env(safe-area-inset-right)); border: 1px solid #ffffff40; border-radius: 50%; background: #090909; font: 28px/1 Arial,sans-serif; opacity: 1; }
+@media (max-width: 600px) {
+  html body .revival-menu-body { padding: 30px 24px; }
+  html body .revival-menu-body > h2 { font-size: 28px; margin-bottom: 24px; }
+  html body .revival-menu-full { font-size: 16px; }
+  html body .revival-menu-full h2 { font-size: 23px; }
+}
+
+.media-video-badge { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; color: white; text-shadow: 0 1px 5px black; pointer-events: none; }
+.memory-video-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 60px; height: 60px; display: grid; place-items: center; padding-left: 3px; border: 1px solid #ffffff99; border-radius: 50%; background: #0008; color: white; font: 20px Arial,sans-serif; pointer-events: none; }
+.memory-video-play[hidden], .revival-photo-viewer [hidden] { display: none !important; }
+.revival-photo-viewer video { display: block; width: 100%; height: 100%; object-fit: contain; }
+.media-playback-error { position: absolute; inset: 40% 15% auto; color: #fff; text-align: center; font: 18px/1.5 Georgia,serif; }
+
+html body .revival-menu-memory:focus { outline: none; }
+
+.add-steps-upload-methods-text-size { display: inline-block; max-width: 230px; font-size: 12px; line-height: 1.6; }
+
+@media (max-width:760px) and (min-height:501px) {
+  html body .nav-search-wrapper, html body .nav-add-wrapper { pointer-events: none; }
+  html body .nav-search-btn, html body .nav-add-btn { pointer-events: auto; }
+}
+html body .revival-menu-memory .revival-menu-card { display: block !important; overflow: hidden !important; max-height: 100% !important; }
+html body .revival-menu-memory .revival-menu-image { display: none !important; }
+@media (max-width:760px) and (min-height:501px) {
+  html body .nav, html.revival-search-open body .nav { pointer-events: none !important; }
+  html body .nav-map-btn, html body .nav-search-btn, html body .nav-add-btn { pointer-events: auto !important; }
 }

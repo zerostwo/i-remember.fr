@@ -232,3 +232,21 @@ This is a source-available restoration with third-party frontend code and assets
 The repository as a whole is **not offered under MIT, Apache, or GPL**. Restored
 visuals, fonts, audio, and other third-party materials retain their existing rights
 and are not relicensed by this README. See [LICENSE](LICENSE) for the repository notice.
+
+### Video memories
+
+Public submissions and the admin memory editor accept MP4, MOV and WebM alongside
+JPEG, PNG, WebP and GIF. New public memories can contain up to six photos/videos
+combined; existing larger albums remain readable. Videos are limited to 100 MB,
+two minutes and 4K input. The server generates a poster for the circular composition
+step and square memory card, then converts video to H.264/AAC MP4 (up to 1920 pixels
+on either side, 30 fps). Opening the card plays the complete frame with native
+controls; changing media or closing stops playback. Gallery navigation does not
+count as another memory view. Source video is discarded after conversion.
+
+The single Docker image includes FFmpeg/ffprobe. Local development needs both on
+PATH. Run `node scripts/check-video.mjs` for decoder/limit/cleanup regression checks.
+One video is processed at a time per web process; additional concurrent attempts
+receive a retry message. Reverse proxies must allow 101 MB request bodies and at
+least a 240-second upstream read timeout for `/api/upload-video`. Keep the upload
+volume backed up with PostgreSQL; video files and generated posters live together.

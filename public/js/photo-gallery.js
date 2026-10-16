@@ -47,7 +47,7 @@
     if (!list.length || state.busy || !state.steps) return;
     var existing = append ? state.photos.slice() : [];
     var previousCount = existing.length;
-    if (existing.length + list.length > MAX_UPLOAD_PHOTOS) return error(label("Choose up to 6 photos per memory.", "Choisissez jusqu’à 6 photos par souvenir.", "每条回忆最多添加 6 张照片。"));
+    if (existing.length + list.length > MAX_UPLOAD_PHOTOS) return error(label("Choose up to 6 photos or videos per memory.", "Choisissez jusqu’à 6 photos ou vidéos par souvenir.", "每条回忆最多添加 6 项照片或视频。"));
     for (var file of list) {
       var problem = window.__REVIVAL_UPLOAD_ERROR__(file);
       if (problem) return error(problem);
@@ -66,10 +66,12 @@
         status.textContent = label("Uploading", "Envoi", "正在上传") + " " + (index + 1) + " / " + list.length;
         var form = new FormData();
         form.set("local", list[index]);
-        var response = await fetch("/api/upload-image", { method: "POST", body: form, credentials: "same-origin" });
+        var isVideo = /^video\//.test(list[index].type) || /\.(mp4|mov|webm|m4v)$/i.test(list[index].name);
+        status.textContent += isVideo ? label(" · Preparing video…", " · Préparation de la vidéo…", " · 正在处理视频…") : "";
+        var response = await fetch(isVideo ? "/api/upload-video" : "/api/upload-image", { method: "POST", body: form, credentials: "same-origin" });
         var payload = await response.json();
         if (!response.ok || !payload.success) throw new Error(payload.errorMsg || "Upload failed. Please try again.");
-        state.photos.push({ fileId: payload.data.fileId, crop: { x: 0.5, y: 0.5, zoom: 1 } });
+        state.photos.push({ fileId: payload.data.fileId, type: payload.data.type || "image/jpeg", crop: { x: 0.5, y: 0.5, zoom: 1 } });
       }
     } catch (err) { failure = err.message; }
     finally {
@@ -154,7 +156,7 @@
       strip.replaceChildren();
       state.photos.forEach(function (entry, index) {
         var item = document.createElement("div"); item.className = "photo-thumb";
-        var thumb = button("", label("Edit photo", "Modifier la photo", "编辑照片") + " " + (index + 1), function () { if (Date.now() < suppressThumbClickUntil || state.busy) return; state.selected = index; refresh(); });
+        var thumb = button("", label("Edit cover", "Modifier la couverture", "编辑封面") + " " + (index + 1), function () { if (Date.now() < suppressThumbClickUntil || state.busy) return; state.selected = index; refresh(); });
         thumb.className = "photo-thumb-select";
         thumb.dataset.index = index;
         thumb.title = label("Drag to reorder · Alt + arrow keys", "Glisser pour réordonner · Alt + flèches", "拖拽排序 · Alt + 方向键");
@@ -169,7 +171,8 @@
         image.alt = ""; image.draggable = false;
         thumb.setAttribute("aria-pressed", String(index === state.selected));
         thumb.appendChild(image);
-        var remove = button("×", label("Remove photo", "Retirer la photo", "移除照片") + " " + (index + 1), function () {
+        if (/^video\//.test(entry.type)) { var badge = document.createElement("span"); badge.className = "media-video-badge"; badge.textContent = "▶"; thumb.appendChild(badge); }
+        var remove = button("×", label("Remove item", "Retirer cet élément", "移除项目") + " " + (index + 1), function () {
           if (state.busy) return;
           var current = selected();
           state.photos.splice(index, 1);
@@ -264,9 +267,9 @@
         Array.from(strip.querySelectorAll(".photo-thumb")).forEach(function (thumb, index) { thumb.classList.toggle("is-drop-target", index === closest && index !== sorting.from); });
       });
       ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (type) { strip.addEventListener(type, endSort); });
-      picker = document.createElement("input"); picker.type = "file"; picker.multiple = true; picker.accept = "image/jpeg,image/png,image/webp,image/gif"; picker.hidden = true;
+      picker = document.createElement("input"); picker.type = "file"; picker.multiple = true; picker.accept = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm,.mov,.m4v"; picker.hidden = true;
       picker.addEventListener("change", function () { uploadFiles(picker.files, true); picker.value = ""; });
-      add = button("+", label("Add photos", "Ajouter des photos", "添加照片"), function () { picker.click(); });
+      add = button("+", label("Add photos or videos", "Ajouter des photos ou vidéos", "添加照片或视频"), function () { picker.click(); });
       add.className = "photo-add";
       root.appendChild(picker);
       ["mousedown", "touchstart", "touchmove", "touchend"].forEach(function (type) { root.addEventListener(type, function (event) { event.stopPropagation(); }, { passive: true }); });
@@ -342,21 +345,31 @@
     card.__skipPreventDefault = true;
     card.setAttribute("aria-label", label("Open photo", "Ouvrir la photo", "打开照片"));
     var count = document.createElement("span"); count.className = "photo-gallery-count";
-    var previous = button("‹", label("Previous photo", "Photo précédente", "上一张照片"), function () { move(-1); });
-    var next = button("›", label("Next photo", "Photo suivante", "下一张照片"), function () { move(1); });
+    var previous = button("‹", label("Previous item", "Élément précédent", "上一项"), function () { move(-1); });
+    var next = button("›", label("Next item", "Élément suivant", "下一项"), function () { move(1); });
     previous.className = "photo-gallery-prev"; next.className = "photo-gallery-next";
     // Controls are siblings of the photo button, not nested interactive elements.
     var controls = document.createElement("div"); controls.className = "photo-gallery-controls"; controls.append(previous, count, next); card.parentNode.appendChild(controls);
     viewer = document.createElement("dialog"); viewer.className = "revival-photo-viewer";
     viewer.tabIndex = -1;
-    viewer.setAttribute("aria-label", label("Memory photos", "Photos du souvenir", "回忆照片"));
+    viewer.setAttribute("aria-label", label("Memory gallery", "Galerie du souvenir", "回忆相册"));
     var image = document.createElement("img");
-    var close = button("×", label("Close photo", "Fermer la photo", "关闭照片"), function () { viewer.close(); });
+    var video = document.createElement("video"); video.controls = true; video.playsInline = true; video.preload = "metadata"; video.hidden = true;
+    video.setAttribute("aria-label", label("Memory video", "Vidéo du souvenir", "回忆视频"));
+    var play = document.createElement("span"); play.className = "memory-video-play"; play.textContent = "▶"; play.setAttribute("aria-hidden", "true"); card.appendChild(play);
+    var mediaError = document.createElement("p"); mediaError.className = "media-playback-error"; mediaError.hidden = true;
+    var resumeSound = false;
+    function restoreSound() { var sound = window.SongqiPhotos.sound; if (resumeSound && sound) sound.unmute(); resumeSound = false; }
+    video.addEventListener("play", function () { var sound = window.SongqiPhotos.sound; if (sound && !sound.isMute) { resumeSound = true; sound.mute(0); } });
+    video.addEventListener("pause", restoreSound);
+    video.addEventListener("ended", restoreSound);
+    video.addEventListener("error", function () { mediaError.hidden = false; mediaError.textContent = label("This video could not be played. Please try again.", "Impossible de lire cette vidéo.", "视频无法播放，请重试。"); });
+    var close = button("×", label("Close gallery", "Fermer la galerie", "关闭相册"), function () { viewer.close(); });
     close.className = "photo-viewer-close";
     var fullPrevious = button("‹", previous.getAttribute("aria-label"), function () { move(-1); });
     var fullNext = button("›", next.getAttribute("aria-label"), function () { move(1); });
     fullPrevious.className = "photo-gallery-prev"; fullNext.className = "photo-gallery-next";
-    viewer.append(close, image, fullPrevious, fullNext); document.body.appendChild(viewer);
+    viewer.append(close, image, video, mediaError, fullPrevious, fullNext); document.body.appendChild(viewer);
     // Keep native touch clicks and photo gestures out of the galaxy input controller.
     ["touchstart", "touchmove", "touchend", "mousedown", "mouseup", "wheel"].forEach(function (type) {
       viewer.addEventListener(type, function (event) { event.stopPropagation(); }, { passive: true });
@@ -365,21 +378,27 @@
       var photo = currentMemory[memoryIndex];
       controls.hidden = currentMemory.length < 2;
       fullPrevious.hidden = fullNext.hidden = currentMemory.length < 2;
+      video.pause(); video.removeAttribute("src"); video.load(); mediaError.hidden = true;
       if (!photo) return;
+      var isVideo = !!photo.video_url;
+      play.hidden = !isVideo;
+      card.setAttribute("aria-label", isVideo ? label("Play video", "Lire la vidéo", "播放视频") : label("Open photo", "Ouvrir la photo", "打开照片"));
+      image.hidden = isVideo; video.hidden = !isVideo;
       card.style.backgroundImage = 'url("' + photo.image_url.replace(/"/g, "%22") + '")';
       count.textContent = (memoryIndex + 1) + " / " + currentMemory.length;
       count.setAttribute("aria-label", label("Photo", "Photo", "照片") + " " + count.textContent);
-      if (viewer.open) { image.src = photo.full_image_url; image.alt = label("Memory photo", "Photo du souvenir", "回忆照片") + " " + (memoryIndex + 1); }
+      if (viewer.open && isVideo) { image.removeAttribute("src"); video.poster = photo.full_image_url; video.src = photo.video_url; }
+      if (viewer.open && !isVideo) { image.src = photo.full_image_url; image.alt = label("Memory photo", "Photo du souvenir", "回忆照片") + " " + (memoryIndex + 1); }
     }
     function move(delta) { if (currentMemory.length < 2) return; memoryIndex = (memoryIndex + delta + currentMemory.length) % currentMemory.length; render(); }
     function open(event) {
       if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
       if (!currentMemory.length) return;
-      event.preventDefault(); event.stopPropagation(); viewer.showModal(); render(); viewer.focus({ preventScroll: true });
+      event.preventDefault(); event.stopPropagation(); viewer.showModal(); render(); if (currentMemory[memoryIndex].video_url) video.play().catch(function () {}); viewer.focus({ preventScroll: true });
     }
     card.addEventListener("click", open); card.addEventListener("keydown", open);
-    viewer.addEventListener("keydown", function (event) { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); move(event.key === "ArrowLeft" ? -1 : 1); } event.stopPropagation(); });
-    viewer.addEventListener("close", function () { image.removeAttribute("src"); card.focus({ preventScroll: true }); });
+    viewer.addEventListener("keydown", function (event) { if (event.target !== video && (event.key === "ArrowLeft" || event.key === "ArrowRight")) { event.preventDefault(); move(event.key === "ArrowLeft" ? -1 : 1); } event.stopPropagation(); });
+    viewer.addEventListener("close", function () { video.pause(); video.removeAttribute("src"); video.load(); image.removeAttribute("src"); card.focus({ preventScroll: true }); });
     viewer.addEventListener("click", function (event) { if (event.target === viewer) viewer.close(); });
     function swipe(element) {
       var start;
@@ -392,7 +411,7 @@
   function showMemory(post) {
     installViewer();
     var photos = post.photos && post.photos.length ? post.photos : [{ image_url: post.image_url, full_image_url: post.full_image_url || post.image_url }];
-    currentMemory = photos.slice(0, MAX_VIEW_PHOTOS).map(function (photo) { return { image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
+    currentMemory = photos.slice(0, MAX_VIEW_PHOTOS).map(function (photo) { return { video_url: photo.video_url ? safeImageUrl(photo.video_url) : "", image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
     memoryIndex = 0;
     if (window.SongqiPhotos.renderMemory) window.SongqiPhotos.renderMemory();
   }

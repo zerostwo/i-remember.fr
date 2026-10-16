@@ -1332,21 +1332,28 @@
     if (element) element.innerHTML = html;
   }
 
+  var tutorialInputMode = null;
   function applyInputModeText() {
     var copy = uiCopy[siteLanguage()] || uiCopy.en;
     var pages = document.querySelectorAll(".tutorial-page-text");
-    if (!pages.length) return;
-
-    if (isTouchDevice()) {
-      document.documentElement.classList.add("is-touch-device");
-      if (pages[0]) pages[0].innerHTML = copy.tutorialMoveTouch;
-      if (pages[1]) pages[1].innerHTML = copy.tutorialZoomTouch;
-      if (pages[2]) pages[2].innerHTML = copy.tutorialWatchTouch;
-      return;
-    }
-
-    if (pages[0]) pages[0].innerHTML = copy.tutorialMoveMouse;
+    var touch = tutorialInputMode ? tutorialInputMode !== "mouse" : isTouchDevice();
+    document.documentElement.classList.toggle("touch-tutorial", touch);
+    var mouseText = [copy.tutorialMoveMouse,
+      siteLanguage() === "fr" ? "Faites défiler ou double-cliquez<br/>pour zoomer" : siteLanguage() === "zh" ? "滚动或双击<br/>放大" : '<span class="font-italic">Scroll or double click</span><br/>to zoom in',
+      siteLanguage() === "fr" ? "Cliquez pour voir<br/>un souvenir" : siteLanguage() === "zh" ? "点击查看<br/>一段回忆" : '<span class="font-italic">Click to watch</span><br/>a memory'];
+    var touchText = [copy.tutorialMoveTouch, copy.tutorialZoomTouch, copy.tutorialWatchTouch];
+    pages.forEach(function (page, index) { page.innerHTML = (touch ? touchText : mouseText)[index]; });
+    var hand = '<path d="M43 66V35a5 5 0 0 1 10 0v19-7a5 5 0 0 1 10 0v8-4a5 5 0 0 1 10 0v8-3a5 5 0 0 1 10 0v20c0 14-7 23-19 23-10 0-15-6-21-15L32 68c-4-6 3-11 7-6l4 4Z"/>';
+    var marks = ['<path d="M27 40H9m0 0 6-6m-6 6 6 6M89 40h18m0 0-6-6m6 6-6 6"/>', '<path d="M35 23 18 6m0 0v10m0-10h10M86 88l17 17m0 0V95m0 10H93"/><circle cx="48" cy="29" r="12"/>', '<circle cx="48" cy="29" r="12"/><circle class="touch-tap-ring" cx="48" cy="29" r="21"/>'];
+    document.querySelectorAll(".tutorial-page-icon").forEach(function (icon, index) {
+      if (icon.querySelector(".touch-tutorial-icon")) return;
+      icon.insertAdjacentHTML("beforeend", '<svg class="touch-tutorial-icon" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + hand + marks[index] + '</svg>');
+    });
   }
+  document.addEventListener("pointerdown", function (event) {
+    var mode = event.pointerType || "mouse";
+    if (mode !== tutorialInputMode) { tutorialInputMode = mode; applyInputModeText(); }
+  }, { passive: true });
 
   function applyLanguagePreference() {
     var language = siteLanguage();
@@ -1729,7 +1736,7 @@
       ".revival-menu-actions button,.revival-menu-actions a,.revival-memory-explore{min-height:44px;font-size:16px}",
       ".revival-menu-close{display:grid;width:44px;height:44px;place-items:center;right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top))}",
       ".terms-close-btn,.credit-close-btn{min-width:44px!important;min-height:44px!important}",
-      "@media(max-width:760px),(max-width:1024px) and (max-height:500px){.tutorials{display:none!important;pointer-events:none!important}.base-3d-container,.base-3d-container canvas{touch-action:none!important}.header-logo{top:calc(20px + env(safe-area-inset-top))!important;left:max(18px,env(safe-area-inset-left))!important}.header-fade-container{top:calc(8px + env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}.nav{left:max(8px,env(safe-area-inset-left))!important}.nav-search-wrapper,.nav-add-wrapper,.search-btn,.circle-btn,[role='button']{min-width:44px;min-height:44px}.search-btn{width:44px!important;height:44px!important;top:57px!important}.search-hint{display:inline-flex;min-height:44px;align-items:center;padding:0 8px;font-size:16px}.footer{height:calc(132px + env(safe-area-inset-bottom))!important}.footer-content{height:calc(132px + env(safe-area-inset-bottom))!important;padding:0 max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))!important}.footer-content>.footer-managed-item,.footer-link-item{display:inline-flex!important;min-height:44px;align-items:center;padding:0 6px;font-size:16px!important;line-height:20px!important}.footer-share,.footer-sound-btn,.add-steps-congrats-share{display:inline-flex!important;width:44px!important;height:44px!important;align-items:center;justify-content:center}.footer-link-lang-list,.footer-menu-group-list{bottom:44px!important}.terms-wrapper,.credit-wrapper{width:100%!important;max-width:100%!important;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}.add-steps-back-btn,.add-steps-validate-btn,.add-steps-message-terms{min-height:44px;font-size:16px!important}.add-steps-message-terms{display:flex;align-items:center;justify-content:center;white-space:normal}.revival-menu-body p{font-size:16px}.revival-menu-image{min-height:150px}.revival-menu-body{padding:20px}.revival-menu-body h2{font-size:24px}.revival-mobile-map-hint{white-space:normal}}",
+      "@media(max-width:760px),(max-width:1024px) and (max-height:500px){.tutorials{pointer-events:none!important}.base-3d-container,.base-3d-container canvas{touch-action:none!important}.header-logo{top:calc(20px + env(safe-area-inset-top))!important;left:max(18px,env(safe-area-inset-left))!important}.header-fade-container{top:calc(8px + env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}.nav{left:max(8px,env(safe-area-inset-left))!important}.nav-search-wrapper,.nav-add-wrapper,.search-btn,.circle-btn,[role='button']{min-width:44px;min-height:44px}.search-btn{width:44px!important;height:44px!important;top:57px!important}.search-hint{display:inline-flex;min-height:44px;align-items:center;padding:0 8px;font-size:16px}.footer{height:calc(132px + env(safe-area-inset-bottom))!important}.footer-content{height:calc(132px + env(safe-area-inset-bottom))!important;padding:0 max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))!important}.footer-content>.footer-managed-item,.footer-link-item{display:inline-flex!important;min-height:44px;align-items:center;padding:0 6px;font-size:16px!important;line-height:20px!important}.footer-share,.footer-sound-btn,.add-steps-congrats-share{display:inline-flex!important;width:44px!important;height:44px!important;align-items:center;justify-content:center}.footer-link-lang-list,.footer-menu-group-list{bottom:44px!important}.terms-wrapper,.credit-wrapper{width:100%!important;max-width:100%!important;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}.add-steps-back-btn,.add-steps-validate-btn,.add-steps-message-terms{min-height:44px;font-size:16px!important}.add-steps-message-terms{display:flex;align-items:center;justify-content:center;white-space:normal}.revival-menu-body p{font-size:16px}.revival-menu-image{min-height:150px}.revival-menu-body{padding:20px}.revival-menu-body h2{font-size:24px}.revival-mobile-map-hint{white-space:normal}}",
       "html.revival-keyboard-open .header,html.revival-keyboard-open .footer{opacity:0!important;pointer-events:none!important}",
       "html.revival-keyboard-open .search-center-wrapper{margin-top:-42px!important}",
       "@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.revival-menu-card{transform:none!important}}"
@@ -2018,6 +2025,7 @@
     // Let native taps and scrolling through the legacy input controller.
     overlay.__skipPreventDefault = true;
     overlay.setAttribute("role", "dialog");
+    overlay.tabIndex = -1;
     overlay.setAttribute("aria-modal", "true");
     overlay.setAttribute("aria-labelledby", "revival-menu-memory-title");
     overlay.innerHTML = [
@@ -2058,18 +2066,23 @@
     overlay.querySelector(".revival-menu-close").setAttribute("aria-label", copy.close);
     overlay.querySelector(".revival-menu-read").textContent = copy.readMore;
     overlay.querySelector(".revival-menu-permalink").textContent = copy.openMemory;
-    overlay.classList.remove("is-expanded");
+    overlay.classList.add("is-expanded");
     overlay.querySelector(".revival-menu-image").style.backgroundImage =
       "url('" + String(memory.imageUrl || "/uploads/posts/revival-upload/thumb.jpg").replace(/'/g, "%27") + "')";
     overlay.querySelector("h2").textContent = memory.title || "I Remember";
     overlay.querySelector(".revival-menu-excerpt").textContent = memory.excerpt || memory.text || "";
-    overlay.querySelector(".revival-menu-full").innerHTML = memory.bodyHtml || "<p>" + escapeHtml(memory.bodyMarkdown || memory.text || "") + "</p>";
+    var body = overlay.querySelector(".revival-menu-full");
+    body.innerHTML = memory.bodyHtml || "<p>" + escapeHtml(memory.bodyMarkdown || memory.text || "") + "</p>";
+    var firstHeading = body.firstElementChild;
+    if (firstHeading && /^H[12]$/.test(firstHeading.tagName) && firstHeading.textContent.trim().toLowerCase() === String(memory.title || "").trim().toLowerCase()) firstHeading.remove();
+    overlay.querySelector(".revival-menu-body").scrollTop = 0;
     var permalink = overlay.querySelector(".revival-menu-permalink");
     permalink.href = memory.publicUrl || "#";
     permalink.style.display = memory.publicUrl ? "" : "none";
     overlay.classList.add("is-visible");
+    document.documentElement.classList.add("memory-reader-open");
     var app = document.querySelector(".app"); if (app) app.inert = true;
-    setLegacyModalOpen(true, ".revival-menu-close");
+    setLegacyModalOpen(true, ".revival-menu-memory");
   }
 
   function renderMenuMemoryAfterSearch(payload) {
@@ -2083,6 +2096,7 @@
     var overlay = document.querySelector(".revival-menu-memory");
     if (overlay) {
       overlay.classList.remove("is-visible", "is-expanded");
+      document.documentElement.classList.remove("memory-reader-open");
       var app = document.querySelector(".app"); if (app) app.inert = false;
       setLegacyModalOpen(false);
     }
@@ -2213,16 +2227,19 @@
   }
 
   function uploadFileError(file) {
-    var limits = window.SONGQI_UPLOAD_LIMITS || { maxBytes: 8388608 };
-    if (file.size <= limits.maxBytes) return "";
-    var mb = Math.round(limits.maxBytes / 1048576);
+    var limits = window.SONGQI_UPLOAD_LIMITS || { maxBytes: 8388608, maxVideoBytes: 104857600 };
+    var video = /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
+    var maxBytes = video ? (limits.maxVideoBytes || 104857600) : limits.maxBytes;
+    if (file.size <= maxBytes) return "";
+    var mb = Math.round(maxBytes / 1048576);
     var language = siteLanguage();
-    if (language === "zh") return "请选择小于 " + mb + " MB 的照片。";
-    if (language === "fr") return "Choisissez une photo de moins de " + mb + " Mo.";
-    return "Please choose a photo under " + mb + " MB.";
+    if (language === "zh") return "请选择小于 " + mb + " MB 的文件。";
+    if (language === "fr") return "Choisissez un fichier de moins de " + mb + " Mo.";
+    return "Please choose a file under " + mb + " MB.";
   }
 
   function installFullPhotoViewer() {
+    window.SongqiPhotos.sound = legacyModule("soundController");
     window.SongqiPhotos.installViewer();
   }
 
@@ -2292,7 +2309,7 @@
     });
 
     var uploadInput = document.querySelector("#local-upload");
-    if (uploadInput) uploadInput.setAttribute("aria-label", label("Choose a photo from this device"));
+    if (uploadInput) { uploadInput.setAttribute("aria-label", siteLanguage() === "fr" ? "Choisir des photos ou vidéos" : siteLanguage() === "zh" ? "选择照片或视频" : "Choose photos or videos from this device"); uploadInput.accept = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm,.mov,.m4v"; }
 
     var intro = document.querySelector(".preloader");
     if (intro) intro.setAttribute("aria-live", "polite");
@@ -2305,9 +2322,9 @@
     if (window.I_REMEMBER_REVIVAL.keyboardActivationReady) return;
     window.I_REMEMBER_REVIVAL.keyboardActivationReady = true;
     document.addEventListener("keydown", function (event) {
-      var modal = document.querySelector(
+      var modal = Array.prototype.find.call(document.querySelectorAll(
         ".revival-menu-memory.is-visible,.terms,.credit"
-      );
+      ), elementIsVisible);
       var focusable;
       var first;
       var last;
