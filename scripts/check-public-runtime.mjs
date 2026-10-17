@@ -110,6 +110,46 @@ sendTouch("touchmove", [contact(0, 0), contact(150, 0)]);
 sendTouch("touchend", []);
 assert.ok(zoomEvents[0] > 0, "Pinch outward must zoom the galaxy in");
 assert.equal(inputEvents.at(-1)[1].cancelled, true, "A pinch must not open a memory on release");
+// Feed real pinch callbacks through the shipping legacy wheel dispatcher and
+// camera handler. A zero wheelDelta used to fall back to undefined detail,
+// making targetZoom NaN and blanking both WebGL scenes permanently.
+function wheelPipeline(main) {
+  const camera = { hasControl: true, zoom: 0, targetZoom: 0 };
+  const wheelCamera = runInNewContext(`(${main.match(/function Pt\(t\)\{if\(!e.hasControl[\s\S]*?(?=function Ht\()/)[0]})`, {
+    e: camera, tt: 0, wt: 0, F: 195, y: (value, min, max) => Math.max(min, Math.min(max, value)),
+  });
+  const dispatch = runInNewContext(`(${main.match(/function L\(e\)\{e=e\|\|o.event;[\s\S]*?(?=function A\(e\))/)[0]})`, {
+    l: { currentBubbleHistory: [{ __wheel: wheelCamera }] },
+  });
+  return { camera, dispatch };
+}
+const brokenZoom = wheelPipeline(originalMain);
+brokenZoom.dispatch({ wheelDelta: 0 });
+assert.ok(Number.isNaN(brokenZoom.camera.targetZoom), "Reproduce the old stationary-pinch blank sky");
+const safeZoom = wheelPipeline(patchedMain);
+for (const event of [{ wheelDelta: 0 }, {}, { wheelDelta: NaN }, { wheelDelta: Infinity }, { detail: 0 }, { wheelDelta: 120 }, { detail: 3 }]) {
+  safeZoom.dispatch(event);
+  assert.ok(Number.isFinite(safeZoom.camera.targetZoom));
+}
+const pinchHandlers = new Map();
+let pinchReleases = 0, pinchStarts = 0;
+bindInput({ addEventListener(type, handler) { pinchHandlers.set(type, handler); } },
+  () => pinchStarts++, () => {}, e => { assert.equal(e.cancelled, true); pinchReleases++; }, safeZoom.dispatch, () => {});
+function pinch(type, points) {
+  pinchHandlers.get(type)({ type, target: galaxyTarget, touches: points.map(x => contact(x, 0)), changedTouches: [contact(0, 0)], preventDefault() {} });
+}
+for (let repeat = 0; repeat < 20; repeat++) {
+  pinch("touchstart", [0, 100]);
+  for (const width of [100, 150, 150, 80, 80, 1, 1, 200, 200]) {
+    pinch("touchmove", [0, width]);
+    assert.ok(Number.isFinite(safeZoom.camera.targetZoom) && safeZoom.camera.targetZoom >= 0 && safeZoom.camera.targetZoom <= 1);
+  }
+  pinch("touchend", [0]);
+  pinch("touchmove", [10]);
+  pinch("touchend", []);
+}
+assert.equal(pinchStarts, 20, "Two simultaneous contacts initialize the galaxy input target");
+assert.equal(pinchReleases, 20, "Lifting fingers separately must cancel click/double-click activation");
 sendTouch("touchstart", [contact(0, 0)]);
 sendTouch("touchcancel", []);
 assert.equal(inputEvents.at(-1)[1].cancelled, true);
@@ -176,6 +216,35 @@ assert.equal(navigation.swipeDirection(10, 100, 200), -1);
 assert.equal(navigation.swipeDirection(100, 10, 200), 0, "Horizontal photo swipe must not change memory");
 assert.equal(navigation.swipeDirection(10, 20, 200), 0, "A tap must not change memory");
 assert.equal(navigation.swipeDirection(10, 100, 2000), 0, "Slow scrolling must not change memory");
+// Mobile reading owns the footer, including the globe drawn in WebGL. Verify
+// direct entry, replacement, close and rotating through the desktop breakpoint.
+{
+  const classes = new Map();
+  let breakpointChanged, controlsParent;
+  const mobile = { matches: true, addEventListener(_type, handler) { breakpointChanged = handler; } };
+  const element = () => ({ appendChild() { controlsParent = this; }, setAttribute() {}, addEventListener() {} });
+  const root = element(), panel = element(), testWindow = { matchMedia: () => mobile };
+  runInNewContext(navigationSource, {
+    window: testWindow,
+    document: { documentElement: { classList: { toggle(name, value) { classes.set(name, value); } } }, createElement: element,
+      querySelector: selector => selector === ".post-2d" ? root : selector === ".post-2d-center-wrapper" ? panel : null },
+    fetch: async () => ({ ok: true }),
+  });
+  const nav = testWindow.SongqiMemoryNavigation;
+  nav.opened(firstMemory);
+  assert.equal(classes.get("revival-memory-mobile-open"), true);
+  assert.equal(controlsParent, root, "Mobile arrows stay outside the scrollable text");
+  nav.opened({ public_id: "next-memory" });
+  assert.equal(classes.get("revival-memory-mobile-open"), true);
+  mobile.matches = false; breakpointChanged();
+  assert.equal(classes.get("revival-memory-mobile-open"), false);
+  assert.equal(controlsParent, panel, "Desktop arrows stay at the card edges");
+  mobile.matches = true; breakpointChanged();
+  assert.equal(classes.get("revival-memory-mobile-open"), true);
+  nav.closed();
+  assert.equal(classes.get("revival-memory-mobile-open"), false, "Closing restores the footer and globe");
+  assert.ok(patchedMain.includes('r.particles.visible=!document.documentElement.classList.contains("revival-memory-mobile-open")'));
+}
 // Exercise the actual transition path, including directional and reduced-motion behavior.
 for (const [direction, axis, reduced, outgoing, incoming] of [
   [1, undefined, false, "-48px 0", "48px 0"],
@@ -190,12 +259,12 @@ for (const [direction, axis, reduced, outgoing, incoming] of [
   panel.animate = (keyframes) => { frames.push(keyframes); return { finished: Promise.resolve(), cancel() {} }; };
   const testWindow = {
     setTimeout, clearTimeout,
-    matchMedia: () => ({ matches: reduced }),
+    matchMedia: (query) => ({ matches: query.includes("reduced-motion") && reduced, addEventListener() {} }),
     __REVIVAL_REPLACE_MEMORY__: (post) => replacements.push(post.public_id),
   };
   runInNewContext(navigationSource, {
     window: testWindow,
-    document: { hidden: false, createElement: element, querySelector: (selector) => selector === ".post-2d" ? root : selector === ".post-2d-center-wrapper" ? panel : null },
+    document: { documentElement: { classList: { toggle() {} } }, hidden: false, createElement: element, querySelector: (selector) => selector === ".post-2d" ? root : selector === ".post-2d-center-wrapper" ? panel : null },
     getComputedStyle: () => ({ display: "block" }), AbortController,
     fetch: async () => ({ ok: true, json: async () => ({ data: { post: { public_id: "second-memory" } } }) }),
   });

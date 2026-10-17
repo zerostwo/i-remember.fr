@@ -273,3 +273,9 @@ Current backend/product decisions:
   on public memory cards or their admin preview for now. Preserve saved data.
   Retain the simplified gallery controls and horizontal arrow-button transitions,
   and deploy the current release to songqi.org.
+
+- Owner feedback on 2026-10-17: on phones, hide the footer globe/search/add
+  controls while a memory is open and restore them on close. Use the recovered
+  space for the photo and scrollable text, with memory navigation clear of the
+  content. Preserve desktop appearance. Galaxy pinch zoom must remain stable
+  through pauses, reversals, and lifting either finger; never leave an empty sky.

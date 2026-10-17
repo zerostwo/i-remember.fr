@@ -529,6 +529,30 @@ body:not([data-memory-sharing="true"]) .add-steps-congrats-shares-container { di
   .memory-navigation-status { left: 60px; right: 60px; bottom: 16px; }
 }
 
+/* Reading a memory owns the mobile viewport. Restore exploration on close. */
+@media (max-width: 760px), (max-width: 1024px) and (max-height: 500px) {
+  html.revival-memory-mobile-open body .nav,
+  html.revival-memory-mobile-open body .footer { visibility: hidden !important; pointer-events: none !important; }
+  html.revival-memory-mobile-open body .post-2d .post-2d-center-wrapper {
+    top: calc(85px + env(safe-area-inset-top)) !important;
+    max-height: calc(var(--revival-visual-viewport-height, 100dvh) - 153px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+  }
+  html.revival-memory-mobile-open body .post-2d .post-2d-close-btn { top: calc(91px + env(safe-area-inset-top)) !important; }
+  .post-2d > .memory-navigation {
+    top: auto; left: 12px; right: 12px; bottom: env(safe-area-inset-bottom); height: 60px;
+  }
+  .post-2d > .memory-navigation .memory-navigation-prev { left: calc(50% - 60px); }
+  .post-2d > .memory-navigation .memory-navigation-next { right: calc(50% - 60px); }
+  .post-2d > .memory-navigation .memory-navigation-status { bottom: 60px; left: 0; right: 0; background: #000; }
+}
+@media (max-width: 1024px) and (max-height: 500px) {
+  html.revival-memory-mobile-open body .post-2d .post-2d-center-wrapper {
+    top: 70px !important;
+    max-height: calc(var(--revival-visual-viewport-height, 100dvh) - 138px - env(safe-area-inset-bottom)) !important;
+  }
+  html.revival-memory-mobile-open body .post-2d .post-2d-close-btn { top: 76px !important; }
+}
+
 .photo-draft-cancel { display: none; position: fixed; top: max(16px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); width: 44px; height: 44px; border: 1px solid #ffffff26; border-radius: 50%; background: transparent; color: #eee; font: 28px/1 Arial, sans-serif; cursor: pointer; }
 .photo-drafting .photo-draft-cancel { display: block; }
 .photo-draft-cancel:focus { outline: none !important; }

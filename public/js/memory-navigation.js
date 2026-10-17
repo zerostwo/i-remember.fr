@@ -1,7 +1,15 @@
 (function () {
   "use strict";
   var current = "", recent = [], busy = false, sequence = 0, controller, animation;
-  var root, panel, buttons = [], status;
+  var root, panel, controls, mobile, buttons = [], status;
+  function syncPresentation() {
+    if (!root) return;
+    var compact = mobile.matches;
+    document.documentElement.classList.toggle("revival-memory-mobile-open", Boolean(current && compact));
+    // Keep navigation outside the scrolling card on phones, so it never covers
+    // the text. Desktop arrows remain anchored to the card's sides.
+    (compact ? root : panel).appendChild(controls);
+  }
   function copy(en, fr, zh) { return window.LANG === "fr" ? fr : window.LANG === "zh" ? zh : en; }
   function swipeDirection(dx, dy, elapsed) {
     return elapsed < 1200 && Math.abs(dy) >= 65 && Math.abs(dy) > Math.abs(dx) * 1.5 ? (dy < 0 ? 1 : -1) : 0;
@@ -65,7 +73,9 @@
     root = document.querySelector(".post-2d");
     panel = document.querySelector(".post-2d-center-wrapper");
     if (!root || !panel) { root = null; return; }
-    var controls = document.createElement("div"); controls.className = "memory-navigation";
+    controls = document.createElement("div"); controls.className = "memory-navigation";
+    mobile = window.matchMedia("(max-width:760px), (max-width:1024px) and (max-height:500px)");
+    mobile.addEventListener("change", syncPresentation);
     [-1, 1].forEach(function (direction) {
       var button = document.createElement("button"); button.type = "button";
       button.className = direction < 0 ? "memory-navigation-prev" : "memory-navigation-next";
@@ -108,11 +118,12 @@
     install();
     if (id === current) return;
     current = id;
+    syncPresentation();
     recent = recent.filter(function (value) { return value !== id; }).concat(id).slice(-50);
     if (status) status.textContent = "";
     // Count displayed memory opens, never prefetches or individual photo changes.
     fetch("/api/v1/memories/" + encodeURIComponent(id) + "/view", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}", keepalive: true }).catch(function () {});
   }
-  function closed() { cancel(); current = ""; if (status) status.textContent = ""; }
+  function closed() { cancel(); current = ""; syncPresentation(); if (status) status.textContent = ""; }
   window.SongqiMemoryNavigation = { opened: opened, closed: closed, next: next, swipeDirection: swipeDirection };
 }());

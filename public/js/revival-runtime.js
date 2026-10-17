@@ -600,18 +600,19 @@
     }
     function touch(event) {
       lastTouch = Date.now();
-      if (event.type === "touchstart" && event.touches.length === 1) {
-        nativeTouch = !!event.target.closest("button,a,input,select,textarea,label,[contenteditable='true'],[data-menu-id],.search-btn,.photo-editor,.revival-menu-memory");
+      if (event.type === "touchstart" && !pinching) {
+        nativeTouch = !!event.target.closest("button,a,input,select,textarea,label,[contenteditable='true'],[data-menu-id],.search-btn,.photo-editor,.post-2d,.revival-photo-viewer,.revival-menu-memory");
       }
       if (nativeTouch) return;
       if (event.type === "touchstart") {
-        if (event.touches.length > 1) { pinching = true; pinchDistance = distance(event); return; }
+        if (event.touches.length > 1) { if (!pinching) down(event); pinching = true; pinchDistance = distance(event); return; }
         pinching = false; down(event);
       } else if (event.type === "touchmove") {
         if (pinching) {
           var next = distance(event);
           if (next && pinchDistance && event.target.closest(".base-3d-container")) {
-            wheel({ wheelDelta: Math.log(next / pinchDistance) * 2400 });
+            var delta = Math.log(next / pinchDistance) * 2400;
+            if (Number.isFinite(delta) && delta !== 0) wheel({ wheelDelta: delta });
             event.preventDefault();
           }
           pinchDistance = next;
@@ -669,7 +670,19 @@
       .replace('t.src="uploads/posts/"+e.img+"/resized.jpg"', 't.src=e.image_url||"uploads/posts/"+e.img+"/resized.jpg"')
       .replace('backgroundImage:"url(uploads/posts/"+e.img+"/resized.jpg)"', 'backgroundImage:"url("+(e.image_url||"uploads/posts/"+e.img+"/resized.jpg")+")"');
     patched = patched.replace(/l\.hasTouch\?\(u\.addEventListener\("touchstart",O,!1\)[\s\S]*?(?=,l\.onDown\.add\(F\))/, 'window.__REVIVAL_BIND_INPUT__(u,O,M,_,L,A)');
+    // A stationary pinch emits zero, not a missing legacy wheelDelta. Falling
+    // through to undefined detail poisons the zoom and every camera coordinate.
+    patched = patched.replace('var t=e.wheelDelta;t?t/=120:t=-e.detail/3;',
+      'var t=Number.isFinite(e.wheelDelta)?e.wheelDelta/120:-e.detail/3;if(!Number.isFinite(t)||t===0)return;');
     patched = patched.replace('s=e.isClick=e.distanceTime!==null', 's=e.isClick=!e.originalEvent.cancelled&&e.distanceTime!==null');
+    patched = patched.replace('e.isDoubleClick=e.currentTime-l.lastUpTime<400',
+      'e.isDoubleClick=!e.originalEvent.cancelled&&e.currentTime-l.lastUpTime<400');
+    patched = patched.replace('l.lastUpTime=e.currentTime', 'l.lastUpTime=e.originalEvent.cancelled?0:e.currentTime');
+    patched = patched.replace('function Pt(t){if(!e.hasControl)return;',
+      'function Pt(t){if(!e.hasControl||!Number.isFinite(t))return;');
+    // The globe is drawn in the shared WebGL canvas, outside the HTML nav.
+    patched = patched.replace('ht.render(.1),r.particles.position.copy(z.position)',
+      'ht.render(.1),r.particles.visible=!document.documentElement.classList.contains("revival-memory-mobile-open"),r.particles.position.copy(z.position)');
     patched = patched.replace('function _(e){if(r.hasControl){var t=p.offset()',
       'function _(e){if(document.documentElement.classList.contains("revival-search-open")){window.__REVIVAL_EXIT_SEARCH__();return}if(r.hasControl){var t=p.offset()');
     // The server validates decoded pixels; camera photos are not limited to 5000px.
