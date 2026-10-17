@@ -428,8 +428,14 @@
     var author = document.querySelector(".post-2d-name");
     if (!author) return;
     var details = document.querySelector(".memory-details");
-    if (!details) { details = document.createElement("div"); details.className = "memory-details"; author.insertAdjacentElement("afterend", details); }
+    if (!details) { details = document.createElement("dl"); details.className = "memory-details"; author.insertAdjacentElement("afterend", details); }
     details.replaceChildren();
+    function detail(name, value) {
+      var group = document.createElement("div"); group.className = "memory-detail";
+      var term = document.createElement("dt"); term.textContent = name;
+      var description = document.createElement("dd"); description.appendChild(value);
+      group.append(term, description); details.appendChild(group);
+    }
     var date = post.published_at ? new Date(post.published_at) : null;
     if (date && !isNaN(date.getTime())) {
       var time = document.createElement("time"); time.dateTime = date.toISOString();
@@ -438,12 +444,12 @@
       try { time.textContent = date.toLocaleDateString(locale, options); }
       catch (_) { options.timeZone = "UTC"; time.textContent = date.toLocaleDateString(locale, options); }
       time.setAttribute("aria-label", label("Published", "Publié", "发表于") + " " + time.textContent);
-      details.appendChild(time);
+      detail(label("Published", "Publié le", "发表日期"), time);
     }
     if (post.location_name) {
       var place = document.createElement("span"); place.className = "memory-location";
       place.textContent = post.location_name;
-      details.appendChild(place);
+      detail(label("Location", "Lieu", "地点"), place);
     }
     details.hidden = !details.childElementCount;
   }

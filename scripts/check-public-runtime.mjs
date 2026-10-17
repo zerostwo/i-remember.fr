@@ -176,6 +176,38 @@ assert.equal(navigation.swipeDirection(10, 100, 200), -1);
 assert.equal(navigation.swipeDirection(100, 10, 200), 0, "Horizontal photo swipe must not change memory");
 assert.equal(navigation.swipeDirection(10, 20, 200), 0, "A tap must not change memory");
 assert.equal(navigation.swipeDirection(10, 100, 2000), 0, "Slow scrolling must not change memory");
+// Exercise the actual transition path, including directional and reduced-motion behavior.
+for (const [direction, axis, reduced, outgoing, incoming] of [
+  [1, undefined, false, "-48px 0", "48px 0"],
+  [-1, undefined, false, "48px 0", "-48px 0"],
+  [1, "vertical", false, "0 -48px", "0 48px"],
+  [-1, "vertical", false, "0 48px", "0 -48px"],
+  [1, undefined, true, null, null],
+]) {
+  const frames = [], replacements = [];
+  const element = () => ({ appendChild() {}, setAttribute() {}, addEventListener() {}, getBoundingClientRect: () => ({ height: 400 }) });
+  const root = element(), panel = element();
+  panel.animate = (keyframes) => { frames.push(keyframes); return { finished: Promise.resolve(), cancel() {} }; };
+  const testWindow = {
+    setTimeout, clearTimeout,
+    matchMedia: () => ({ matches: reduced }),
+    __REVIVAL_REPLACE_MEMORY__: (post) => replacements.push(post.public_id),
+  };
+  runInNewContext(navigationSource, {
+    window: testWindow,
+    document: { hidden: false, createElement: element, querySelector: (selector) => selector === ".post-2d" ? root : selector === ".post-2d-center-wrapper" ? panel : null },
+    getComputedStyle: () => ({ display: "block" }), AbortController,
+    fetch: async () => ({ ok: true, json: async () => ({ data: { post: { public_id: "second-memory" } } }) }),
+  });
+  testWindow.SongqiMemoryNavigation.opened({ public_id: "first-memory" });
+  await testWindow.SongqiMemoryNavigation.next(direction, axis);
+  assert.deepEqual(replacements, ["second-memory"]);
+  assert.equal(frames.length, reduced ? 0 : 2);
+  if (!reduced) {
+    assert.equal(frames[0][1].translate, outgoing);
+    assert.equal(frames[1][0].translate, incoming);
+  }
+}
 const gallerySource = await readFile(new URL("../public/js/photo-gallery.js", import.meta.url), "utf8");
 const galleryWindow = {};
 runInNewContext(gallerySource, { window: galleryWindow, Map });

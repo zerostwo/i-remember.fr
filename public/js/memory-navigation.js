@@ -22,7 +22,9 @@
     animation = panel.animate(frames, { duration: duration, easing: "ease-out", fill: "forwards" });
     await animation.finished;
   }
-  async function next(direction) {
+  async function next(direction, axis) {
+    var vertical = axis === "vertical";
+    function offset(distance) { return vertical ? "0 " + distance + "px" : distance + "px 0"; }
     if (busy || !available()) return;
     setBusy(true);
     status.textContent = "";
@@ -44,12 +46,12 @@
         image.src = post.image_url;
       });
       if (request !== sequence || current !== from || !available()) return;
-      await transition([{ opacity: 1, translate: "0 0" }, { opacity: 0, translate: "0 " + (-direction * 35) + "px" }], 170);
+      await transition([{ opacity: 1, translate: "0 0" }, { opacity: 0, translate: offset(-direction * 48) }], 170);
       if (request !== sequence || current !== from || !available()) return;
       if (animation) animation.cancel();
       window.__REVIVAL_REPLACE_MEMORY__(post);
       panel.scrollTop = 0;
-      await transition([{ opacity: 0, translate: "0 " + (direction * 35) + "px" }, { opacity: 1, translate: "0 0" }], 260);
+      await transition([{ opacity: 0, translate: offset(direction * 48) }, { opacity: 1, translate: "0 0" }], 260);
     } catch (error) {
       if (request === sequence && error.name !== "AbortError") status.textContent = copy("Could not load another memory. Try again.", "Impossible de charger un autre souvenir. Réessayez.", "无法加载其他回忆，请重试。");
       else if (request === sequence && busy) status.textContent = copy("Loading timed out. Try again.", "Le chargement a expiré. Réessayez.", "加载超时，请重试。");
@@ -85,7 +87,7 @@
     function finish(x, y, event) {
       if (!start) return;
       var direction = swipeDirection(x - start.x, y - start.y, Date.now() - start.time); start = null;
-      if (direction) { event.preventDefault(); event.stopPropagation(); suppressClickUntil = Date.now() + 500; next(direction); }
+      if (direction) { event.preventDefault(); event.stopPropagation(); suppressClickUntil = Date.now() + 500; next(direction, "vertical"); }
     }
     root.addEventListener("touchstart", function (event) { start = event.touches.length === 1 ? begin(event.touches[0].clientX, event.touches[0].clientY, event.target) : null; }, { passive: true });
     root.addEventListener("touchmove", function (event) { if (event.touches.length !== 1) { start = null; return; } if (start && swipeDirection(event.touches[0].clientX - start.x, event.touches[0].clientY - start.y, Date.now() - start.time)) event.preventDefault(); }, { passive: false });
@@ -97,7 +99,7 @@
     root.addEventListener("click", function (event) { if (Date.now() < suppressClickUntil) { event.preventDefault(); event.stopImmediatePropagation(); } }, true);
     root.addEventListener("keydown", function (event) {
       if (!available() || event.target.closest("input,textarea,[contenteditable=true]")) return;
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); next(event.key === "ArrowDown" ? 1 : -1); }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); next(event.key === "ArrowDown" ? 1 : -1, "vertical"); }
     });
   }
   function opened(post) {

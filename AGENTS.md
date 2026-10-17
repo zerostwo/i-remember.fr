@@ -262,3 +262,9 @@ Current backend/product decisions:
   photo counts with small interactive dots. Show publication date and an optional
   manually entered location as quiet metadata below the author; omit missing
   locations. Preserve the galaxy, typography, card layout, and touch swipes.
+
+- Owner refinement on 2026-10-17: memory-card dates and locations need a more
+  intentional hierarchy. Use a fine divider and compact labelled columns below
+  the author, consistent with the existing serif card. Left/right memory buttons
+  must animate horizontally in their indicated direction; preserve vertical
+  memory swipes and horizontal photo swipes with motion matching each gesture.

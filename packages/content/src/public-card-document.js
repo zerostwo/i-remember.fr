@@ -24,8 +24,8 @@ export function publicCardDocument(memory = {}, settings = {}) {
     try { dateText = date.toLocaleDateString("en-GB", options); }
     catch { options.timeZone = "UTC"; dateText = date.toLocaleDateString("en-GB", options); }
   }
-  const details = (dateText ? `<time datetime="${date.toISOString()}">${escapeHtml(dateText)}</time>` : "") +
-    (location ? `<span class="memory-location">${escapeHtml(location)}</span>` : "");
+  const details = (dateText ? `<div class="memory-detail"><dt>Published</dt><dd><time datetime="${date.toISOString()}">${escapeHtml(dateText)}</time></dd></div>` : "") +
+    (location ? `<div class="memory-detail"><dt>Location</dt><dd><span class="memory-location">${escapeHtml(location)}</span></dd></div>` : "");
   const image = memory.attachments?.find((item) => /^(image|video)\//.test(item.type));
   const imageUrl =
     (image?.type?.startsWith("video/") ? image?.metadata?.posterUrl : image?.url) ||
@@ -53,7 +53,7 @@ html body .post-2d .post-2d-close-btn{position:absolute!important;top:6px!import
 <div class="post-2d-content scroll-move-container">
 <div class="post-2d-message-wrapper"><div class="post-2d-message-prefix">I remember, </div><div class="post-2d-message">${escapeHtml(preview.text)}${preview.truncated ? "…" : ""}</div>${preview.longForm ? '<span class="revival-memory-explore">Explore this memory</span>' : ""}</div>
 <div class="post-2d-name">${escapeHtml(memory.author || memory.authorName || "I Remember")}</div>
-${details ? `<div class="memory-details">${details}</div>` : ""}
+${details ? `<dl class="memory-details">${details}</dl>` : ""}
 <div class="post-2d-share-container"><span class="post-2d-share-text">Share on:</span>
 <span class="post-2d-share-btn post-2d-share-btn-facebook ui-asset"></span><span class="post-2d-share-btn post-2d-share-btn-twitter ui-asset"></span><span class="post-2d-share-btn post-2d-share-btn-gplus ui-asset"></span></div>
 </div>
