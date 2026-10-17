@@ -155,6 +155,7 @@ export interface AppSettings {
   timezone?: string;
   defaultLanguage?: "en" | "fr" | "zh";
   anonymousSubmissions?: boolean;
+  memorySharing?: boolean;
   tracking?: {
     enabled?: boolean;
     umamiSrc?: string;

@@ -467,10 +467,33 @@ html body .post-2d-img:focus-visible { outline: none !important; box-shadow: ins
 .photo-upload-status { position: absolute; bottom: 20%; left: 50%; transform: translateX(-50%); z-index: 10; color: #eee; font: 16px Georgia, serif; background: #000b; padding: 8px 16px; }
 .photo-gallery-controls { position: absolute; left: 0; top: 0; width: var(--revival-card-image-width, 600px); height: var(--revival-card-image-height, 600px); pointer-events: none; }
 .photo-gallery-controls[hidden], .revival-photo-viewer button[hidden] { display: none !important; }
-.photo-gallery-controls button, .revival-photo-viewer .photo-gallery-prev, .revival-photo-viewer .photo-gallery-next { position: absolute; top: 50%; bottom: auto; transform: translateY(-50%); width: 44px; height: 44px; border: 0; border-radius: 50%; background: #0008; color: #eee; font: 32px Georgia, serif; pointer-events: auto; cursor: pointer; }
+.photo-gallery-controls > button, .revival-photo-viewer .photo-gallery-prev, .revival-photo-viewer .photo-gallery-next { position: absolute; top: 50%; bottom: auto; transform: translateY(-50%); width: 44px; height: 44px; border: 0; border-radius: 50%; background: #0008; color: #eee; font: 32px Georgia, serif; pointer-events: auto; cursor: pointer; }
 .photo-gallery-prev { left: 6px !important; right: auto !important; }
 .photo-gallery-next { right: 6px !important; left: auto !important; }
-.photo-gallery-count { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: #0009; border-radius: 12px; padding: 4px 9px; color: #eee; font: 12px Georgia, serif; }
+/* Photo navigation stays quiet until the photo is explored. */
+.photo-gallery-controls > button { opacity: 0; pointer-events: none; transition: opacity .18s ease; }
+@media (any-hover: hover) {
+  .post-2d-img:hover ~ .photo-gallery-controls:not(.photo-touch-input) > button,
+  .photo-gallery-controls:not(.photo-touch-input):hover > button { opacity: 1; pointer-events: auto; }
+}
+.post-2d-img:focus-visible ~ .photo-gallery-controls > button,
+.photo-gallery-controls:has(button:focus-visible) > button { opacity: 1; pointer-events: auto; }
+.photo-gallery-controls button:focus-visible { outline: 1px solid #fff !important; outline-offset: 2px; }
+.photo-gallery-dots { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; max-width: 100%; pointer-events: auto; }
+.photo-gallery-dot { position: relative; width: 24px; height: 28px; flex: 0 0 24px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+.photo-gallery-dot::after { content: ""; display: block; width: 5px; height: 5px; margin: auto; border-radius: 50%; background: #ffffff70; box-shadow: 0 1px 4px #000b; transition: background .18s ease, transform .18s ease; }
+.photo-gallery-dot[aria-pressed="true"]::after { background: #fff; transform: scale(1.25); }
+.photo-gallery-status { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+body:not([data-memory-sharing="true"]) .post-2d-share-container,
+body:not([data-memory-sharing="true"]) .add-steps-congrats-shares-container { display: none !important; }
+.memory-details { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 0; margin-top: 12px; color: #888; font-size: 12px; line-height: 1.6; letter-spacing: .02em; }
+.memory-details[hidden] { display: none; }
+.memory-details time { white-space: nowrap; }
+.memory-location { overflow-wrap: anywhere; }
+.memory-details time + .memory-location::before { content: "·"; padding: 0 8px; color: #555; }
+@media (prefers-reduced-motion: reduce) {
+  .photo-gallery-controls > button, .photo-gallery-dot::after { transition: none; }
+}
 @media (max-width: 760px), (max-width: 1024px) and (max-height: 500px) {
   .photo-adjusting .add-steps-back-btn, .photo-adjusting .add-steps-validate-btn { top: auto !important; bottom: calc(64px + env(safe-area-inset-bottom)) !important; margin: 0 !important; width: 120px !important; }
   .photo-adjusting .add-steps-back-btn { left: 12px !important; right: auto !important; }

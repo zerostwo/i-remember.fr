@@ -24,6 +24,10 @@ Other self-hosters can set their own public name, description, and domain in the
   drag thumbnails to reorder them (or use Alt + arrow keys). Thumbnails are
   centered in rows of six. Click a memory photo to view the complete original;
   GIF animation is preserved throughout the gallery.
+- **Keep cards uncluttered.** Photo arrows appear on hover or keyboard focus, with
+  small dots for album navigation. Publication dates and optional locations sit below
+  the author. Edit Location in the memory editor; sharing is off by default and can
+  be enabled in **Settings → Site → Show sharing buttons**.
 - **Discover another moment.** Swipe vertically on an opened photo or choose
   either circular side arrow to visit a random memory with a short transition. Horizontal
   swipes browse its photos. Admin **Memories** shows sortable view totals;

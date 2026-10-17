@@ -205,6 +205,7 @@ export function v1SettingsPayload(settings = {}) {
     canonicalUrl: String(settings.canonicalUrl || "https://songqi.org").trim(),
     timezone: String(settings.timezone || "Asia/Shanghai").trim() || "Asia/Shanghai",
     defaultLanguage: language(settings.defaultLanguage),
+    memorySharing: settings.memorySharing === true,
     anonymousSubmissions: Boolean(settings.anonymousSubmissions),
     tracking: {
       enabled: Boolean(settings.tracking?.enabled),

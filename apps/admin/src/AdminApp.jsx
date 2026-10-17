@@ -270,6 +270,7 @@ function v1MemoryAdmin(memory = {}) {
     metadataJson: metadataJson(metadata),
     publicUrl: `/memory/${memory.id}`,
     viewCount: Number(memory.viewCount || 0),
+    locationName: String(metadata.locationName || ""),
     createdAt: memory.createdAt || "",
     updatedAt: memory.updatedAt || "",
   };
@@ -300,6 +301,7 @@ function settingsFromV1(settings = {}, account = {}) {
     canonicalUrl: settings.canonicalUrl || "https://songqi.org",
     timezone: settings.timezone || "Asia/Shanghai",
     defaultLanguage: settings.defaultLanguage || "en",
+    memorySharing: settings.memorySharing === true,
     anonymousSubmissions: settings.anonymousSubmissions === true,
     tracking: {
       enabled: Boolean(settings.tracking?.enabled),
@@ -2310,6 +2312,7 @@ function MemoryEditorView({
             id: null,
             title: "",
             author: "Songqi Duan",
+            locationName: "",
             excerpt: "",
             bodyMarkdown: "",
             status: "published",
@@ -2327,6 +2330,7 @@ function MemoryEditorView({
     <MemoryEditor
       key={`${selectedMemoryId || "new"}-${newDraftVersion}`}
       reportDirty={reportDirty}
+      siteSettings={data.settings}
       onUpload={uploadEditorFile}
       saving={savingMemory}
       memory={draft}
@@ -2357,7 +2361,7 @@ function MemoryListItem({ memory, compact = false }) {
   );
 }
 
-function MemoryEditor({ memory, isNew = false, onSave, onDelete, reportDirty, onUpload, saving }) {
+function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, reportDirty, onUpload, saving }) {
   const [draft, setDraft] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -2468,6 +2472,13 @@ function MemoryEditor({ memory, isNew = false, onSave, onDelete, reportDirty, on
                 />
               </Field>
             </div>
+            <TextField
+              label="Location"
+              description="Optional place shown beside the publication date. Leave blank to hide."
+              value={draft.locationName || ""}
+              maxLength={160}
+              onChange={(value) => update("locationName", value)}
+            />
             <TextareaField
               className="admin-markdown-textarea"
               label="Body"
@@ -2565,7 +2576,7 @@ function MemoryEditor({ memory, isNew = false, onSave, onDelete, reportDirty, on
           </CardAction>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <MemoryCard memory={draft} />
+          <MemoryCard memory={draft} settings={siteSettings} />
           <details className="admin-preview-note">
             <summary>Full content preview</summary>
             <h3 className="mb-3 text-lg font-medium">{draft.title}</h3>
@@ -2690,6 +2701,13 @@ function PageEditor({ page, onSave }) {
               value={draft.metadataJson}
               onChange={(value) => update("metadataJson", value)}
               rows={5}
+            />
+            <TextField
+              label="Location"
+              description="Optional place shown beside the publication date. Leave blank to hide."
+              value={draft.locationName || ""}
+              maxLength={160}
+              onChange={(value) => update("locationName", value)}
             />
             <TextareaField
               className="admin-markdown-textarea"
@@ -3041,6 +3059,7 @@ function SettingsView({
     canonicalUrl: settings.canonicalUrl || "https://songqi.org",
     timezone: settings.timezone || "Asia/Shanghai",
     defaultLanguage: settings.defaultLanguage || "en",
+    memorySharing: settings.memorySharing === true,
     anonymousSubmissions: Boolean(settings.anonymousSubmissions),
     tracking: {
       enabled: Boolean(settings.tracking?.enabled),
@@ -3069,6 +3088,7 @@ function SettingsView({
       canonicalUrl: settings.canonicalUrl || "https://songqi.org",
       timezone: settings.timezone || "Asia/Shanghai",
       defaultLanguage: settings.defaultLanguage || "en",
+      memorySharing: settings.memorySharing === true,
       anonymousSubmissions: Boolean(settings.anonymousSubmissions),
       tracking: {
         enabled: Boolean(settings.tracking?.enabled),
@@ -3086,6 +3106,7 @@ function SettingsView({
     settings.canonicalUrl,
     settings.timezone,
     settings.defaultLanguage,
+    settings.memorySharing,
     settings.anonymousSubmissions,
     settings.tracking,
     account.email,
@@ -3173,6 +3194,14 @@ function SettingsView({
                         onChange={(value) => updateSite("timezone", value)}
                       />
                     </div>
+                    <p className="admin-settings-section-label">Memory cards</p>
+                    <ToggleField
+                      className="admin-settings-toggle"
+                      label="Show sharing buttons"
+                      description="Display social sharing on public memories and after submission. Off by default."
+                      checked={siteDraft.memorySharing}
+                      onCheckedChange={(value) => updateSite("memorySharing", value)}
+                    />
                     <p className="admin-settings-section-label">Public submissions</p>
                     <ToggleField
                       className="admin-settings-toggle"

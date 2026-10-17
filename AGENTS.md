@@ -255,3 +255,10 @@ Current backend/product decisions:
   one day forget.` Separate editable site name from homepage title. Exclude
   homepage memory content from search snippets without blocking its links or
   memory-detail indexing; preserve the public visual experience.
+
+- Owner feedback on 2026-10-17: sharing on public memory cards is optional and
+  disabled by default, controlled in Site settings. Keep outer memory navigation,
+  reveal photo arrows only on image hover or keyboard focus, and replace numeric
+  photo counts with small interactive dots. Show publication date and an optional
+  manually entered location as quiet metadata below the author; omit missing
+  locations. Preserve the galaxy, typography, card layout, and touch swipes.

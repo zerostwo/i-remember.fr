@@ -790,6 +790,8 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     has_created_tags: "1",
     is_stared: "0",
     created_at: normalizeLegacyDate(memory?.createdAt),
+    published_at: memory?.createdAt || "",
+    location_name: String(memory?.metadata?.locationName || "").trim().slice(0, 160),
     language_id: languageId(language),
     tags: Object.fromEntries((memory?.tags || []).map((tag) => [tag.slug || tag.name, 1])),
   };
@@ -935,6 +937,7 @@ function environmentSiteSettings() {
     canonicalUrl: process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org",
     timezone: process.env.TZ || "Asia/Shanghai",
     defaultLanguage: normalizeLanguage(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en"),
+    memorySharing: false,
     anonymousSubmissions: process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS === "true",
     tracking: {
       enabled: Boolean(process.env.UMAMI_SRC && process.env.UMAMI_WEBSITE_ID),
@@ -959,6 +962,7 @@ function normalizedSiteSettings(value, fallback) {
     canonicalUrl: value.canonicalUrl || fallback.canonicalUrl,
     timezone: value.timezone || fallback.timezone,
     defaultLanguage: normalizeLanguage(value.defaultLanguage || fallback.defaultLanguage),
+    memorySharing: value.memorySharing === true,
     anonymousSubmissions:
       typeof value.anonymousSubmissions === "boolean"
         ? value.anonymousSubmissions
@@ -1492,6 +1496,7 @@ async function renderAppHtml(
   if (normalized === "zh") html = html.replace('upload<br/><span class="font-light-italic">photos &amp; videos</span>', '上传<br/><span class="font-light-italic">照片和视频</span>');
   const uploadHint = normalized === "fr" ? `6 fichiers · Photos ${Math.round(maxUploadBodyBytes / 1048576)} Mo · Vidéos 100 Mo / 2 min` : normalized === "zh" ? `最多 6 项 · 照片 ${Math.round(maxUploadBodyBytes / 1048576)} MB · 视频 100 MB / 2 分钟` : `Up to 6 · Photos ${Math.round(maxUploadBodyBytes / 1048576)} MB · Videos 100 MB / 2 min`;
   html = html.replace(/(class="add-steps-upload-methods-text-size">)[^<]*/g, `$1(${uploadHint})`);
+  if (siteSettings.memorySharing) html = html.replace("<body>", '<body data-memory-sharing="true">');
   html = patchLanguageShell(html, normalized, pathname);
   html = injectTracking(html, siteSettings);
 

@@ -56,6 +56,7 @@ export type RuntimeSettings = {
   timezone: string;
   defaultLanguage: "en" | "fr" | "zh";
   anonymousSubmissions: boolean;
+  memorySharing: boolean;
   tracking: {
     enabled: boolean;
     umamiSrc: string;
@@ -93,6 +94,7 @@ function initialRuntimeSettings(): RuntimeSettings {
     canonicalUrl: String(process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org"),
     timezone: String(process.env.TZ || "Asia/Shanghai"),
     defaultLanguage,
+    memorySharing: false,
     anonymousSubmissions: environmentBoolean(process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS, false),
     tracking: {
       enabled: Boolean(umamiSrc && umamiWebsiteId),
@@ -129,6 +131,7 @@ function normalizedRuntimeSettings(values: Record<string, unknown>): RuntimeSett
     defaultLanguage: ["en", "fr", "zh"].includes(language)
       ? (language as RuntimeSettings["defaultLanguage"])
       : "en",
+    memorySharing: runtimeBoolean(values.memorySharing, false),
     anonymousSubmissions: runtimeBoolean(values.anonymousSubmissions, false),
     tracking: {
       enabled: runtimeBoolean(tracking.enabled, false),

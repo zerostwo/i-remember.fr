@@ -34,6 +34,7 @@ export function v1MemoryPayload(memory = {}, defaultLanguage = memory.defaultLan
     ...(!publicId || memory.visibility ? { visibility: memory.visibility || "PUBLIC" } : {}),
     metadata: {
       ...metadata,
+      ...(memory.locationName !== undefined ? { locationName: String(memory.locationName).trim().slice(0, 160) } : {}),
       language: metadata.language || defaultLanguage,
       source: memory.source || metadata.source || "admin",
       isLongForm: content.length > 220,

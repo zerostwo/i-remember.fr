@@ -28,6 +28,9 @@ assert.equal(v1MemoryPayload({ author: "Edited", authorName: "Stale" }).authorNa
 assert.equal(v1MemoryPayload({ status: "pending", dbStatus: "NORMAL" }).status, "PENDING");
 assert.equal(v1MemoryPayload({ status: "archived" }).status, "ARCHIVED");
 assert.deepEqual(v1MemoryPayload({ tags: "旅行, 家人" }).tags, ["旅行", "家人"]);
+assert.equal(v1MemoryPayload({ locationName: "  Groningen  ", metadata: { keep: true } }).metadata.locationName, "Groningen");
+assert.equal(v1MemoryPayload({ locationName: "", metadata: { locationName: "Old place" } }).metadata.locationName, "");
+assert.equal(v1MemoryPayload({ metadata: { locationName: "Preserved" } }).metadata.locationName, "Preserved");
 const calls = [];
 await syncV1Memory(
   async (path, options = {}) => {

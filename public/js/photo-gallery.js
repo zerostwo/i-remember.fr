@@ -344,12 +344,20 @@
     card.setAttribute("role", "button"); card.tabIndex = 0;
     card.__skipPreventDefault = true;
     card.setAttribute("aria-label", label("Open photo", "Ouvrir la photo", "打开照片"));
-    var count = document.createElement("span"); count.className = "photo-gallery-count";
+    var count = document.createElement("span"); count.className = "photo-gallery-status";
+    count.setAttribute("role", "status");
+    var dots = document.createElement("div"); dots.className = "photo-gallery-dots";
+    dots.setAttribute("role", "group"); dots.setAttribute("aria-label", label("Photos and videos", "Photos et vidéos", "照片和视频"));
     var previous = button("‹", label("Previous item", "Élément précédent", "上一项"), function () { move(-1); });
     var next = button("›", label("Next item", "Élément suivant", "下一项"), function () { move(1); });
     previous.className = "photo-gallery-prev"; next.className = "photo-gallery-next";
     // Controls are siblings of the photo button, not nested interactive elements.
-    var controls = document.createElement("div"); controls.className = "photo-gallery-controls"; controls.append(previous, count, next); card.parentNode.appendChild(controls);
+    var controls = document.createElement("div"); controls.className = "photo-gallery-controls"; controls.append(previous, dots, count, next); card.parentNode.appendChild(controls);
+    function inputMode(event) {
+      if (event.pointerType) controls.classList.toggle("photo-touch-input", event.pointerType !== "mouse");
+    }
+    document.addEventListener("pointerdown", inputMode, { passive: true });
+    document.addEventListener("pointermove", inputMode, { passive: true });
     viewer = document.createElement("dialog"); viewer.className = "revival-photo-viewer";
     viewer.tabIndex = -1;
     viewer.setAttribute("aria-label", label("Memory gallery", "Galerie du souvenir", "回忆相册"));
@@ -385,8 +393,16 @@
       card.setAttribute("aria-label", isVideo ? label("Play video", "Lire la vidéo", "播放视频") : label("Open photo", "Ouvrir la photo", "打开照片"));
       image.hidden = isVideo; video.hidden = !isVideo;
       card.style.backgroundImage = 'url("' + photo.image_url.replace(/"/g, "%22") + '")';
-      count.textContent = (memoryIndex + 1) + " / " + currentMemory.length;
-      count.setAttribute("aria-label", label("Photo", "Photo", "照片") + " " + count.textContent);
+      count.textContent = label("Item", "Élément", "项目") + " " + (memoryIndex + 1) + " / " + currentMemory.length;
+      if (dots.children.length !== currentMemory.length) {
+        dots.replaceChildren();
+        currentMemory.forEach(function (_, index) {
+          var dot = button("", label("Show item", "Afficher l’élément", "显示项目") + " " + (index + 1), function () { memoryIndex = index; render(); });
+          dot.className = "photo-gallery-dot";
+          dots.appendChild(dot);
+        });
+      }
+      Array.prototype.forEach.call(dots.children, function (dot, index) { dot.setAttribute("aria-pressed", String(index === memoryIndex)); });
       if (viewer.open && isVideo) { image.removeAttribute("src"); video.poster = photo.full_image_url; video.src = photo.video_url; }
       if (viewer.open && !isVideo) { image.src = photo.full_image_url; image.alt = label("Memory photo", "Photo du souvenir", "回忆照片") + " " + (memoryIndex + 1); }
     }
@@ -408,8 +424,32 @@
     swipe(card); swipe(image);
     window.SongqiPhotos.renderMemory = render;
   }
+  function renderDetails(post) {
+    var author = document.querySelector(".post-2d-name");
+    if (!author) return;
+    var details = document.querySelector(".memory-details");
+    if (!details) { details = document.createElement("div"); details.className = "memory-details"; author.insertAdjacentElement("afterend", details); }
+    details.replaceChildren();
+    var date = post.published_at ? new Date(post.published_at) : null;
+    if (date && !isNaN(date.getTime())) {
+      var time = document.createElement("time"); time.dateTime = date.toISOString();
+      var options = { year: "numeric", month: "short", day: "numeric", timeZone: (window.SONGQI_SITE_SETTINGS || {}).timezone || "UTC" };
+      var locale = window.LANG === "zh" ? "zh-CN" : window.LANG === "fr" ? "fr-FR" : "en-GB";
+      try { time.textContent = date.toLocaleDateString(locale, options); }
+      catch (_) { options.timeZone = "UTC"; time.textContent = date.toLocaleDateString(locale, options); }
+      time.setAttribute("aria-label", label("Published", "Publié", "发表于") + " " + time.textContent);
+      details.appendChild(time);
+    }
+    if (post.location_name) {
+      var place = document.createElement("span"); place.className = "memory-location";
+      place.textContent = post.location_name;
+      details.appendChild(place);
+    }
+    details.hidden = !details.childElementCount;
+  }
   function showMemory(post) {
     installViewer();
+    renderDetails(post);
     var photos = post.photos && post.photos.length ? post.photos : [{ image_url: post.image_url, full_image_url: post.full_image_url || post.image_url }];
     currentMemory = photos.slice(0, MAX_VIEW_PHOTOS).map(function (photo) { return { video_url: photo.video_url ? safeImageUrl(photo.video_url) : "", image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
     memoryIndex = 0;

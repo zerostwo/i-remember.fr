@@ -51,3 +51,9 @@ assert.match(card, /photo.png&quot; onerror=&quot;/);
 assert.match(publicCardDocument(), /src="\/uploads\/posts\/revival-upload\/resized.jpg"/);
 assert.match(publicCardDocument(), /post-2d-name">I Remember</);
 console.log("Original public card styles, current draft content and escaped preview markup passed");
+
+const detailPreview = publicCardDocument({ createdAt: "2026-10-17T12:00:00Z", locationName: "<Groningen>" }, { timezone: "Europe/Amsterdam", memorySharing: true });
+assert.match(detailPreview, /17 Oct 2026/);
+assert.match(detailPreview, /&lt;Groningen&gt;/);
+assert.match(detailPreview, /data-memory-sharing="true"/);
+assert.doesNotMatch(publicCardDocument({ locationName: "", metadata: { locationName: "Old" } }), /memory-location/);
