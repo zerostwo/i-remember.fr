@@ -1,14 +1,24 @@
 # Search engine setup
 
 The default identity is Songqi Duan / 段松岐 at https://songqi.org. Every deployment
-should review **Settings → Site** before launch. Save its own site title, public
+should review **Settings → Site** before launch. Save its own site name, homepage title, public
 origin, description, owner name, and optional alternate name. These are public
 identity fields, not the private account email or login credentials.
+
+The preferred search site name is **I remember,** (`siteName`), separate from the
+homepage title **Songqi Duan | 段松岐** (`siteTitle`). The homepage description is
+**A quiet place for the moments we might one day forget.** `WebSite.name` and
+`og:site_name` use the site name; browser/search titles retain the homepage title.
+Existing installations initialize the new name without replacing saved titles,
+descriptions, owner identity, or tracking settings.
 
 ## Implemented behavior
 
 - HTML responses contain one title, description, and canonical link, plus Open
   Graph, Twitter card metadata, and JSON-LD `WebSite` / `Person` information.
+- Homepage interactive content and fallback memory links use `data-nosnippet`;
+  the configured description remains eligible for snippets. Links stay crawlable,
+  and memory permalinks retain their own descriptions and readable content.
 - Published memory pages contain content-specific descriptions and `CreativeWork`
   data. Anonymous memories are not falsely attributed to the site owner.
 - Names and text are escaped in HTML, XML, and JSON-LD. Canonical origins are

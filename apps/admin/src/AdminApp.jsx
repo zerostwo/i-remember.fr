@@ -292,6 +292,7 @@ function v1MenuAdmin(item = {}) {
 
 function settingsFromV1(settings = {}, account = {}) {
   return {
+    siteName: settings.siteName || "I remember,",
     siteTitle: settings.siteTitle || "Songqi",
     siteDescription: settings.siteDescription ?? "",
     ownerName: settings.ownerName ?? "",
@@ -3032,6 +3033,7 @@ function SettingsView({
   const settings = data.settings || {};
   const account = settings.account || {};
   const [siteDraft, setSiteDraft] = useState(() => ({
+    siteName: settings.siteName || "I remember,",
     siteTitle: settings.siteTitle || "Songqi",
     siteDescription: settings.siteDescription ?? "",
     ownerName: settings.ownerName ?? "",
@@ -3059,6 +3061,7 @@ function SettingsView({
 
   useEffect(() => {
     setSiteDraft({
+      siteName: settings.siteName || "I remember,",
       siteTitle: settings.siteTitle || "Songqi",
       siteDescription: settings.siteDescription ?? "",
       ownerName: settings.ownerName ?? "",
@@ -3075,6 +3078,7 @@ function SettingsView({
     });
     setAccountDraft((current) => ({ ...current, email: account.email || "" }));
   }, [
+    settings.siteName,
     settings.siteTitle,
     settings.siteDescription,
     settings.ownerName,
@@ -3125,7 +3129,13 @@ function SettingsView({
                 >
                   <FieldGroup>
                     <TextField
-                      label="Site title"
+                      label="Site name"
+                      description="The preferred name above your URL in search results."
+                      value={siteDraft.siteName}
+                      onChange={(value) => updateSite("siteName", value)}
+                    />
+                    <TextField
+                      label="Homepage title"
                       description="Used in browser titles and page metadata."
                       value={siteDraft.siteTitle}
                       onChange={(value) => updateSite("siteTitle", value)}

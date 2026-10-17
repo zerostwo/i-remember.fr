@@ -23,8 +23,9 @@ export function renderSeo(html, settings, post, posts) {
   const origin = siteOrigin(settings.canonicalUrl);
   const canonical = origin + (post ? `/memory/${post.public_id}` : "/");
   const identity = [settings.ownerName, settings.ownerAlternateName].filter(Boolean).join(" · ");
-  // The configured site name is the complete homepage title. Owner identity
+  // The configured homepage title is complete and separate from the site name. Owner identity
   // belongs in Person data, not in a second suffix appended to the site name.
+  const siteName = settings.siteName || "I remember,";
   const title = post ? `${post.title_text} · ${settings.siteTitle}` : settings.siteTitle;
   const description = post ? String(post.body_markdown || "").replace(/[#*_`>\[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 300) : settings.siteDescription;
   let image;
@@ -32,7 +33,7 @@ export function renderSeo(html, settings, post, posts) {
     const candidate = new URL(post?.image_url || "/img/thumbnail.png", origin);
     if (["http:", "https:"].includes(candidate.protocol)) image = candidate.href;
   } catch { /* An invalid attachment must not break the public page. */ }
-  const graph = [{ "@type": "WebSite", "@id": `${origin}/#website`, url: `${origin}/`, name: settings.siteTitle,
+  const graph = [{ "@type": "WebSite", "@id": `${origin}/#website`, url: `${origin}/`, name: siteName,
     description: settings.siteDescription, ...(identity ? { about: { "@id": `${origin}/#owner` } } : {}) }];
   if (identity) graph.push({ "@type": "Person", "@id": `${origin}/#owner`, name: settings.ownerName || settings.ownerAlternateName,
     ...(settings.ownerName && settings.ownerAlternateName ? { alternateName: settings.ownerAlternateName } : {}), url: `${origin}/` });
@@ -47,7 +48,7 @@ export function renderSeo(html, settings, post, posts) {
 <link rel="canonical" href="${escape(canonical)}">
 <meta property="og:title" content="${escape(title)}">
 <meta property="og:description" content="${escape(description)}">
-<meta property="og:site_name" content="${escape(settings.siteTitle)}">
+<meta property="og:site_name" content="${escape(siteName)}">
 <meta property="og:url" content="${escape(canonical)}">
 <meta property="og:type" content="website">
 ${image ? `<meta property="og:image" content="${escape(image)}">` : ""}
@@ -57,8 +58,11 @@ ${image ? `<meta property="og:image" content="${escape(image)}">` : ""}
 ${image ? `<meta name="twitter:image" content="${escape(image)}">` : ""}
 <script type="application/ld+json">${json({ "@context": "https://schema.org", "@graph": graph })}</script>`;
   const content = post ? `<article><h1>${escape(post.title_text)}</h1><p style="white-space:pre-wrap">${escape(post.body_markdown)}</p><a href="/">All memories</a></article>` :
-    `<h1>${escape(title)}</h1><p>${escape(description)}</p><ul>${publicPosts(posts).map((entry) => `<li><a href="/memory/${entry.public_id}">${escape(entry.title_text)}</a></li>`).join("")}</ul>`;
-  return html.replace("</head>", () => `${metadata}</head>`).replace(/<body([^>]*)>/, (_match, attributes) => `<body${attributes}><noscript><main style="position:fixed;inset:0;z-index:99999;overflow:auto;background:#101010;color:#eee;padding:2rem;font:18px/1.6 Georgia,serif">${content}<p>Enable JavaScript to explore the interactive memory galaxy.</p></main></noscript>`);
+    `<div data-nosnippet><h1>${escape(title)}</h1></div><p>${escape(description)}</p><div data-nosnippet><ul>${publicPosts(posts).map((entry) => `<li><a href="/memory/${entry.public_id}">${escape(entry.title_text)}</a></li>`).join("")}</ul></div>`;
+  // Exclude dynamic homepage stories and UI copy, while keeping links crawlable.
+  // Memory permalinks retain their own content and snippets.
+  if (!post) html = html.replace('<div class="app">', '<div class="app" data-nosnippet>');
+  return html.replace("</head>", () => `${metadata}</head>`).replace(/<body([^>]*)>/, (_match, attributes) => `<body${attributes}><noscript><main style="position:fixed;inset:0;z-index:99999;overflow:auto;background:#101010;color:#eee;padding:2rem;font:18px/1.6 Georgia,serif">${content}<p><span data-nosnippet>Enable JavaScript to explore the interactive memory galaxy.</span></p></main></noscript>`);
 }
 
 export function sitemapXml(settings, posts) {

@@ -2022,6 +2022,7 @@
 
     overlay = document.createElement("div");
     overlay.className = "revival-menu-memory";
+    if (document.querySelector(".app[data-nosnippet]")) overlay.setAttribute("data-nosnippet", "");
     // Let native taps and scrolling through the legacy input controller.
     overlay.__skipPreventDefault = true;
     overlay.setAttribute("role", "dialog");

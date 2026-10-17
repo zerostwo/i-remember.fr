@@ -248,3 +248,10 @@ Current backend/product decisions:
   reading surface without placeholder image columns or overlapping memory cards.
 - Owner request on 2026-10-15: implement video upload and playback alongside photos
   in this release, preserving the galaxy and staged anonymous submission flow.
+
+- Owner decision on 2026-10-17 supersedes the shared site-name/title setting:
+  use `I remember,` as the preferred search site name, keep the homepage title
+  `Songqi Duan | 段松岐` and description `A quiet place for the moments we might
+  one day forget.` Separate editable site name from homepage title. Exclude
+  homepage memory content from search snippets without blocking its links or
+  memory-detail indexing; preserve the public visual experience.

@@ -47,6 +47,7 @@ import type {
 import { ApiError } from "./errors.js";
 
 export type RuntimeSettings = {
+  siteName: string;
   siteTitle: string;
   siteDescription: string;
   ownerName: string;
@@ -87,6 +88,7 @@ function initialRuntimeSettings(): RuntimeSettings {
     siteDescription: String(process.env.I_REMEMBER_SITE_DESCRIPTION ?? "A quiet place for the moments we might one day forget."),
     ownerName: String(process.env.I_REMEMBER_OWNER_NAME ?? "Songqi Duan"),
     ownerAlternateName: String(process.env.I_REMEMBER_OWNER_ALTERNATE_NAME ?? "段松岐"),
+    siteName: String(process.env.I_REMEMBER_SITE_NAME || "I remember,"),
     siteTitle: String(process.env.I_REMEMBER_SITE_TITLE || "Songqi Duan | 段松岐"),
     canonicalUrl: String(process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org"),
     timezone: String(process.env.TZ || "Asia/Shanghai"),
@@ -110,6 +112,8 @@ function normalizedRuntimeSettings(values: Record<string, unknown>): RuntimeSett
     siteDescription: typeof values.siteDescription === "string" ? values.siteDescription.trim().slice(0, 320) : "",
     ownerName: typeof values.ownerName === "string" ? values.ownerName.trim().slice(0, 120) : "",
     ownerAlternateName: typeof values.ownerAlternateName === "string" ? values.ownerAlternateName.trim().slice(0, 120) : "",
+    siteName: typeof values.siteName === "string" && values.siteName.trim()
+      ? values.siteName.trim().slice(0, 120) : "I remember,",
     siteTitle:
       typeof values.siteTitle === "string" && values.siteTitle.trim()
         ? values.siteTitle.trim().slice(0, 120)

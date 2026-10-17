@@ -146,6 +146,7 @@ export interface MenuItem {
 }
 
 export interface AppSettings {
+  siteName?: string;
   siteTitle?: string;
   siteDescription?: string;
   ownerName?: string;

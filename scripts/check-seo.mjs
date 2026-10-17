@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { versionPublicAssets } from "../src/server/public-asset-versions.js";
 import { renderSeo, sitemapXml, siteOrigin, publicPosts } from "../src/server/seo.js";
 const settings = {
+  siteName: "Remember & share",
   siteTitle: "My archive",
   canonicalUrl: "https://example.org",
   siteDescription: 'A home for <moments> & "stories"',
@@ -17,19 +18,22 @@ const post = {
   image_url: "/uploads/morning.jpg",
 };
 const template =
-  '<html><head><title>Old</title><meta name="description" content="Old"><meta property="og:url" content="old"></head><body></body></html>';
+  '<html><head><title>Old</title><meta name="description" content="Old"><meta property="og:url" content="old"></head><body><div class="app"><div class="post">A rendered memory</div></div></body></html>';
 const dollarTitle = renderSeo(template, { ...settings, siteTitle: "$& $` $'" }, null, []);
 assert.match(dollarTitle, /<title>\$&amp; \$` \$&#39;/);
 const home = renderSeo(template, settings, null, [post]);
+assert.match(home, /<meta property="og:site_name" content="Remember &amp; share">/);
+assert.match(home, /<div class="app" data-nosnippet>/);
+assert.match(home, /<div data-nosnippet><ul><li><a href="\/memory\//);
 assert.match(home, /<title>My archive<\/title>/);
 assert.match(home, /"name":"Jane Doe","alternateName":"简"/);
-const personalSettings = { ...settings, siteTitle: "Songqi Duan | 段松岐", ownerName: "Songqi Duan", ownerAlternateName: "段松岐", siteDescription: "A quiet place for the moments we might one day forget." };
+const personalSettings = { ...settings, siteName: "I remember,", siteTitle: "Songqi Duan | 段松岐", ownerName: "Songqi Duan", ownerAlternateName: "段松岐", siteDescription: "A quiet place for the moments we might one day forget." };
 const personalHome = renderSeo(template, personalSettings, null, []);
 assert.match(personalHome, /<title>Songqi Duan \| 段松岐<\/title>/);
-assert.match(personalHome, /<meta property="og:site_name" content="Songqi Duan \| 段松岐">/);
+assert.match(personalHome, /<meta property="og:site_name" content="I remember,">/);
 assert.match(personalHome, /<meta name="description" content="A quiet place for the moments we might one day forget\.">/);
 const personalGraph = JSON.parse(personalHome.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1])["@graph"];
-assert.equal(personalGraph.find(node => node["@type"] === "WebSite").name, personalSettings.siteTitle);
+assert.equal(personalGraph.find(node => node["@type"] === "WebSite").name, personalSettings.siteName);
 assert.equal(personalGraph.find(node => node["@type"] === "Person").name, personalSettings.ownerName);
 assert.match(home, /href="https:\/\/example.org\/"/);
 assert.match(home, /A home for &lt;moments&gt; &amp; &quot;stories&quot;/);
@@ -37,6 +41,7 @@ assert.equal((home.match(/name="description"/g) || []).length, 1);
 assert.ok(!home.includes("songqi.org"));
 assert.ok(home.includes(`/memory/${post.public_id}`));
 const memory = renderSeo(template, settings, post, [post]);
+assert.ok(!memory.includes('class="app" data-nosnippet') && !memory.includes('<div data-nosnippet>'), "Memory content remains eligible for its own snippets");
 assert.match(memory, /https:\/\/example.org\/uploads\/morning.jpg/);
 const structured = JSON.parse(
   memory.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1],

@@ -78,6 +78,7 @@ or [Docker Hub tags](https://hub.docker.com/r/zerostwo/i-remember.fr/tags):
 DOCKERHUB_IMAGE=zerostwo/i-remember.fr
 TAG=sha-REPLACE_WITH_12_CHARACTER_COMMIT
 I_REMEMBER_HOST_PORT=7892
+I_REMEMBER_SITE_NAME="I remember,"
 I_REMEMBER_SITE_TITLE="Songqi Duan | 段松岐"
 I_REMEMBER_CANONICAL_URL=https://songqi.org
 I_REMEMBER_OWNER_NAME="Songqi Duan"

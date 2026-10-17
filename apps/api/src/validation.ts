@@ -565,7 +565,7 @@ export function settingsInput(value: Record<string, unknown>) {
       throw new ApiError(400, "Canonical URL must be an HTTP(S) origin without a path, query, or credentials", "invalid_canonical_url");
     }
   }
-  for (const [key, limit] of [["siteDescription", 320], ["ownerName", 120], ["ownerAlternateName", 120]] as const) {
+  for (const [key, limit] of [["siteName", 120], ["siteDescription", 320], ["ownerName", 120], ["ownerAlternateName", 120]] as const) {
     if (has(value, key) && (typeof value[key] !== "string" || (value[key] as string).length > limit))
       throw new ApiError(400, `${key} must be text of at most ${limit} characters`, "invalid_seo_setting");
   }
