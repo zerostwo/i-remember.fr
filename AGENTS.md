@@ -268,3 +268,8 @@ Current backend/product decisions:
   the author, consistent with the existing serif card. Left/right memory buttons
   must animate horizontally in their indicated direction; preserve vertical
   memory swipes and horizontal photo swipes with motion matching each gesture.
+
+- Latest owner decision on 2026-10-17: do not display publication date or location
+  on public memory cards or their admin preview for now. Preserve saved data.
+  Retain the simplified gallery controls and horizontal arrow-button transitions,
+  and deploy the current release to songqi.org.

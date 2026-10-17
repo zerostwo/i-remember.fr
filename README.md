@@ -25,8 +25,8 @@ Other self-hosters can set their own public name, description, and domain in the
   centered in rows of six. Click a memory photo to view the complete original;
   GIF animation is preserved throughout the gallery.
 - **Keep cards uncluttered.** Photo arrows appear on hover or keyboard focus, with
-  small dots for album navigation. Publication dates and optional locations sit below
-  the author. Edit Location in the memory editor; sharing is off by default and can
+  small dots for album navigation. Publication dates and saved locations are not
+  displayed on public cards. Sharing is off by default and can
   be enabled in **Settings → Site → Show sharing buttons**.
 - **Discover another moment.** Swipe vertically on an opened photo or choose
   either circular side arrow to visit a random memory with a short transition. Horizontal
@@ -125,7 +125,8 @@ In **Settings → Site**, save:
 
 | Setting          | What it controls                                                        |
 | ---------------- | ----------------------------------------------------------------------- |
-| Site title       | Browser titles, site name, and sharing metadata                         |
+| Site name        | Preferred name above the URL in search results                         |
+| Homepage title   | Browser title and homepage search title                                |
 | Canonical URL    | Your public HTTP(S) origin, e.g. `https://songqi.org`; no path or query |
 | Site description | Homepage search snippet and sharing description                         |
 | Owner name       | Public name, e.g. `Songqi Duan`                                         |

@@ -2474,7 +2474,7 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
             </div>
             <TextField
               label="Location"
-              description="Optional place shown beside the publication date. Leave blank to hide."
+              description="Optional saved location. Not currently shown on public memory cards."
               value={draft.locationName || ""}
               maxLength={160}
               onChange={(value) => update("locationName", value)}
@@ -2704,7 +2704,7 @@ function PageEditor({ page, onSave }) {
             />
             <TextField
               label="Location"
-              description="Optional place shown beside the publication date. Leave blank to hide."
+              description="Optional saved location. Not currently shown on public memory cards."
               value={draft.locationName || ""}
               maxLength={160}
               onChange={(value) => update("locationName", value)}

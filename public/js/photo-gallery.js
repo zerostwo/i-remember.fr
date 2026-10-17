@@ -424,38 +424,8 @@
     swipe(card); swipe(image);
     window.SongqiPhotos.renderMemory = render;
   }
-  function renderDetails(post) {
-    var author = document.querySelector(".post-2d-name");
-    if (!author) return;
-    var details = document.querySelector(".memory-details");
-    if (!details) { details = document.createElement("dl"); details.className = "memory-details"; author.insertAdjacentElement("afterend", details); }
-    details.replaceChildren();
-    function detail(name, value) {
-      var group = document.createElement("div"); group.className = "memory-detail";
-      var term = document.createElement("dt"); term.textContent = name;
-      var description = document.createElement("dd"); description.appendChild(value);
-      group.append(term, description); details.appendChild(group);
-    }
-    var date = post.published_at ? new Date(post.published_at) : null;
-    if (date && !isNaN(date.getTime())) {
-      var time = document.createElement("time"); time.dateTime = date.toISOString();
-      var options = { year: "numeric", month: "short", day: "numeric", timeZone: (window.SONGQI_SITE_SETTINGS || {}).timezone || "UTC" };
-      var locale = window.LANG === "zh" ? "zh-CN" : window.LANG === "fr" ? "fr-FR" : "en-GB";
-      try { time.textContent = date.toLocaleDateString(locale, options); }
-      catch (_) { options.timeZone = "UTC"; time.textContent = date.toLocaleDateString(locale, options); }
-      time.setAttribute("aria-label", label("Published", "Publié", "发表于") + " " + time.textContent);
-      detail(label("Published", "Publié le", "发表日期"), time);
-    }
-    if (post.location_name) {
-      var place = document.createElement("span"); place.className = "memory-location";
-      place.textContent = post.location_name;
-      detail(label("Location", "Lieu", "地点"), place);
-    }
-    details.hidden = !details.childElementCount;
-  }
   function showMemory(post) {
     installViewer();
-    renderDetails(post);
     var photos = post.photos && post.photos.length ? post.photos : [{ image_url: post.image_url, full_image_url: post.full_image_url || post.image_url }];
     currentMemory = photos.slice(0, MAX_VIEW_PHOTOS).map(function (photo) { return { video_url: photo.video_url ? safeImageUrl(photo.video_url) : "", image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
     memoryIndex = 0;
