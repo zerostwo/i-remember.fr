@@ -288,7 +288,9 @@ Current backend/product decisions:
   the archive's black surfaces, serif typography and circular close controls;
   avoid repeating generated excerpt titles above the complete text.
 
-- Owner feedback on 2026-10-18: show real photo/video upload progress with a
-  restrained thin progress line, item count and percentage. Distinguish network
-  upload from server video processing; report actual transcoding progress and
-  an explicit finishing state instead of an indefinite Preparing video message.
+- Owner feedback on 2026-10-18: show real photo/video upload progress. Latest
+  refinement: illuminate progress around the existing particle circle, with the
+  percentage and stage inside it; do not add a separate rectangular status box
+  or linear bar. Preserve the circle's original texture and motion. Distinguish
+  network upload from actual server transcoding and finishing; return to the
+  composition view when uploads finish, including appended files.

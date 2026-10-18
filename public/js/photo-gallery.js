@@ -2,7 +2,7 @@
   "use strict";
   var MAX_UPLOAD_PHOTOS = 6;
   var MAX_VIEW_PHOTOS = 10;
-  var state = { steps: null, input: null, photos: [], selected: 0, busy: false, images: new Map(), editor: null };
+  var state = { steps: null, input: null, photos: [], selected: 0, busy: false, images: new Map(), editor: null, ring: null };
   var currentMemory = [];
   var memoryIndex = 0;
   var viewer;
@@ -54,6 +54,7 @@
     }
     state.busy = true;
     state.photos = existing;
+    state.steps.goToStep("upload-methods");
     var status = document.createElement("div");
     status.className = "photo-upload-status";
     var caption = document.createElement("div");
@@ -61,10 +62,12 @@
     var track = document.createElement("progress");
     track.max = 100;
     track.setAttribute("aria-label", label("Upload progress", "Progression", "上传进度"));
+    var percentage = document.createElement("div");
+    percentage.className = "photo-upload-percent";
     var detail = document.createElement("div");
     detail.className = "photo-upload-detail";
     caption.setAttribute("role", "status");
-    status.append(caption, track, detail);
+    status.append(percentage, caption, track, detail);
     function showProgress(progress) {
       var uploading = progress.phase === "uploading";
       var phase = uploading ? label("Uploading", "Envoi", "正在上传")
@@ -72,13 +75,18 @@
         : progress.stage === "transcoding" ? label("Processing video", "Traitement de la vidéo", "正在转码")
         : progress.stage === "finishing" ? label("Finishing…", "Finalisation…", "正在完成…")
         : label("Preparing…", "Préparation…", "正在处理…");
-      caption.textContent = phase + " · " + (index + 1) + " / " + list.length + (progress.percent == null ? "" : " · " + progress.percent + "%");
+      caption.textContent = phase;
+      percentage.textContent = progress.percent == null ? "…" : progress.percent + "%";
+      if (state.ring) {
+        state.ring.uniforms.uploadActive.value = 1;
+        state.ring.uniforms.uploadProgress.value = progress.percent == null ? -1 : progress.percent / 100;
+      }
       if (progress.percent == null) track.removeAttribute("value");
       else track.value = progress.percent;
       track.setAttribute("aria-label", phase);
-      detail.textContent = uploading && progress.total
+      detail.textContent = (index + 1) + " / " + list.length + " · " + (uploading && progress.total
         ? (progress.loaded / 1048576).toFixed(1) + " / " + (progress.total / 1048576).toFixed(1) + " MB"
-        : progress.phase === "processing" ? label("Upload complete", "Envoi terminé", "上传完成") : "";
+        : progress.phase === "processing" ? label("Upload complete", "Envoi terminé", "上传完成") : label("Ready", "Prêt", "已就绪"));
     }
     document.querySelector(".add-steps").appendChild(status);
     if (state.editor) state.editor.setBusy(true);
@@ -107,6 +115,7 @@
     finally {
       state.busy = false;
       status.remove();
+      if (state.ring) state.ring.uniforms.uploadActive.value = 0;
       state.input.unlock("upload-image");
       if (state.editor) state.editor.setBusy(false);
     }
@@ -118,7 +127,7 @@
     }
     if (failure) error(failure);
   }
-  function createAdjustmentStep(steps, input, circle, tween) {
+  function createAdjustmentStep(steps, input, circle, tween, ring) {
     state.steps = steps;
     state.input = input;
     var root, viewport, preview, range, strip, controls, add, picker, activeImage;
@@ -251,6 +260,19 @@
       finally { confirming = false; }
     }
     function init() {
+      // Keep the original particle geometry and movement; illuminate its existing
+      // circumference clockwise using measured transfer / transcode progress.
+      state.ring = ring;
+      ring.uniforms.uploadActive = { type: "f", value: 0 };
+      ring.uniforms.uploadProgress = { type: "f", value: 0 };
+      ring.uniforms.uploadReducedMotion = { type: "f", value: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0 };
+      ring.material.vertexShader = "uniform float uploadActive;\nuniform float uploadProgress;\nuniform float uploadReducedMotion;\n" + ring.material.vertexShader.replace("vec4 modelViewPos =", [
+        "float uploadAngle = mod(atan(pos.x, pos.y) + PI * 2.0, PI * 2.0) / (PI * 2.0);",
+        "float uploadLit = uploadProgress < 0.0 ? (1.0 - step(.16, fract(uploadAngle - time * .15 * (1.0 - uploadReducedMotion)))) : step(uploadAngle, uploadProgress);",
+        "pAlpha *= mix(1.0, .14 + uploadLit * 1.06, uploadActive);",
+        "vec4 modelViewPos ="
+      ].join("\n"));
+      ring.material.needsUpdate = true;
       root = document.querySelector(".add-steps-adjustment");
       root.classList.add("photo-editor");
       viewport = document.createElement("div");

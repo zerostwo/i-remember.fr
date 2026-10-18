@@ -705,7 +705,7 @@
     var adjustmentEnd = patched.indexOf('define("mout/string/interpolate",', adjustmentStart);
     if (adjustmentStart >= 0 && adjustmentEnd > adjustmentStart) {
       patched = patched.slice(0, adjustmentStart) +
-        'define("steps/adjustmentStep",["exports","stepController","uiController","scene3d/postSubmitCircle","EKTweener"],function(e,r,i,s,f){Object.assign(e,window.SongqiPhotos.createAdjustmentStep(r,i,s,f))}),' +
+        'define("steps/adjustmentStep",["exports","stepController","uiController","scene3d/postSubmitCircle","EKTweener","scene3d/stepCircle"],function(e,r,i,s,f,c){Object.assign(e,window.SongqiPhotos.createAdjustmentStep(r,i,s,f,c))}),' +
         patched.slice(adjustmentEnd);
     }
     patched = patched.replace('function U(e){M=e;var t=new Image', 'function U(e){window.SongqiPhotos.showMemory(e);M=e;var t=new Image');

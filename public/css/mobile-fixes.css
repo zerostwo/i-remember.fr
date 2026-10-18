@@ -464,15 +464,14 @@ html body .post-2d-img:focus-visible { outline: none !important; box-shadow: ins
   .photo-editor .photo-thumb-remove { opacity: 1; pointer-events: auto; }
   .photo-thumb-remove::after { content: ""; position: absolute; inset: -6px; }
 }
-.photo-upload-status { position: absolute; bottom: max(24px, 9%); left: 50%; transform: translateX(-50%); z-index: 10; box-sizing: border-box; width: min(320px, calc(100% - 40px)); color: #eee; font: 16px/1.5 Georgia, serif; text-align: center; background: #000b; padding: 12px 18px; pointer-events: none; }
-.photo-upload-status progress { display: block; width: 100%; height: 2px; margin: 10px 0 8px; border: 0; border-radius: 0; appearance: none; background: #ffffff26; color: #eee; }
-.photo-upload-status progress::-webkit-progress-bar { background: #ffffff26; }
-.photo-upload-status progress::-webkit-progress-value { background: #eee; }
-.photo-upload-status progress::-moz-progress-bar { background: #eee; }
-.photo-upload-status progress:indeterminate { opacity: .5; }
-.add-steps:has(.photo-upload-status) :is(.add-steps-back-btn, .add-steps-validate-btn) { visibility: hidden !important; pointer-events: none !important; }
-.photo-upload-detail { color: #aaa; font-size: 13px; min-height: 1.5em; }
-@media (max-width: 600px) { .photo-upload-status { bottom: max(16px, env(safe-area-inset-bottom)); font-size: 14px; } }
+.photo-upload-status { position: absolute; top: calc(50% - 35px); left: 50%; transform: translate(-50%, -50%); z-index: 10; box-sizing: border-box; width: min(260px, calc(100% - 48px)); color: #eee; font: 18px/1.5 Georgia, serif; text-align: center; pointer-events: none; }
+.photo-upload-percent { font-size: clamp(42px, 6vw, 64px); line-height: 1.2; font-weight: normal; font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.photo-upload-caption { font-style: italic; }
+.photo-upload-detail { color: #aaa; font-size: 12px; margin-top: 10px; }
+.photo-upload-status progress { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.add-steps:has(.photo-upload-status) :is(.add-steps-back-btn, .add-steps-validate-btn, .add-steps-upload-methods-selection-container, .add-steps-upload-methods-loading) { visibility: hidden !important; pointer-events: none !important; }
+@media (max-width: 600px) { .photo-upload-status { font-size: 16px; width: 240px; } }
+
 .photo-gallery-controls { position: absolute; left: 0; top: 0; width: var(--revival-card-image-width, 600px); height: var(--revival-card-image-height, 600px); pointer-events: none; }
 .photo-gallery-controls[hidden], .revival-photo-viewer button[hidden] { display: none !important; }
 .photo-gallery-controls > button, .revival-photo-viewer .photo-gallery-prev, .revival-photo-viewer .photo-gallery-next { position: absolute; top: 50%; bottom: auto; transform: translateY(-50%); width: 44px; height: 44px; border: 0; border-radius: 50%; background: #0008; color: #eee; font: 32px Georgia, serif; pointer-events: auto; cursor: pointer; }
