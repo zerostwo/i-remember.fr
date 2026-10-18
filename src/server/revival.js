@@ -1,3 +1,4 @@
+import { createVideoUploads, videoChunkBytes } from "./video-uploads.js";
 import { uploadVideo, videoLimits } from "./video.js";
 import { serveAsset } from "./static-assets.js";
 import { renderSeo, sitemapXml, siteOrigin, publicPosts } from "./seo.js";
@@ -1654,6 +1655,10 @@ function localizeChineseHtml(html) {
 
 export function createRevivalMiddleware(options = {}) {
   const backend = new RevivalBackend(options);
+  backend.videoUploads = createVideoUploads(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), async (result) => {
+    const attachment = await backend.cropPhoto({ fileId: result.fileId, crop: { x: .5, y: .5, zoom: 1 } }, 0);
+    return { ...result, attachment };
+  });
 
   return (req, res, next) => {
     handleRequest(backend, req, res, next, options).catch((error) => {
@@ -1903,6 +1908,36 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
   if (pathname === "/img/colorMap.png") {
     setTimeout(() => next(), colorMapStartupDelayMs);
+    return;
+  }
+
+  if (pathname === "/api/video-uploads" || pathname.startsWith("/api/video-uploads/")) {
+    try {
+      if (req.method !== "GET") assertSameOrigin(req);
+      const match = pathname.match(/^\/api\/video-uploads\/([a-f0-9]{48})(?:\/(complete|chunks\/(\d+)))?$/);
+      let result;
+      if (pathname === "/api/video-uploads" && req.method === "POST") {
+        assertRateLimit(req, "upload-video", 6, 10 * 60 * 1000);
+        const body = await collectRequest(req, 1024);
+        let input;
+        try { input = JSON.parse(body.toString()); } catch { throw new HttpError(400, "Invalid upload request", "Invalid upload request."); }
+        result = await backend.videoUploads.start(input?.size);
+      } else if (match && req.method === "PUT" && match[3] != null) {
+        result = await backend.videoUploads.append(match[1], Number(match[3]), await collectRequest(req, videoChunkBytes));
+      } else if (match && req.method === "POST" && match[2] === "complete") {
+        result = backend.videoUploads.complete(match[1]);
+      } else if (match && !match[2] && req.method === "GET") {
+        result = backend.videoUploads.status(match[1]);
+      } else if (match && !match[2] && req.method === "DELETE") {
+        await backend.videoUploads.cancel(match[1]);
+        result = { cancelled: true };
+      } else {
+        throw new HttpError(404, "Upload route not found", "Upload route not found.");
+      }
+      sendJson(req, res, { success: true, data: result });
+    } catch (error) {
+      throw new HttpError(error.statusCode || 500, error.message, error.errorMsg || "Video upload failed. Please try again.");
+    }
     return;
   }
 

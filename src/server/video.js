@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, writeFile, readFile, rm, rename } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rm, rename, copyFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
@@ -17,8 +17,9 @@ function failure(statusCode, message) {
 // Only one decoder per web process. Reject overload instead of accumulating
 // large upload buffers and unbounded transcode jobs in memory.
 export async function uploadVideo(file, storageRoot) {
-  if (!file?.data?.length) throw failure(400, "Choose an MP4, MOV or WebM video.");
-  if (file.data.length > videoLimits.maxVideoBytes)
+  const size = file?.path ? (await stat(file.path)).size : file?.data?.length;
+  if (!size) throw failure(400, "Choose an MP4, MOV or WebM video.");
+  if (size > videoLimits.maxVideoBytes)
     throw failure(413, "Choose a video of 500 MB or less.");
   if (processing) throw failure(429, "Another video is processing. Please try again shortly.");
   processing = true;
@@ -28,7 +29,8 @@ export async function uploadVideo(file, storageRoot) {
   try {
     await mkdir(temporary, { recursive: true, mode: 0o770 });
     const input = join(temporary, "source");
-    await writeFile(input, file.data, { mode: 0o660 });
+    if (file.path) await copyFile(file.path, input);
+    else await writeFile(input, file.data, { mode: 0o660 });
     // Never permit uploaded playlists to fetch network resources.
     const { stdout } = await run(
       "ffprobe",

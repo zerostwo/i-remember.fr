@@ -81,7 +81,7 @@ try {
     "libx264",
     boundary,
   ]);
-  const accepted = await uploadVideo({ data: await readFile(boundary) }, root);
+  const accepted = await uploadVideo({ path: boundary }, root);
   const converted = JSON.parse(
     (
       await run("ffprobe", [

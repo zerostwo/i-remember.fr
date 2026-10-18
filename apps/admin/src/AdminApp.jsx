@@ -1,4 +1,4 @@
-import { videoLimits } from "../../../packages/config/src/media-limits.js";
+import { uploadVideoFile } from "../../../packages/content/src/video-upload.js";
 import { MemoryCard } from "../../../packages/content/src/MemoryCard.jsx";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
@@ -921,12 +921,7 @@ export function AdminApp() {
 
   async function uploadEditorFile(file, signal) {
     if (/^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
-      if (file.size > videoLimits.maxVideoBytes) throw new Error("Choose a video of 500 MB or less.");
-      const body = new FormData(); body.set("local", file);
-      const response = await fetch("/api/upload-video", { method: "POST", body, signal, credentials: "same-origin" });
-      const payload = await response.json();
-      if (!response.ok || !payload.success) throw new Error(payload.errorMsg || "Video upload failed.");
-      return payload.data.attachment;
+      return (await uploadVideoFile(file, { signal })).attachment;
     }
     const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
     return v1Api("/api/v1/assets", {

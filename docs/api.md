@@ -144,3 +144,29 @@ When `API_BASE_URL` is configured, the public archive runtime uses v1 Prisma
 data for public memory list/detail rendering, footer menu/page targets, and
 anonymous memory submission. It does not fall back to SQLite archive content or
 legacy numeric memory URLs, while keeping the archived visual shell unchanged.
+
+### Video upload sessions
+
+Public submissions and the admin editor use the same bounded video upload workflow.
+It accepts a total of 500 MB and ten minutes, including behind proxies with smaller
+per-request body limits:
+
+1. `POST /api/video-uploads` with JSON `{ "size": <file bytes> }` returns an opaque
+   `id` and `chunkBytes` (8 MiB).
+2. Send consecutive raw binary parts to `PUT /api/video-uploads/:id/chunks/:index`,
+   starting at index zero. All parts must have exactly `chunkBytes` bytes except
+   the last, which must contain the exact remaining bytes.
+3. `POST /api/video-uploads/:id/complete` starts conversion and returns immediately.
+4. Poll `GET /api/video-uploads/:id` until `state` is `complete` or `failed`.
+   A completed response contains `result` with the video file ID and attachment.
+5. `DELETE /api/video-uploads/:id` releases the temporary session. Completed media
+   is retained for the memory submission; cancelling an in-progress conversion
+   discards its result when the decoder finishes.
+
+Responses use `{ success, data }`; failures use the public `errorMsg`. Mutations
+require the same origin, session creation is rate-limited, and at most two
+unfinished sessions may occupy disk. Sessions expire after 30 minutes of
+inactivity and do not survive a server restart. Uploading does not publish a
+memory or increment its view count. The direct multipart `/api/upload-video`
+endpoint remains available for clients whose proxy supports its total size and
+conversion timeout.

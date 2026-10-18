@@ -253,6 +253,10 @@ count as another memory view. Source video is discarded after conversion.
 The single Docker image includes FFmpeg/ffprobe. Local development needs both on
 PATH. Run `node scripts/check-video.mjs` for decoder/limit/cleanup regression checks.
 One video is processed at a time per web process; additional concurrent attempts
-receive a retry message. Reverse proxies must allow 501 MB request bodies and at
-least a 960-second upstream read timeout for `/api/upload-video`. Keep the upload
+receive a retry message. Public and admin video uploads use 8 MB parts and poll
+for conversion completion, so the 500 MB total does not require a single large
+Cloudflare request or a long-lived HTTP response. Upload sessions expire after
+30 minutes of inactivity; a server restart requires choosing the video again.
+The direct `/api/upload-video` API still requires 501 MB request bodies and a
+960-second upstream read timeout when used without the part-based workflow. Keep the upload
 volume backed up with PostgreSQL; video files and generated posters live together.

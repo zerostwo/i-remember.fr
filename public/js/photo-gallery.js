@@ -68,9 +68,18 @@
         form.set("local", list[index]);
         var isVideo = /^video\//.test(list[index].type) || /\.(mp4|mov|webm|m4v)$/i.test(list[index].name);
         status.textContent += isVideo ? label(" · Preparing video…", " · Préparation de la vidéo…", " · 正在处理视频…") : "";
-        var response = await fetch(isVideo ? "/api/upload-video" : "/api/upload-image", { method: "POST", body: form, credentials: "same-origin" });
-        var payload = await response.json();
-        if (!response.ok || !payload.success) throw new Error(payload.errorMsg || "Upload failed. Please try again.");
+        var payload;
+        if (isVideo) {
+          payload = { data: await window.songqiVideoUpload(list[index], { onProgress: function (progress) {
+            status.textContent = progress.phase === "processing"
+              ? label("Preparing video…", "Préparation de la vidéo…", "正在处理视频…")
+              : label("Uploading video", "Envoi de la vidéo", "正在上传视频") + " · " + progress.percent + "%";
+          } }) };
+        } else {
+          var response = await fetch("/api/upload-image", { method: "POST", body: form, credentials: "same-origin" });
+          payload = await response.json();
+          if (!response.ok || !payload.success) throw new Error(payload.errorMsg || "Upload failed. Please try again.");
+        }
         state.photos.push({ fileId: payload.data.fileId, type: payload.data.type || "image/jpeg", crop: { x: 0.5, y: 0.5, zoom: 1 } });
       }
     } catch (err) { failure = err.message; }
