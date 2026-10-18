@@ -294,3 +294,7 @@ Current backend/product decisions:
   or linear bar. Preserve the circle's original texture and motion. Distinguish
   network upload from actual server transcoding and finishing; return to the
   composition view when uploads finish, including appended files.
+
+- Owner request on 2026-10-18: keep README and CHANGELOG aligned with shipped
+  features and simplify unused code, dependencies and build paths while preserving
+  all current public/admin functionality, interactions and visual behavior.

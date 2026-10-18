@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Photo/video albums with circular crop composition, independent crops, drag/touch
+  reordering, animated GIFs, complete-photo viewing, and native video playback.
+- MP4/MOV/WebM uploads with 500 MB / 10 minute defaults, configurable limits,
+  H.264/AAC conversion and posters; FFmpeg/ffprobe in the single Docker image.
+- Chunked video transfers, asynchronous conversion status, expiry and cleanup;
+  actual transfer and conversion progress in public and admin upload flows.
+- Clockwise upload progress in the existing particle circle, with percentage
+  and stage text inside the circle, including uploads added during composition.
+- Short random public IDs, editable IDs with redirects preserving earlier links,
+  optional sharing controls, and separate editable site name/homepage title.
+- Touch/tablet/hybrid gesture guidance and animated random-memory navigation.
+
 - Added editable search descriptions and owner names, server-rendered public
   metadata and structured data, public-only sitemaps, and crawler directives.
 - Replaced the outdated README with current feature/deployment documentation,
@@ -34,6 +46,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- New public albums accept six photos/videos combined; older larger albums remain
+  readable. Gallery dots replace numeric counts, and photo arrows appear on
+  hover/focus. Public date/location display is hidden while saved data is retained.
+- Long memories and managed pages share inline Read more excerpts and a consistent
+  dark reading overlay without duplicated automatically generated headings.
+- Homepage memory excerpts no longer populate search snippets; memory-detail
+  indexing and discovery links remain available.
+- Consolidated build/test orchestration, retained one Dockerfile, cached dependency
+  installation separately from source edits, and narrowed runtime package copies.
+- Refreshed README, screenshots, architecture and migration documentation; marked
+  the superseded July launch plan as historical.
+
 - Updated sharp and pinned repaired fast-uri, Prisma deepmerge-ts, and mysql2
   dependencies so the release passes the high-severity advisory gate.
 
@@ -57,6 +81,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made published Pages create and maintain their linked long-form Memory.
 
 ### Fixed
+
+- Fixed wide-screen empty-search caret sizing, balanced Chinese/English excerpt
+  lengths, decoded escaped entities, and kept Read more visible after truncation.
+- Centered complete upload errors with narrow-screen wrapping; prevented incidental
+  background clicks from dismissing submission and retained full-resolution media.
+- Stabilized touch pinch zoom through pauses, reversals and finger lifts; hid phone
+  footer controls while a memory is open and restored them on close.
+- Aligned Add a memory/full-photo close controls with the responsive logo and
+  preserved actual-open view counting through gallery and random navigation.
 
 - Fixed duplicate touch/mouse map movement on phones, overlapping mobile search
   and tutorial controls, and Chinese IME composition leaving raw pinyin
@@ -82,6 +115,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not race database generation against package type checks.
 - Moved 2FA password confirmation into the Security workflow and made all
   archive footer controls managed menu records.
+
+### Removed
+
+- Unused split-container Dockerfiles, duplicate admin HTML entry, unused React
+  iframe galaxy wrapper and session-storage data override, obsolete app icons,
+  and a duplicate API test wrapper.
+- The shadcn generator CLI and 231 lockfile package entries; retained the used
+  state variants locally with their upstream MIT license. Existing UI primitives,
+  active galaxy assets, media tooling and PostgreSQL migration history remain.
 
 ## [0.1.5] - 2026-07-10
 

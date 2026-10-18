@@ -1,4 +1,3 @@
-export { MemoryGalaxy } from "./MemoryGalaxy.js";
 export {
   memoryFadePercent,
   normalizeGalaxyMemory,
@@ -6,5 +5,3 @@ export {
   normalizeGalaxyPost,
   normalizeGalaxyPosts,
 } from "./normalize.js";
-
-export const runtimePath = "/js/revival-runtime.js";

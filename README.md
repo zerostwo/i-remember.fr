@@ -4,7 +4,7 @@
 [![Docker Hub](https://img.shields.io/badge/Docker_Hub-zerostwo%2Fi--remember.fr-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/zerostwo/i-remember.fr)
 
 A self-hosted personal website and shared memory archive: explore a three-dimensional
-memory galaxy, keep photographs and stories, and invite visitors to leave a memory.
+memory galaxy, keep photographs, videos, and stories, and invite visitors to leave a memory.
 Built for **Songqi Duan / 段松岐** and the intended personal domain **[songqi.org](https://songqi.org)**.
 Other self-hosters can set their own public name, description, and domain in the admin.
 
@@ -17,9 +17,10 @@ Other self-hosters can set their own public name, description, and domain in the
 
 - **Explore memories in 3D.** Drag, orbit, zoom, search, and open individual memories;
   the original galaxy, transitions, typography, and ambient audio are preserved.
-- **Keep short moments and longer stories.** Write Markdown, attach photographs,
-  organize tags, and open longer entries with **Read more**.
-- **Keep a photo collection together.** Add up to 6 photos per memory, adjust each
+- **Keep short moments and longer stories.** Write Markdown, attach photos and videos,
+  organize tags, and open longer entries with **Read more** directly after the
+  excerpt. Long memories and managed pages share the same restrained reading overlay.
+- **Keep a photo collection together.** Add up to 6 photos/videos per memory, adjust each
   square preview with drag and zoom inside the circular composition guide, and
   drag thumbnails to reorder them (or use Alt + arrow keys). Thumbnails are
   centered in rows of six. Click a memory photo to view the complete original;
@@ -33,7 +34,7 @@ Other self-hosters can set their own public name, description, and domain in the
   swipes browse its photos. Admin **Memories** shows sortable view totals;
   opening a memory counts once, while prefetching and changing photos do not.
 - **Invite contributions.** Optional anonymous submissions follow a staged
-  photo/text/name/email/terms flow and publish immediately when enabled.
+  media/text/name/email/terms flow and publish immediately when enabled.
 - **Manage a personal site.** Dashboard, Memories, Pages, Attachments, and Navigation;
   Site, Account, Security, and Backup settings; keyboard search with ⌘K / Ctrl-K.
 - **Own the data.** PostgreSQL/Prisma, local upload storage, two-factor authentication,
@@ -57,9 +58,44 @@ Search identity is editable in **Settings → Site**, alongside language and sub
 
 ![Site settings for canonical domain, search description, owner name, and alternate name](docs/images/settings.webp)
 
-Screenshots were captured from the running application on 2026-09-14 with a disposable
+The galaxy and admin screenshots were captured on 2026-09-14 with a disposable
 PostgreSQL database and authored demo memories. Demo data is not bundled into a fresh
-installation. [Screenshot notes](docs/images/README.md).
+installation. The upload screenshot was captured locally on 2026-10-18 using a
+synthetic file. [Screenshot notes](docs/images/README.md).
+
+## Photos, videos, and upload progress
+
+Public submissions and the admin memory editor accept MP4, MOV and WebM alongside
+JPEG, PNG, WebP and GIF. New public memories can contain up to six photos/videos
+combined; existing larger albums remain readable. Videos are limited to 500 MB,
+ten minutes and 4K input. The server generates a poster for the circular composition
+step and square memory card, then converts video to H.264/AAC MP4 (up to 1920 pixels
+on either side, 30 fps). Opening the card plays the complete frame with native
+controls; changing media or closing stops playback. Gallery navigation does not
+count as another memory view. Source video is discarded after conversion.
+
+The single Docker image includes FFmpeg/ffprobe. Local development needs both on
+PATH. Run `node scripts/check-video.mjs` for decoder/limit/cleanup regression checks.
+One video is processed at a time per web process; additional concurrent attempts
+receive a retry message. Public and admin video uploads use 8 MB parts and poll
+for conversion completion, so the 500 MB total does not require a single large
+Cloudflare request or a long-lived HTTP response. Upload sessions expire after
+30 minutes of inactivity; a server restart requires choosing the video again.
+The direct `/api/upload-video` API still requires 501 MB request bodies and a
+960-second upstream read timeout when used without the part-based workflow. Keep the upload
+volume backed up with PostgreSQL; video files and generated posters live together.
+
+Photo uploads default to 8 MB and 64 megapixels. Video size and duration limits
+are editable in Site settings, with defaults of 500 MB and 10 minutes.
+
+Upload progress illuminates the existing particle circle clockwise, with a
+percentage and a short status inside it. File transfer uses actual bytes sent;
+video conversion reports FFmpeg progress separately. Preparing and finishing
+stages show an activity state until measurable progress is available. Additional
+files return to the same composition flow after uploading. The admin editor
+also shows attachment progress.
+
+![Upload progress following the existing particle circle](docs/images/upload-progress.webp)
 
 ## Deploy with Docker Compose
 
@@ -125,8 +161,8 @@ In **Settings → Site**, save:
 
 | Setting          | What it controls                                                        |
 | ---------------- | ----------------------------------------------------------------------- |
-| Site name        | Preferred name above the URL in search results                         |
-| Homepage title   | Browser title and homepage search title                                |
+| Site name        | Preferred name above the URL in search results                          |
+| Homepage title   | Browser title and homepage search title                                 |
 | Canonical URL    | Your public HTTP(S) origin, e.g. `https://songqi.org`; no path or query |
 | Site description | Homepage search snippet and sharing description                         |
 | Owner name       | Public name, e.g. `Songqi Duan`                                         |
@@ -151,7 +187,8 @@ memory's photos, map position and view count. Existing long links remain valid.
 Public `/memory/<random-id>` pages have their own title, description, canonical URL,
 sharing image, and structured content. Display-language variants canonicalize to the
 same content URL. JavaScript-free visitors receive readable text and memory links;
-the interactive galaxy remains the normal experience. Admin/API responses carry
+homepage memory excerpts are excluded from search snippets, while detail pages
+and discovery links remain indexable. The interactive galaxy remains the normal experience. Admin/API responses carry
 `noindex`; sitemap generation uses only the public API, excluding private, unlisted,
 draft, archived, and empty entries.
 
@@ -172,6 +209,7 @@ and appearing for a particular name are not guaranteed or immediate**. See the
 
 Use Node.js 22 (CI: 22.23.1), pnpm 10.17.1, and a running PostgreSQL database. Native
 local development requires its own database; embedded PostgreSQL is a Docker feature.
+Install FFmpeg and ffprobe on PATH to upload or test videos.
 
 ```bash
 corepack enable
@@ -216,6 +254,7 @@ pnpm lint
 pnpm typecheck
 pnpm build
 pnpm test
+pnpm test:video
 pnpm audit --prod --audit-level=high
 ```
 
@@ -223,6 +262,12 @@ For data-dependent regression checks, set `I_REMEMBER_TEST_DATABASE_URL` to a mi
 disposable PostgreSQL database whose name contains `test` or `review`, then run
 `pnpm test:postgres`. Runtime databases, uploads, generated builds, and disposable QA
 artifacts are excluded from Git. Curated README screenshots live in `docs/images`.
+
+Builds use one root `Dockerfile`. Turbo builds the database before the API and
+runs package checks; Vite produces the public/admin assets once. `pnpm test`
+combines package tests with `test:integration`. Admin UI primitives and their
+state variants are checked in; the shadcn generator CLI is not a build dependency.
+See the [maintenance audit](docs/maintenance-2026-10-18.md) for the cleanup scope.
 
 The [Docker workflow](.github/workflows/docker.yml) verifies source, dependency
 advisories, and container fresh-start/restart/backup/restore behavior before publishing.
@@ -238,25 +283,3 @@ This is a source-available restoration with third-party frontend code and assets
 The repository as a whole is **not offered under MIT, Apache, or GPL**. Restored
 visuals, fonts, audio, and other third-party materials retain their existing rights
 and are not relicensed by this README. See [LICENSE](LICENSE) for the repository notice.
-
-### Video memories
-
-Public submissions and the admin memory editor accept MP4, MOV and WebM alongside
-JPEG, PNG, WebP and GIF. New public memories can contain up to six photos/videos
-combined; existing larger albums remain readable. Videos are limited to 500 MB,
-ten minutes and 4K input. The server generates a poster for the circular composition
-step and square memory card, then converts video to H.264/AAC MP4 (up to 1920 pixels
-on either side, 30 fps). Opening the card plays the complete frame with native
-controls; changing media or closing stops playback. Gallery navigation does not
-count as another memory view. Source video is discarded after conversion.
-
-The single Docker image includes FFmpeg/ffprobe. Local development needs both on
-PATH. Run `node scripts/check-video.mjs` for decoder/limit/cleanup regression checks.
-One video is processed at a time per web process; additional concurrent attempts
-receive a retry message. Public and admin video uploads use 8 MB parts and poll
-for conversion completion, so the 500 MB total does not require a single large
-Cloudflare request or a long-lived HTTP response. Upload sessions expire after
-30 minutes of inactivity; a server restart requires choosing the video again.
-The direct `/api/upload-video` API still requires 501 MB request bodies and a
-960-second upstream read timeout when used without the part-based workflow. Keep the upload
-volume backed up with PostgreSQL; video files and generated posters live together.

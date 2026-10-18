@@ -17,3 +17,13 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+
+# Local verification artifacts and caches are never build inputs.
+output
+.playwright-cli
+**/node_modules
+**/.turbo
+**/dist
+docs
+.github
+*.md

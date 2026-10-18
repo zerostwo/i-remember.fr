@@ -13,22 +13,25 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl \
   && rm -rf /var/lib/apt/lists/*
 COPY .npmrc package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
-COPY apps/api ./apps/api
-COPY packages/database ./packages/database
-COPY packages/storage ./packages/storage
-COPY packages/types ./packages/types
-COPY packages/memory-engine ./packages/memory-engine
-COPY packages/ui ./packages/ui
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/admin/package.json ./apps/admin/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/database/package.json ./packages/database/package.json
+COPY packages/storage/package.json ./packages/storage/package.json
+COPY packages/types/package.json ./packages/types/package.json
+COPY packages/memory-engine/package.json ./packages/memory-engine/package.json
+COPY packages/ui/package.json ./packages/ui/package.json
+COPY packages/config/package.json ./packages/config/package.json
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
-RUN pnpm --filter @i-remember/database generate \
-  && pnpm --filter @i-remember/database build \
-  && pnpm --filter @i-remember/api build \
-  && pnpm web:build
+RUN pnpm build
 
 FROM deps AS prod-deps
+COPY packages/database/prisma ./packages/database/prisma
+COPY packages/database/prisma.config.ts ./packages/database/prisma.config.ts
+COPY packages/storage/src ./packages/storage/src
 RUN rm -rf node_modules apps/*/node_modules packages/*/node_modules \
   && CI=true pnpm install --prod --offline --frozen-lockfile \
   --filter i-remember-fr \
@@ -63,7 +66,9 @@ COPY --from=prod-deps --chown=node:node /app/apps/api/node_modules ./apps/api/no
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --from=build --chown=node:node /app/server.mjs ./server.mjs
 COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
-COPY --from=prod-deps --chown=node:node /app/packages ./packages
+COPY --from=prod-deps --chown=node:node /app/packages/database ./packages/database
+COPY --from=prod-deps --chown=node:node /app/packages/storage ./packages/storage
+COPY --from=build --chown=node:node /app/packages/memory-engine/src/normalize.js ./packages/memory-engine/src/normalize.js
 COPY --from=build --chown=node:node /app/packages/database/dist ./packages/database/dist
 COPY --from=build --chown=node:node /app/packages/content ./packages/content
 COPY --from=build --chown=node:node /app/packages/config ./packages/config

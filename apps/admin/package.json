@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite --config ../../vite.config.mjs --host 127.0.0.1",
     "build": "vite build --config ../../vite.config.mjs",
-    "test": "node -e \"const fs = await import('node:fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); if (!fs.existsSync('src/main.jsx')) process.exit(1); if (!fs.existsSync('src/AdminApp.jsx')) process.exit(1); if (!pkg.dependencies['@i-remember/ui']) process.exit(1); console.log('admin app entry ok')\"",
+    "test": "node src/v1-auth.check.mjs && node src/v1-memory.check.mjs && node src/v1-assets.check.mjs && node src/v1-content.check.mjs && node src/v1-dashboard.check.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

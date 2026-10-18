@@ -1,5 +1,3 @@
-import type { CSSProperties, ReactElement } from "react";
-
 export type GalaxyMemory = {
   id: string;
   publicId: string;
@@ -25,14 +23,3 @@ export function normalizeGalaxyPosts(
   memories?: Array<Record<string, unknown>>,
 ): Array<Record<string, string>>;
 export function memoryFadePercent(memories?: Array<Record<string, unknown>>, now?: number): number;
-
-export function MemoryGalaxy(props: {
-  memories?: Array<Record<string, unknown>>;
-  src?: string;
-  title?: string;
-  deterministic?: boolean;
-  className?: string;
-  style?: CSSProperties;
-}): ReactElement;
-
-export const runtimePath: string;

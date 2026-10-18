@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-const htmlPaths = ["index.html", "fr.html", "legal.html", "admin.html", "apps/admin/index.html"];
+const htmlPaths = ["index.html", "fr.html", "legal.html", "admin.html"];
 
 for (const path of htmlPaths) {
   const html = await read(path);

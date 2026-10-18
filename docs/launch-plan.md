@@ -1,7 +1,9 @@
 # songqi.org launch plan
 
-Status: design and code audit completed on 2026-07-27. Production cutover is
-not yet approved.
+> Historical plan from 2026-07-27, retained for context. Its clean-room design gate
+> and launch verdict were superseded by later owner decisions in AGENTS.md.
+> The site is deployed; use README.md and docs/architecture.md for current behavior.
+> The text below describes the July audit, not the present application.
 
 ## Product contract
 

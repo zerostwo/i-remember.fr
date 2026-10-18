@@ -8,8 +8,9 @@ Completed. The public galaxy is a legacy static/runtime experience served by
 ## Phase 2: Extract Visualization Boundary
 
 Completed for the current refactor. `packages/memory-engine` exposes
-`MemoryGalaxy` and galaxy data normalization without changing the legacy visual
-runtime.
+galaxy data normalization without changing the active visual runtime. The unused
+React iframe wrapper was removed on 2026-10-18; the public site uses the original
+renderer with `revival-runtime.js` integration.
 
 ## Phase 3: Create New Backend
 
@@ -38,6 +39,8 @@ backend where applicable.
 
 ## Phase 6: Remove Deprecated Code
 
-In progress. Public archive memory list/detail rendering and anonymous memory
-submission use the v1 API. Do not preserve legacy compatibility solely for old
-test data or URLs.
+Public memory list/detail rendering and anonymous submission use the v1 API.
+The 2026-10-18 cleanup removed unused entry points, wrappers, Dockerfiles and the
+component-generator CLI. Active renderer assets and PostgreSQL migration history
+remain necessary. Short/custom ID redirects are an intentional current feature
+and preserve previously shared links. See [maintenance audit](maintenance-2026-10-18.md).

@@ -28,23 +28,22 @@ apps/api
 
 ## Monorepo Boundaries
 
-- `apps/web`: public website boundary and `MemoryGalaxy` export.
+- `apps/web`: public workspace command boundary for the root Vite entries.
 - `apps/admin`: React admin entry using the approved admin UI.
 - `apps/api`: standalone TypeScript REST API for `/api/v1/*`.
-- `packages/memory-engine`: reusable galaxy component and memory normalization.
+- `packages/memory-engine`: memory normalization used by the public adapter.
 - `packages/database`: Prisma schema, migrations, and PostgreSQL client.
 - `packages/storage`: local and S3-compatible asset storage adapters.
 - `packages/types`: shared API/domain TypeScript contracts.
 - `packages/ui`: shadcn-style UI primitive exports used by admin.
 - `packages/config`: shared routes, roles, and supported languages.
-- `docker/`: app-specific Dockerfiles for web, admin, and API.
+- `docker/`: single-image entrypoint, health, backup/restore and smoke scripts.
 - `docs/`: architecture, API, database, deployment, and migration notes.
 
 ## Public Archive Surface
 
-These files still contain the archive-derived public implementation. They are
-temporary migration inputs, not a visual contract; the public surface must move
-to the separate clean-room `songqi.org` design before launch:
+These files contain the active public implementation. Current owner instructions
+preserve its visual style and interactions:
 
 - `index.html`
 - `fr.html`
@@ -58,8 +57,8 @@ to the separate clean-room `songqi.org` design before launch:
 - `public/uploads/posts/revival-upload/*.jpg`
 
 Preserve the memory-galaxy interaction model and the public search,
-add-memory, exploration, and opened-memory task sequence. Do not preserve the
-archive's brand skin, copy, assets, trade dress, or exact geometry.
+add-memory, exploration, and opened-memory task sequence. Preserve the current
+galaxy geometry, typography, audio and transitions while fixing defects.
 
 ## Public Visual Adapter
 
@@ -92,7 +91,8 @@ archive's brand skin, copy, assets, trade dress, or exact geometry.
 - `apps/admin/src/admin.css`: Figma V2 admin layout and visual system.
 - `src/components/ui/*.jsx`: local shadcn-style primitives re-exported by
   `packages/ui`.
-- `src/index.css`: Tailwind/shadcn theme tokens.
+- `src/index.css`: Tailwind theme tokens.
+- `src/components/ui/state-variants.css`: local, MIT-licensed component state variants.
 
 ## Build And Deployment
 
@@ -101,7 +101,7 @@ archive's brand skin, copy, assets, trade dress, or exact geometry.
 - `pnpm-workspace.yaml`: workspace package list.
 - `turbo.json`: task graph for build, test, typecheck, and dev.
 - `vite.config.mjs`: React/Tailwind build plus revival dev middleware.
-- `docker-compose.yml`: one application image plus PostgreSQL; the application
+- `docker-compose.yml`: one application image containing PostgreSQL; the application
   image name and tag use `DOCKERHUB_IMAGE` and `TAG`.
 - `Dockerfile`: one-image production build.
 - `.github/workflows/docker.yml`: DockerHub publishing workflow.
@@ -115,7 +115,7 @@ archive's brand skin, copy, assets, trade dress, or exact geometry.
 - `AGENTS.md`: repo-specific agent/product decisions.
 - `README.md`: operator overview.
 - `BACKEND.md`: backend architecture notes.
-- `docs/architecture.md`: target monorepo architecture.
+- `docs/architecture.md`: current monorepo architecture.
 - `docs/api.md`: v1 API contract.
 - `docs/database.md`: Prisma/PostgreSQL schema notes.
 - `docs/deployment.md`: Docker deployment notes.
