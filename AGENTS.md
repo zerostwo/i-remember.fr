@@ -287,3 +287,8 @@ Current backend/product decisions:
   density across languages. Unify expanded memory and managed-page reading with
   the archive's black surfaces, serif typography and circular close controls;
   avoid repeating generated excerpt titles above the complete text.
+
+- Owner feedback on 2026-10-18: show real photo/video upload progress with a
+  restrained thin progress line, item count and percentage. Distinguish network
+  upload from server video processing; report actual transcoding progress and
+  an explicit finishing state instead of an indefinite Preparing video message.

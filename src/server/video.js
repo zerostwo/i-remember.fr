@@ -16,13 +16,14 @@ function failure(statusCode, message) {
 
 // Only one decoder per web process. Reject overload instead of accumulating
 // large upload buffers and unbounded transcode jobs in memory.
-export async function uploadVideo(file, storageRoot) {
+export async function uploadVideo(file, storageRoot, onProgress = () => {}) {
   const size = file?.path ? (await stat(file.path)).size : file?.data?.length;
   if (!size) throw failure(400, "Choose an MP4, MOV or WebM video.");
   if (size > videoLimits.maxVideoBytes)
     throw failure(413, "Choose a video of 500 MB or less.");
   if (processing) throw failure(429, "Another video is processing. Please try again shortly.");
   processing = true;
+  onProgress({ phase: "processing", stage: "preparing", percent: null });
   const fileId = `revival-${randomUUID().slice(0, 12)}`;
   const folder = join(storageRoot, "posts", fileId);
   const temporary = join(storageRoot, ".video-processing", fileId);
@@ -67,11 +68,14 @@ export async function uploadVideo(file, storageRoot) {
     )
       throw failure(400, "Choose a video with a resolution of 4K or less.");
     const output = join(temporary, "video.mp4");
-    await run(
+    const conversion = run(
       "ffmpeg",
       [
         "-v",
         "error",
+        "-progress",
+        "pipe:1",
+        "-nostats",
         "-nostdin",
         "-y",
         "-threads",
@@ -114,6 +118,24 @@ export async function uploadVideo(file, storageRoot) {
       ],
       { timeout: 900000, maxBuffer: 1024 * 1024 },
     );
+    let pendingProgress = "";
+    let lastPercent = -1;
+    conversion.child.stdout.on("data", (chunk) => {
+      pendingProgress += chunk.toString();
+      const lines = pendingProgress.split("\n");
+      pendingProgress = lines.pop();
+      for (const line of lines) {
+        const match = line.match(/^out_time_us=(\d+)$/);
+        if (!match) continue;
+        const percent = Math.max(0, Math.min(99, Math.floor(Number(match[1]) / (duration * 1000000) * 100)));
+        if (percent > lastPercent) {
+          lastPercent = percent;
+          onProgress({ phase: "processing", stage: "transcoding", percent });
+        }
+      }
+    });
+    await conversion;
+    onProgress({ phase: "processing", stage: "finishing", percent: null });
     const poster = join(temporary, "full.jpg");
     await run(
       "ffmpeg",

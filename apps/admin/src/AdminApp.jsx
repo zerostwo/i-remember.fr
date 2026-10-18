@@ -1,3 +1,4 @@
+import { uploadRequest } from "../../../packages/content/src/upload-request.js";
 import { uploadVideoFile } from "../../../packages/content/src/video-upload.js";
 import { MemoryCard } from "../../../packages/content/src/MemoryCard.jsx";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -919,16 +920,20 @@ export function AdminApp() {
     setRoute("memory-editor");
   }
 
-  async function uploadEditorFile(file, signal) {
+  async function uploadEditorFile(file, signal, onProgress = () => {}) {
     if (/^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
-      return (await uploadVideoFile(file, { signal })).attachment;
+      return (await uploadVideoFile(file, { signal, onProgress })).attachment;
     }
+    onProgress({ phase: "uploading", percent: 0 });
     const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
-    return v1Api("/api/v1/assets", {
-      method: "POST",
+    const payload = await uploadRequest("/api/v1/assets", {
       body: JSON.stringify(v1AssetUploadPayload(file, contentBase64)),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken()}` },
       signal,
+      onProgress: (fraction) => onProgress({ phase: "uploading", percent: Math.floor(fraction * 100) }),
+      onUploaded: () => onProgress({ phase: "processing", percent: null }),
     });
+    return payload.data;
   }
 
   async function deleteMemory(id) {
@@ -2360,6 +2365,7 @@ function MemoryListItem({ memory, compact = false }) {
 function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, reportDirty, onUpload, saving }) {
   const [draft, setDraft] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(null);
   const [uploadError, setUploadError] = useState("");
   const uploadController = useRef(null);
 
@@ -2502,8 +2508,10 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
                 setUploading(true);
                 setUploadError("");
                 try {
-                  for (const file of files) {
-                    const asset = await onUpload(file, controller.signal);
+                  for (const [index, file] of files.entries()) {
+                    const updateProgress = (progress) => setUploadProgress({ ...progress, index: index + 1, total: files.length });
+                    updateProgress({ phase: "uploading", percent: 0 });
+                    const asset = await onUpload(file, controller.signal, updateProgress);
                     if (controller.signal.aborted) return;
                     setDraft((current) => ({
                       ...current,
@@ -2518,7 +2526,12 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
                 }
               }}
             />
-            {uploading ? <p role="status">Uploading…</p> : null}
+            {uploading ? <div className="space-y-2 text-sm text-muted-foreground">
+              <p role="status">{uploadProgress?.phase === "uploading" ? "Uploading" : uploadProgress?.stage === "transcoding" ? "Processing video" : uploadProgress?.stage === "finishing" ? "Finishing…" : "Preparing…"}
+                {uploadProgress ? ` · ${uploadProgress.index} / ${uploadProgress.total}` : ""}
+                {uploadProgress?.percent != null ? ` · ${uploadProgress.percent}%` : ""}</p>
+              <progress className="h-1 w-full accent-foreground" aria-label="Attachment progress" max={100} value={uploadProgress?.percent ?? undefined} />
+            </div> : null}
             {uploadError ? <p role="alert">{uploadError}</p> : null}
             <ul className="admin-editor-attachments">
               {(draft.attachments || []).map((attachment, index) => (

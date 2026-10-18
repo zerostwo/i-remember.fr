@@ -19,7 +19,8 @@ const manager = createVideoUploads(
   async (result) => ({ ...result, attachment: { url: "/video.mp4" } }),
   {
     now: () => currentTime,
-    processVideo: async (file) => {
+    processVideo: async (file, _root, reportProgress) => {
+      reportProgress({ phase: "processing", stage: "transcoding", percent: 42 });
       processed++;
       assert.equal(
         createHash("sha256")
@@ -54,6 +55,8 @@ try {
   await manager.append(session.id, 1, Buffer.from("last"));
   assert.equal(manager.complete(session.id).state, "processing");
   assert.equal(manager.complete(session.id).state, "processing");
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.equal(manager.status(session.id).progress.percent, 42);
   releaseProcessing();
   for (
     let attempt = 0;
@@ -92,7 +95,11 @@ try {
     } else data = { state: "complete", result: { attachment: { url: "/video.mp4" } } };
     return Response.json({ success: true, data });
   };
-  const result = await uploadVideoFile(new Blob([Buffer.alloc(101 * 1024 * 1024)]));
+  const events = [];
+  const result = await uploadVideoFile(new Blob([Buffer.alloc(101 * 1024 * 1024)]), { onProgress: (event) => events.push(event) });
+  assert.equal(events[0].percent, 0);
+  assert.equal(events.at(-1).phase, "complete");
+  assert.equal(events.filter((event) => event.phase === "uploading").at(-1).loaded, 101 * 1024 * 1024);
   assert.equal(result.attachment.url, "/video.mp4");
   assert.equal(uploaded, 101 * 1024 * 1024);
   assert.equal(chunks, 13);

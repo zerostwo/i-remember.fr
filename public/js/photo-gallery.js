@@ -56,29 +56,50 @@
     state.photos = existing;
     var status = document.createElement("div");
     status.className = "photo-upload-status";
-    status.setAttribute("role", "status");
+    var caption = document.createElement("div");
+    caption.className = "photo-upload-caption";
+    var track = document.createElement("progress");
+    track.max = 100;
+    track.setAttribute("aria-label", label("Upload progress", "Progression", "上传进度"));
+    var detail = document.createElement("div");
+    detail.className = "photo-upload-detail";
+    caption.setAttribute("role", "status");
+    status.append(caption, track, detail);
+    function showProgress(progress) {
+      var uploading = progress.phase === "uploading";
+      var phase = uploading ? label("Uploading", "Envoi", "正在上传")
+        : progress.phase === "complete" ? label("Ready", "Prêt", "已就绪")
+        : progress.stage === "transcoding" ? label("Processing video", "Traitement de la vidéo", "正在转码")
+        : progress.stage === "finishing" ? label("Finishing…", "Finalisation…", "正在完成…")
+        : label("Preparing…", "Préparation…", "正在处理…");
+      caption.textContent = phase + " · " + (index + 1) + " / " + list.length + (progress.percent == null ? "" : " · " + progress.percent + "%");
+      if (progress.percent == null) track.removeAttribute("value");
+      else track.value = progress.percent;
+      track.setAttribute("aria-label", phase);
+      detail.textContent = uploading && progress.total
+        ? (progress.loaded / 1048576).toFixed(1) + " / " + (progress.total / 1048576).toFixed(1) + " MB"
+        : progress.phase === "processing" ? label("Upload complete", "Envoi terminé", "上传完成") : "";
+    }
     document.querySelector(".add-steps").appendChild(status);
     if (state.editor) state.editor.setBusy(true);
     state.input.lock("upload-image");
     var failure;
     try {
       for (var index = 0; index < list.length; index++) {
-        status.textContent = label("Uploading", "Envoi", "正在上传") + " " + (index + 1) + " / " + list.length;
+        var file = list[index];
+        showProgress({ phase: "uploading", percent: 0, loaded: 0, total: file.size });
         var form = new FormData();
-        form.set("local", list[index]);
-        var isVideo = /^video\//.test(list[index].type) || /\.(mp4|mov|webm|m4v)$/i.test(list[index].name);
-        status.textContent += isVideo ? label(" · Preparing video…", " · Préparation de la vidéo…", " · 正在处理视频…") : "";
+        form.set("local", file);
+        var isVideo = /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
         var payload;
         if (isVideo) {
-          payload = { data: await window.songqiVideoUpload(list[index], { onProgress: function (progress) {
-            status.textContent = progress.phase === "processing"
-              ? label("Preparing video…", "Préparation de la vidéo…", "正在处理视频…")
-              : label("Uploading video", "Envoi de la vidéo", "正在上传视频") + " · " + progress.percent + "%";
-          } }) };
+          payload = { data: await window.songqiVideoUpload(file, { onProgress: showProgress }) };
         } else {
-          var response = await fetch("/api/upload-image", { method: "POST", body: form, credentials: "same-origin" });
-          payload = await response.json();
-          if (!response.ok || !payload.success) throw new Error(payload.errorMsg || "Upload failed. Please try again.");
+          payload = await window.songqiUploadRequest("/api/upload-image", {
+            body: form,
+            onProgress: function (fraction) { showProgress({ phase: "uploading", percent: Math.floor(fraction * 100), loaded: fraction * file.size, total: file.size }); },
+            onUploaded: function () { showProgress({ phase: "processing", percent: null }); }
+          });
         }
         state.photos.push({ fileId: payload.data.fileId, type: payload.data.type || "image/jpeg", crop: { x: 0.5, y: 0.5, zoom: 1 } });
       }

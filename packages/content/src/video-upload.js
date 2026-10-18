@@ -1,3 +1,4 @@
+import { uploadRequest } from "./upload-request.js";
 import { videoLimits } from "../../config/src/media-limits.js";
 
 function pause(ms, signal) {
@@ -26,6 +27,7 @@ export async function uploadVideoFile(file, { signal, onProgress = () => {} } = 
       throw new Error(payload?.errorMsg || "Video upload failed. Please try again.");
     return payload.data;
   }
+  onProgress({ phase: "uploading", percent: 0, loaded: 0, total: file.size });
   const session = await request("/api/video-uploads", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -35,23 +37,30 @@ export async function uploadVideoFile(file, { signal, onProgress = () => {} } = 
   try {
     for (let offset = 0, index = 0; offset < file.size; offset += session.chunkBytes, index++) {
       const end = Math.min(offset + session.chunkBytes, file.size);
-      await request(url + "/chunks/" + index, {
+      await uploadRequest(url + "/chunks/" + index, {
+        signal,
+        onProgress: (fraction) => {
+          const loaded = offset + (end - offset) * fraction;
+          onProgress({ phase: "uploading", percent: Math.floor(loaded / file.size * 100), loaded, total: file.size });
+        },
         method: "PUT",
         headers: { "Content-Type": "application/octet-stream" },
         body: file.slice(offset, end),
       });
-      onProgress({ phase: "uploading", percent: Math.round((end / file.size) * 100) });
+      onProgress({ phase: "uploading", percent: Math.floor((end / file.size) * 100), loaded: end, total: file.size });
     }
     let state = await request(url + "/complete", { method: "POST" });
-    onProgress({ phase: "processing", percent: 100 });
+    onProgress(state.progress || { phase: "processing", stage: "preparing", percent: null });
     const deadline = Date.now() + 20 * 60 * 1000;
     while (state.state === "processing") {
       if (Date.now() > deadline) throw new Error("Video processing timed out. Please try again.");
       await pause(1500, signal);
       state = await request(url);
+      if (state.state === "processing") onProgress(state.progress || { phase: "processing", stage: "preparing", percent: null });
     }
     if (state.state !== "complete")
       throw new Error(state.error || "Video processing failed. Please try again.");
+    onProgress({ phase: "complete", percent: 100 });
     return state.result;
   } finally {
     // Release the temporary session on completion, failure or editor cancellation.

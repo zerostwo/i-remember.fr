@@ -64,6 +64,7 @@ export function createVideoUploads(storageRoot, finalize = async (result) => res
       received: session.received,
       size: session.size,
       chunkBytes: videoChunkBytes,
+      ...(session.progress ? { progress: session.progress } : {}),
       ...(session.result ? { result: session.result } : {}),
       ...(session.error ? { error: session.error } : {}),
     };
@@ -123,12 +124,14 @@ export function createVideoUploads(storageRoot, finalize = async (result) => res
       if (session.state !== "uploading" || session.received !== session.size)
         throw fail(409, "The video upload is incomplete. Please try again.");
       session.state = "processing";
+      session.progress = { phase: "processing", stage: "preparing", percent: null };
       // Acknowledge immediately: a ten-minute transcode can outlast an edge request.
       session.job = Promise.resolve()
         .then(async () => {
           const result = await processVideo(
             { path: session.path, size: session.size },
             storageRoot,
+            (progress) => { session.progress = progress; },
           );
           const finalized = session.cancelled ? null : await finalize(result);
           if (session.cancelled) {

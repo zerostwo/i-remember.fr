@@ -39,7 +39,8 @@ try {
     input,
   ]);
   const data = await readFile(input);
-  const pending = uploadVideo({ data }, root);
+  const progress = [];
+  const pending = uploadVideo({ data }, root, (event) => progress.push(event));
   await assert.rejects(uploadVideo({ data }, root), (e) => e.statusCode === 429);
   const result = await pending;
   assert.equal(result.type, "video/mp4");
@@ -81,6 +82,8 @@ try {
     "libx264",
     boundary,
   ]);
+  assert.ok(progress.some((event) => event.stage === "transcoding" && Number.isFinite(event.percent)));
+  assert.equal(progress.at(-1).stage, "finishing");
   const accepted = await uploadVideo({ path: boundary }, root);
   const converted = JSON.parse(
     (
