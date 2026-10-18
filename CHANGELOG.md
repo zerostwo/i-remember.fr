@@ -82,6 +82,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Removed the remaining unused dataset AJAX interception after deployment checks
+  caught a dangling reference affecting public search. Added live-network adapter
+  regression checks for search, autocomplete and related counts.
+
 - Fixed wide-screen empty-search caret sizing, balanced Chinese/English excerpt
   lengths, decoded escaped entities, and kept Read more visible after truncation.
 - Centered complete upload errors with narrow-screen wrapping; prevented incidental

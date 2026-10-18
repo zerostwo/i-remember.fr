@@ -33,7 +33,6 @@ const refreshHomeRoute = runtimeFunction("refreshMemoryRoute", {
 refreshHomeRoute("/", false);
 assert.equal(routeDocument.title, "Songqi Duan | 段松岐", "Returning home must preserve the exact configured site title");
 
-const page = runtimeFunction("memoryEnginePage");
 const cardLayout = runtimeFunction("desktopCardLayout");
 for (const [width, height, header, footer] of [[1512, 861, 166, 166], [1280, 720, 140, 140], [768, 900, 140, 140]]) {
   const layout = cardLayout(width, height, header, footer);
@@ -354,20 +353,6 @@ languageWindow.SONGQI_SITE_SETTINGS.defaultLanguage = "fr";
 assert.equal(languageContext.languageUrl("/?ln=fr&source=menu#footer", "fr"), "/?source=menu#footer");
 assert.equal(languageContext.languageUrl("/memory/m11111111111111111111", "en"), "/memory/m11111111111111111111?ln=en");
 
-const records = Array.from({ length: 405 }, (_, i) => ({ id: ((i * 83) % 405) + 1 }));
-let cursor = "";
-const seen = [];
-do {
-  const result = page(records, new URL(`http://local/?lastId=${cursor}`));
-  seen.push(...result.map((record) => record.id));
-  cursor = result.length === 200 ? result.at(-1).id : "";
-} while (cursor);
-assert.deepEqual(
-  seen,
-  records.map((record) => record.id),
-);
-assert.equal(page(records, new URL("http://local/?lastId=9999")).length, 0);
-
 let requestedSignal;
 let finishRequest;
 let successCalls = 0;
@@ -377,7 +362,6 @@ const ajax = runtimeFunction("localApiAjax", {
   window: {},
   localApiUrl: (url) => url,
   appendQueryData: (url) => url,
-  memoryEnginePayload: () => null,
   parseAjaxPayload: JSON.parse,
   fetch: (_url, options) => {
     requestedSignal = options.signal;
@@ -399,10 +383,31 @@ finishRequest({ ok: true, status: 200, text: async () => '{"success":true,"data"
 await new Promise((resolve) => setImmediate(resolve));
 assert.equal(successCalls, 0, "A cancelled request must not overwrite current UI results");
 
+// All live GET flows must reach the server without an optional dataset adapter.
+for (const endpoint of ["search-posts/rain", "auto-complete-tags/rai", "related-post-count/42"]) {
+  const payload = { success: true, data: { posts: [{ id: "real-memory" }] } };
+  let fetchedUrl, returned;
+  const liveAjax = runtimeFunction("localApiAjax", {
+    URL, AbortController, window: {},
+    localApiUrl: (url) => url,
+    appendQueryData: (url) => url + "?ln=en",
+    parseAjaxPayload: JSON.parse,
+    fetch: async (url) => {
+      fetchedUrl = url;
+      return { ok: true, status: 200, text: async () => JSON.stringify(payload) };
+    },
+  });
+  const request = liveAjax({ url: "http://local/api/" + endpoint, success: (value) => { returned = value; } });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(fetchedUrl, "http://local/api/" + endpoint + "?ln=en");
+  assert.deepEqual(returned, payload);
+  assert.equal(request.status, 200);
+}
+
 let uploadFailure;
 const failedUpload = runtimeFunction("localApiAjax", {
   URL, AbortController, window: {}, uploadImageInFlight: 0,
-  localApiUrl: (url) => url, memoryEnginePayload: () => null,
+  localApiUrl: (url) => url,
   parseAjaxPayload: JSON.parse,
   fetch: async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ errorMsg: "Please choose a valid image." }) }),
 });
@@ -460,5 +465,5 @@ events.get("focusout")();
 frames.shift()();
 assert.equal(classes.get("revival-keyboard-open"), false);
 console.log(
-  "Public runtime passed: clean language URLs/history, 405 unordered IDs, real request cancellation, keyboard/pinch distinction, and coalesced viewport updates",
+  "Public runtime passed: clean language URLs/history, live search/autocomplete/count requests, real request cancellation, keyboard/pinch distinction, and coalesced viewport updates",
 );

@@ -57,3 +57,11 @@ compressed outputs. Most application payloads are deliberately unchanged.
   existing Docker workflow; source checks alone do not establish container health.
 
 No migration or production data mutation is part of this cleanup.
+
+## Deployment follow-up
+
+Live search verification caught a dangling call into the removed dataset wrapper.
+The first cleanup image was rolled back before continuing validation. The remaining
+unused dataset AJAX helpers were removed, and regression checks now exercise the
+actual network adapter for search, autocomplete and related counts without stubbing
+that obsolete layer. Public search is also checked in the browser before redeployment.
