@@ -25,13 +25,32 @@ export function memoryBody(memory = {}) {
     : content;
 }
 
+// CJK glyphs occupy roughly twice the width of Latin characters on the card.
+// Keep excerpts similar in visual length and never split a Unicode code point.
 export function memoryPreview(memory = {}) {
-  const content = String(memory.bodyMarkdown ?? memory.content ?? "");
   const text = plainText(memoryBody(memory));
-  return {
-    title: memory.title || "",
-    text: text.slice(0, CARD_PREVIEW_LENGTH),
-    truncated: text.length > CARD_PREVIEW_LENGTH,
-    longForm: content.length > CARD_PREVIEW_LENGTH,
-  };
+  let excerpt = "";
+  let width = 0;
+  for (const character of text) {
+    const nextWidth =
+      /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Extended_Pictographic}]/u.test(
+        character,
+      )
+        ? 2
+        : 1;
+    if (width + nextWidth > CARD_PREVIEW_LENGTH) break;
+    excerpt += character;
+    width += nextWidth;
+  }
+  const truncated = excerpt.length < text.length;
+  // Prefer a whole final word, without dropping an unspaced CJK sentence.
+  if (truncated) excerpt = excerpt.replace(/\s+[^\s]{1,20}$/, "").trimEnd();
+  return { title: memory.title || "", text: excerpt, truncated, longForm: truncated };
+}
+
+export function memoryReaderTitle(memory = {}) {
+  const title = plainText(memory.title);
+  const content = plainText(memoryBody(memory));
+  // Anonymous entries have an automatically generated title from their opening.
+  return title && !content.startsWith(title.replace(/(?:…|\.\.\.)$/, "")) ? title : "";
 }

@@ -279,3 +279,11 @@ Current backend/product decisions:
   space for the photo and scrollable text, with memory navigation clear of the
   content. Preserve desktop appearance. Galaxy pinch zoom must remain stable
   through pauses, reversals, and lifting either finger; never leave an empty sky.
+
+- Owner feedback on 2026-10-18: default video uploads to 500 MB and ten minutes
+  for both public and admin workflows, including server validation and conversion.
+  Match the initial wide-screen search caret to the search placeholder. Long text
+  uses an inline `Read more` directly after an ellipsis, with comparable excerpt
+  density across languages. Unify expanded memory and managed-page reading with
+  the archive's black surfaces, serif typography and circular close controls;
+  avoid repeating generated excerpt titles above the complete text.

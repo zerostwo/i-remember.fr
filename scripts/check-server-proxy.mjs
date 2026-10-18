@@ -402,7 +402,7 @@ try {
   const directPostPayload = JSON.parse(
     v1PublicMemoryHtml.match(/var DEFAULT_POST = (\{[^\n]*\});/)?.[1] || "null",
   );
-  assert.equal(directPostPayload.data.text, "Rendered from the v1 direct memory API. A &amp; B.");
+  assert.equal(directPostPayload.data.text, "Rendered from the v1 direct memory API. A & B.", "Card text is escaped once by the DOM renderer");
   assert.equal(directPostPayload.data.is_long_form, "0");
   assert.match(directPostPayload.data.body_html, /<strong>A &amp; B<\/strong>/);
   assert.doesNotMatch(directPostPayload.data.body_html, /<h1>/);

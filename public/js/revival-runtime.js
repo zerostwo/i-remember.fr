@@ -654,6 +654,12 @@
       'function u(){i&&(window.requestAnimationFrame(u),r.dispatch())}function a(){i=t.isRendering=!0,u()}function f(){i=t.isRendering=!1}',
       'var revivalFrame=0;function u(){i&&(revivalFrame=window.requestAnimationFrame(u),r.dispatch())}function a(){if(!i){i=t.isRendering=!0,u()}}function f(){i=t.isRendering=!1,window.cancelAnimationFrame(revivalFrame)}'
     );
+    // A previous long query may have shrunk the editable text. Reset it before
+    // focusing an empty search so its caret matches the placeholder on every open.
+    patched = patched.replace(
+      'g.css("visibility","visible"),m.text(""),x.css',
+      'g.css("visibility","visible"),m.text(""),m[0].style.fontSize="",m[0].style[t.transform3DStyle]="",x.css'
+    );
     // The portrait footer row's map center is viewport height minus 74px. Mirror
     // that coordinate in the WebGL overlay so its pixels and hit target agree.
     patched = patched.replace(
@@ -1697,7 +1703,6 @@
       ".footer-content[data-managed-menu='true']>.footer-managed-item{display:block!important;float:right!important;white-space:nowrap}",
       ".footer-content[data-managed-menu='true']>.footer-sound-btn:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-share:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-logo-wrapper:not(.footer-managed-item),.footer-content[data-managed-menu='true']>.footer-link-lang:not(.footer-managed-item){display:none!important}",
       ".footer-menu-group{position:relative;cursor:pointer}.footer-menu-group-list{display:none;position:absolute;bottom:18px;right:0;min-width:150px;padding:8px 0;text-align:right}.footer-menu-group.is-open .footer-menu-group-list,.footer-menu-group:hover .footer-menu-group-list{display:grid;gap:6px}.footer-menu-group-list .footer-managed-item{display:block!important}",
-      ".revival-memory-explore{display:block;margin:18px 0 4px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:transparent;color:#fff;cursor:pointer;font:11px Helvetica,Arial,sans-serif;letter-spacing:.04em;padding:9px 14px;text-transform:uppercase}",
       ".footer[data-managed-menu='true']>.footer-link-donate:not(.footer-managed-item),.footer[data-managed-menu='true']>.footer-link-terms:not(.footer-managed-item),.footer[data-managed-menu='true']>.footer-link-credits:not(.footer-managed-item){display:none!important}",
       ".footer[data-managed-menu='true']>.footer-managed-item{display:block!important}",
       ".revival-menu-memory{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.36);pointer-events:auto}",
@@ -1746,7 +1751,7 @@
       ".revival-menu-memory{top:var(--revival-visual-viewport-offset,0);height:var(--revival-visual-viewport-height,100dvh);padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));box-sizing:border-box}",
       ".revival-menu-card{width:min(620px,100%);max-height:100%}",
       ".revival-menu-body,.credit-wrapper,.terms-wrapper{overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y pinch-zoom}",
-      ".revival-menu-actions button,.revival-menu-actions a,.revival-memory-explore{min-height:44px;font-size:16px}",
+      ".revival-menu-actions button,.revival-menu-actions a{min-height:44px;font-size:16px}",
       ".revival-menu-close{display:grid;width:44px;height:44px;place-items:center;right:max(8px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top))}",
       ".terms-close-btn,.credit-close-btn{min-width:44px!important;min-height:44px!important}",
       "@media(max-width:760px),(max-width:1024px) and (max-height:500px){.tutorials{pointer-events:none!important}.base-3d-container,.base-3d-container canvas{touch-action:none!important}.header-logo{top:calc(20px + env(safe-area-inset-top))!important;left:max(18px,env(safe-area-inset-left))!important}.header-fade-container{top:calc(8px + env(safe-area-inset-top))!important;right:max(12px,env(safe-area-inset-right))!important}.nav{left:max(8px,env(safe-area-inset-left))!important}.nav-search-wrapper,.nav-add-wrapper,.search-btn,.circle-btn,[role='button']{min-width:44px;min-height:44px}.search-btn{width:44px!important;height:44px!important;top:57px!important}.search-hint{display:inline-flex;min-height:44px;align-items:center;padding:0 8px;font-size:16px}.footer{height:calc(132px + env(safe-area-inset-bottom))!important}.footer-content{height:calc(132px + env(safe-area-inset-bottom))!important;padding:0 max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))!important}.footer-content>.footer-managed-item,.footer-link-item{display:inline-flex!important;min-height:44px;align-items:center;padding:0 6px;font-size:16px!important;line-height:20px!important}.footer-share,.footer-sound-btn,.add-steps-congrats-share{display:inline-flex!important;width:44px!important;height:44px!important;align-items:center;justify-content:center}.footer-link-lang-list,.footer-menu-group-list{bottom:44px!important}.terms-wrapper,.credit-wrapper{width:100%!important;max-width:100%!important;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box}.add-steps-back-btn,.add-steps-validate-btn,.add-steps-message-terms{min-height:44px;font-size:16px!important}.add-steps-message-terms{display:flex;align-items:center;justify-content:center;white-space:normal}.revival-menu-body p{font-size:16px}.revival-menu-image{min-height:150px}.revival-menu-body{padding:20px}.revival-menu-body h2{font-size:24px}.revival-mobile-map-hint{white-space:normal}}",
@@ -2050,6 +2055,7 @@
       '<h2 id="revival-menu-memory-title"></h2>',
       '<p class="revival-menu-excerpt"></p>',
       '<div class="revival-menu-full"></div>',
+      '<div class="revival-reader-author"></div>',
       '<div class="revival-menu-actions">',
       '<button class="revival-menu-read" type="button">Read more</button>',
       '<a class="revival-menu-permalink" target="_blank" rel="noopener noreferrer">Open memory</a>',
@@ -2083,12 +2089,16 @@
     overlay.classList.add("is-expanded");
     overlay.querySelector(".revival-menu-image").style.backgroundImage =
       "url('" + String(memory.imageUrl || "/uploads/posts/revival-upload/thumb.jpg").replace(/'/g, "%27") + "')";
-    overlay.querySelector("h2").textContent = memory.title || "I Remember";
+    var readerTitle = window.songqiMarkdown
+      ? window.songqiMarkdown.readerTitle({ title: memory.title, bodyMarkdown: memory.bodyMarkdown || memory.content || memory.text || "" })
+      : memory.title;
+    overlay.querySelector("h2").textContent = readerTitle || "I remember,";
     overlay.querySelector(".revival-menu-excerpt").textContent = memory.excerpt || memory.text || "";
     var body = overlay.querySelector(".revival-menu-full");
     body.innerHTML = memory.bodyHtml || "<p>" + escapeHtml(memory.bodyMarkdown || memory.text || "") + "</p>";
     var firstHeading = body.firstElementChild;
     if (firstHeading && /^H[12]$/.test(firstHeading.tagName) && firstHeading.textContent.trim().toLowerCase() === String(memory.title || "").trim().toLowerCase()) firstHeading.remove();
+    overlay.querySelector(".revival-reader-author").textContent = memory.authorName || memory.author || "";
     overlay.querySelector(".revival-menu-body").scrollTop = 0;
     var permalink = overlay.querySelector(".revival-menu-permalink");
     permalink.href = memory.publicUrl || "#";
@@ -2241,9 +2251,9 @@
   }
 
   function uploadFileError(file) {
-    var limits = window.SONGQI_UPLOAD_LIMITS || { maxBytes: 8388608, maxVideoBytes: 104857600 };
+    var limits = window.SONGQI_UPLOAD_LIMITS || { maxBytes: 8388608, maxVideoBytes: 524288000 };
     var video = /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
-    var maxBytes = video ? (limits.maxVideoBytes || 104857600) : limits.maxBytes;
+    var maxBytes = video ? (limits.maxVideoBytes || 524288000) : limits.maxBytes;
     if (file.size <= maxBytes) return "";
     var mb = Math.round(maxBytes / 1048576);
     var language = siteLanguage();
@@ -2405,16 +2415,20 @@
     var button;
     if (existing) existing.parentNode.removeChild(existing);
     activeLongMemory = null;
-    if (!wrapper || !memory || String(memory.content || "").length <= 220) return;
+    var preview = memory && window.songqiMarkdown && window.songqiMarkdown.preview(memory);
+    if (!wrapper || !preview || !preview.longForm) return;
     button = document.createElement("button");
     button.type = "button";
     button.className = "revival-memory-explore";
     button.__skipPreventDefault = true;
-    button.textContent = (uiCopy[siteLanguage()] || uiCopy.en).exploreMemory;
+    button.textContent = (uiCopy[siteLanguage()] || uiCopy.en).readMore;
+    button.setAttribute("aria-haspopup", "dialog");
     wrapper.appendChild(button);
     activeLongMemory = {
       title: memory.title,
-      excerpt: memory.excerpt || String(memory.content || "").slice(0, 220),
+      content: memory.content,
+      authorName: memory.authorName,
+      excerpt: preview.text,
       bodyHtml: window.songqiMarkdown ? window.songqiMarkdown.render(window.songqiMarkdown.body(memory)) : "<p>" + escapeHtml(memory.content || "") + "</p>",
       imageUrl: memory.attachments && memory.attachments.some(function(item){return /^image\//.test(item.type);})
         ? memory.attachments.filter(function(item){return /^image\//.test(item.type);})[0].url

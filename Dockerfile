@@ -66,6 +66,7 @@ COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
 COPY --from=prod-deps --chown=node:node /app/packages ./packages
 COPY --from=build --chown=node:node /app/packages/database/dist ./packages/database/dist
 COPY --from=build --chown=node:node /app/packages/content ./packages/content
+COPY --from=build --chown=node:node /app/packages/config ./packages/config
 COPY --from=build --chown=node:node /app/src/server ./src/server
 COPY --from=build --chown=node:node /app/index.html ./index.html
 COPY --from=build --chown=node:node /app/fr.html ./fr.html

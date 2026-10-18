@@ -624,13 +624,13 @@ html.touch-tutorial .touch-tutorial-icon { animation: touch-guide-drift 2.4s eas
 /* One quiet reading surface for managed pages and long memories. */
 html.memory-reader-open .post-2d { visibility: hidden !important; }
 html body .revival-menu-memory { background: rgba(0,0,0,.88); padding: clamp(16px,5vh,64px) max(16px,env(safe-area-inset-right)) clamp(16px,5vh,64px) max(16px,env(safe-area-inset-left)); }
-html body .revival-menu-card { display: block; position: relative; width: min(760px,100%); max-height: 100%; min-height: 0; overflow: hidden; background: #090909; border: 1px solid #ffffff26; }
+html body .revival-menu-card { display: block; position: relative; width: min(760px,100%); max-height: 100%; min-height: 0; overflow: hidden; background: #000; border: 1px solid #ffffff1f; }
 html body .revival-menu-image, html body .revival-menu-excerpt, html body .revival-menu-actions { display: none; }
 html body .revival-menu-body { box-sizing: border-box; max-height: calc(var(--revival-visual-viewport-height,100dvh) - clamp(32px,10vh,128px)); padding: clamp(32px,5vw,64px); overflow: auto; scrollbar-width: thin; scrollbar-color: #555 transparent; }
-html body .revival-menu-body > h2 { margin: 0 42px 30px 0; font: 36px/1.2 'ITC Century W01 Book',Georgia,serif; }
-html body .revival-menu-full { display: block; border: 0; margin: 0; padding: 0; font: 18px/1.75 'ITC Century W01 Book',Georgia,serif; color: #d0cdca; overflow-wrap: anywhere; }
+html body .revival-menu-body > h2 { margin: 0 0 24px; font: 26px/1.3 'ITC Century W01 Book',Georgia,'Songti SC','Noto Serif CJK SC',serif; }
+html body .revival-menu-full { display: block; border: 0; margin: 0; padding: 0; font: 18px/1.75 'ITC Century W01 Book',Georgia,'Songti SC','Noto Serif CJK SC',serif; color: #d0cdca; overflow-wrap: anywhere; }
 html body .revival-menu-full p { font: inherit; color: inherit; margin: 0 0 1.25em; }
-html body .revival-menu-full h1, html body .revival-menu-full h2, html body .revival-menu-full h3 { font: 26px/1.3 'ITC Century W01 Book',Georgia,serif; margin: 1.7em 0 .7em; color: #fff; }
+html body .revival-menu-full h1, html body .revival-menu-full h2, html body .revival-menu-full h3 { font: 26px/1.3 'ITC Century W01 Book',Georgia,'Songti SC','Noto Serif CJK SC',serif; margin: 1.7em 0 .7em; color: #fff; }
 html body .revival-menu-full h3 { font-size: 22px; }
 html body .revival-menu-full ul, html body .revival-menu-full ol { padding-left: 1.4em; margin: 0 0 1.4em; }
 html body .revival-menu-full li { margin: .45em 0; }
@@ -643,7 +643,7 @@ html body .revival-menu-full th, html body .revival-menu-full td { border-bottom
 html body .revival-menu-close { z-index: 2; position: fixed; top: max(16px,env(safe-area-inset-top)); right: max(16px,env(safe-area-inset-right)); border: 1px solid #ffffff40; border-radius: 50%; background: #090909; font: 28px/1 Arial,sans-serif; opacity: 1; }
 @media (max-width: 600px) {
   html body .revival-menu-body { padding: 30px 24px; }
-  html body .revival-menu-body > h2 { font-size: 28px; margin-bottom: 24px; }
+  html body .revival-menu-body > h2 { font-size: 23px; margin-bottom: 20px; }
   html body .revival-menu-full { font-size: 16px; }
   html body .revival-menu-full h2 { font-size: 23px; }
 }
@@ -668,3 +668,23 @@ html body .revival-menu-memory .revival-menu-image { display: none !important; }
   html body .nav, html.revival-search-open body .nav { pointer-events: none !important; }
   html body .nav-map-btn, html body .nav-search-btn, html body .nav-add-btn { pointer-events: auto !important; }
 }
+
+/* Match the empty desktop caret to its placeholder; leave typed autosizing intact. */
+html body .search-input { font-size: 100px; }
+
+/* A continuation of the excerpt, shared by the live card and admin preview. */
+html body .revival-memory-explore {
+  display: inline; margin: 0 0 0 .35em; padding: 0; min-height: 0;
+  border: 0; border-radius: 0; background: transparent; color: #d0cdca;
+  font: inherit; letter-spacing: inherit; text-transform: none; white-space: nowrap;
+  text-decoration: underline; text-decoration-color: #ffffff55; text-underline-offset: .2em;
+  cursor: pointer; touch-action: manipulation;
+}
+html body .revival-memory-explore:hover { color: #fff; text-decoration-color: currentColor; }
+html body .revival-reader-author {
+  margin-top: 28px; padding-top: 20px; border-top: 1px solid #ffffff26;
+  color: #aaa; font: 18px/1.5 'ITC Century W01 Book',Georgia,'Songti SC',serif;
+}
+html body .revival-reader-author:empty { display: none; }
+html body .revival-menu-close { top: calc(var(--photo-close-center-y) - 22px); right: max(22px,env(safe-area-inset-right)); }
+@media (prefers-reduced-motion: reduce) { html body .revival-menu-card { transition: none; } }

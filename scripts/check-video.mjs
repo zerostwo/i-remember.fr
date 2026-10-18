@@ -66,6 +66,37 @@ try {
     [],
     "Temporary source files are removed",
   );
+  // A full ten-minute clip must survive conversion, not be cut at the old 120s cap.
+  const boundary = join(root, "ten-minutes.mp4");
+  await run("ffmpeg", [
+    "-v",
+    "error",
+    "-f",
+    "lavfi",
+    "-i",
+    "color=size=32x32:rate=1",
+    "-t",
+    "600",
+    "-c:v",
+    "libx264",
+    boundary,
+  ]);
+  const accepted = await uploadVideo({ data: await readFile(boundary) }, root);
+  const converted = JSON.parse(
+    (
+      await run("ffprobe", [
+        "-v",
+        "error",
+        "-show_format",
+        "-of",
+        "json",
+        join(root, "posts", accepted.fileId, "video.mp4"),
+      ])
+    ).stdout,
+  );
+  assert.ok(Number(converted.format.duration) >= 599.9, "All ten minutes are retained");
+  assert.equal(videoLimits.maxVideoBytes, 500 * 1024 * 1024);
+  assert.equal(videoLimits.maxVideoSeconds, 600);
   const long = join(root, "long.mp4");
   await run("ffmpeg", [
     "-v",
@@ -75,14 +106,14 @@ try {
     "-i",
     "color=size=32x32:rate=1",
     "-t",
-    "121",
+    String(videoLimits.maxVideoSeconds + 1),
     "-c:v",
     "libx264",
     long,
   ]);
   await assert.rejects(
     uploadVideo({ data: await readFile(long) }, root),
-    (e) => e.statusCode === 400 && /2 minutes/.test(e.message),
+    (e) => e.statusCode === 400 && /10 minutes/.test(e.message),
   );
   console.log(
     "Video validation, overload, duration limits, portrait MOV to H.264/AAC, poster and cleanup checks passed",

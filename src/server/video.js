@@ -5,12 +5,10 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 
+import { videoLimits } from "../../packages/config/src/media-limits.js";
+export { videoLimits };
+
 const run = promisify(execFile);
-export const videoLimits = {
-  maxVideoBytes: 100 * 1024 * 1024,
-  maxVideoSeconds: 120,
-  maxVideoPixels: 3840 * 2160,
-};
 let processing = false;
 function failure(statusCode, message) {
   return Object.assign(new Error(message), { statusCode, errorMsg: message, expose: true });
@@ -21,7 +19,7 @@ function failure(statusCode, message) {
 export async function uploadVideo(file, storageRoot) {
   if (!file?.data?.length) throw failure(400, "Choose an MP4, MOV or WebM video.");
   if (file.data.length > videoLimits.maxVideoBytes)
-    throw failure(413, "Choose a video under 100 MB.");
+    throw failure(413, "Choose a video of 500 MB or less.");
   if (processing) throw failure(429, "Another video is processing. Please try again shortly.");
   processing = true;
   const fileId = `revival-${randomUUID().slice(0, 12)}`;
@@ -60,7 +58,7 @@ export async function uploadVideo(file, storageRoot) {
     )
       throw failure(400, "Choose a valid MP4, MOV or WebM video.");
     if (duration > videoLimits.maxVideoSeconds)
-      throw failure(400, "Choose a video of 2 minutes or less.");
+      throw failure(400, "Choose a video of 10 minutes or less.");
     if (
       !(stream.width > 0 && stream.height > 0) ||
       stream.width * stream.height > videoLimits.maxVideoPixels
@@ -89,7 +87,7 @@ export async function uploadVideo(file, storageRoot) {
         "-map_chapters",
         "-1",
         "-t",
-        "120",
+        String(videoLimits.maxVideoSeconds),
         "-vf",
         "scale=w='min(1920,iw)':h='min(1920,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2,setsar=1,fps=30",
         "-c:v",
@@ -112,7 +110,7 @@ export async function uploadVideo(file, storageRoot) {
         "+faststart",
         output,
       ],
-      { timeout: 180000, maxBuffer: 1024 * 1024 },
+      { timeout: 900000, maxBuffer: 1024 * 1024 },
     );
     const poster = join(temporary, "full.jpg");
     await run(

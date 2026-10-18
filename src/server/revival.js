@@ -767,7 +767,7 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     id: v1LegacyPostId(memory, index),
     uid: String(memory?.id || memory?.publicId || `v1_memory_${index}`),
     public_id: String(memory?.id || memory?.publicId || ""),
-    name: htmlText(memory?.authorName || "I Remember"),
+    name: String(memory?.authorName || "I Remember"),
     title: htmlText(memory?.title || "I Remember"),
     title_text: String(memory?.title || "I Remember"),
     img: imageKey,
@@ -777,8 +777,8 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     full_image_url: photos[0]?.full_image_url || legacyImagePath(imageKey, "full"),
     img_offset_x: "0",
     img_offset_y: "0",
-    text: htmlText(excerpt),
-    excerpt: htmlText(excerpt),
+    text: excerpt,
+    excerpt,
     body_markdown: content,
     body_html: markdownToHtml(memoryBody(memory) || excerpt),
     is_long_form: isLongForm ? "1" : "0",
@@ -1494,7 +1494,7 @@ async function renderAppHtml(
   html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};window.SONGQI_UPLOAD_LIMITS=${safeScriptJson({ maxBytes: maxUploadBodyBytes, maxPixels: maxImagePixels, ...videoLimits })};</script>`);
 
   if (normalized === "zh") html = html.replace('upload<br/><span class="font-light-italic">photos &amp; videos</span>', '上传<br/><span class="font-light-italic">照片和视频</span>');
-  const uploadHint = normalized === "fr" ? `6 fichiers · Photos ${Math.round(maxUploadBodyBytes / 1048576)} Mo · Vidéos 100 Mo / 2 min` : normalized === "zh" ? `最多 6 项 · 照片 ${Math.round(maxUploadBodyBytes / 1048576)} MB · 视频 100 MB / 2 分钟` : `Up to 6 · Photos ${Math.round(maxUploadBodyBytes / 1048576)} MB · Videos 100 MB / 2 min`;
+  const uploadHint = normalized === "fr" ? `6 fichiers · Photos ${Math.round(maxUploadBodyBytes / 1048576)} Mo · Vidéos ${videoLimits.maxVideoBytes / 1048576} Mo / ${videoLimits.maxVideoSeconds / 60} min` : normalized === "zh" ? `最多 6 项 · 照片 ${Math.round(maxUploadBodyBytes / 1048576)} MB · 视频 ${videoLimits.maxVideoBytes / 1048576} MB / ${videoLimits.maxVideoSeconds / 60} 分钟` : `Up to 6 · Photos ${Math.round(maxUploadBodyBytes / 1048576)} MB · Videos ${videoLimits.maxVideoBytes / 1048576} MB / ${videoLimits.maxVideoSeconds / 60} min`;
   html = html.replace(/(class="add-steps-upload-methods-text-size">)[^<]*/g, `$1(${uploadHint})`);
   if (siteSettings.memorySharing) html = html.replace("<body>", '<body data-memory-sharing="true">');
   html = patchLanguageShell(html, normalized, pathname);

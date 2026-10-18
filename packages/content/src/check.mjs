@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { markdownToHtml, memoryPreview, memoryBody } from "./markdown.js";
+import { markdownToHtml, memoryPreview, memoryBody, memoryReaderTitle } from "./markdown.js";
 import { publicCardDocument } from "./public-card-document.js";
 const html = markdownToHtml(
   "# Heading\n\n- **Bold**\n- [Link](https://example.test)\n\n> Quote\n\n```js\nconst x = 1;\n```",
@@ -57,3 +57,12 @@ assert.doesNotMatch(detailPreview, /17 Oct 2026|memory-details/);
 assert.doesNotMatch(detailPreview, /&lt;Groningen&gt;/);
 assert.match(detailPreview, /data-memory-sharing="true"/);
 assert.doesNotMatch(publicCardDocument({ locationName: "", metadata: { locationName: "Old" } }), /memory-location/);
+
+const chinese = memoryPreview({ content: "那天我们沿着河边慢慢走，记住了黄昏的光。".repeat(20) });
+assert.ok(chinese.text.length <= 120 && chinese.truncated);
+assert.equal(memoryPreview({ content: "A small memory." }).truncated, false);
+assert.equal(memoryReaderTitle({ title: 'I saw "the moon"', content: 'I saw "the moon" rising over the water.' }), "");
+assert.equal(memoryReaderTitle({ title: "About", content: "# About\n\nA place for memories." }), "About");
+const longCard = publicCardDocument({ content: "A memory worth keeping. ".repeat(30) });
+assert.match(longCard, /…<\/div><span class="revival-memory-explore">Read more<\/span>/);
+assert.doesNotMatch(longCard, /Explore this memory/);
