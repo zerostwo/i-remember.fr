@@ -326,3 +326,8 @@ Current backend/product decisions:
 - Owner feedback on 2026-10-19: the horizontal particle-waveform revision was
   also rejected visually. Do not treat that proposal as an approved design;
   retain inline audio and the existing galaxy while refining the visual effect.
+
+- Owner-selected audio direction on 2026-10-19: stardust gently gathers and
+  disperses with the music, with no fixed waveform silhouette. This supersedes
+  the earlier ring and horizontal waveform directions. Keep playback inline;
+  selection of this direction does not establish approval of the final polish.
