@@ -1,3 +1,4 @@
+import { isAudioFile, mediaAccept } from "../../../packages/config/src/media-limits.js";
 import { uploadRequest } from "../../../packages/content/src/upload-request.js";
 import { uploadVideoFile } from "../../../packages/content/src/video-upload.js";
 import { MemoryCard } from "../../../packages/content/src/MemoryCard.jsx";
@@ -64,7 +65,7 @@ import {
   syncV1Settings,
   v1PageMemory,
 } from "./v1-content.js";
-import { archiveV1Memory, syncV1Memory } from "./v1-memory.js";
+import { appendV1Attachment, archiveV1Memory, syncV1Memory } from "./v1-memory.js";
 import { collectPages } from "./pagination.js";
 import { markdownToHtml, memoryBody } from "../../../packages/content/src/markdown.js";
 
@@ -245,9 +246,9 @@ function metadataJson(value) {
 function v1MemoryAdmin(memory = {}) {
   const metadata = memory.metadata || {};
   const imageKey = metadata.imageKey || "revival-upload";
-  const previewAsset = memory.attachments?.find((asset) => /^(image|video)\//.test(asset.type));
+  const previewAsset = memory.attachments?.find((asset) => /^(image|video|audio)\//.test(asset.type));
   const imageUrl =
-    (previewAsset?.type?.startsWith("video/") ? previewAsset.metadata?.posterUrl : previewAsset?.url) ||
+    (/^(video|audio)\//.test(previewAsset?.type || "") ? previewAsset.metadata?.posterUrl : previewAsset?.url) ||
     `/uploads/posts/${imageKey}/resized.jpg`;
   return {
     id: memory.id,
@@ -921,7 +922,7 @@ export function AdminApp() {
   }
 
   async function uploadEditorFile(file, signal, onProgress = () => {}) {
-    if (/^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
+    if (isAudioFile(file) || /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
       return (await uploadVideoFile(file, { signal, onProgress })).attachment;
     }
     onProgress({ phase: "uploading", percent: 0 });
@@ -964,12 +965,12 @@ export function AdminApp() {
     const memory = data?.memories?.find((item) => String(item.id) === String(memoryId));
     if (!file || !memory) return;
     await runAction("Attachment uploaded", async () => {
-      if (/^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
+      if (isAudioFile(file) || /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
         const attachment = await uploadEditorFile(file);
         const path = `/api/v1/memories/${encodeURIComponent(memory.publicId)}`;
         const current = await v1Api(path);
         await v1Api(path, {
-          method: "PATCH", body: JSON.stringify({ attachments: [...current.attachments, attachment] }),
+          method: "PATCH", body: JSON.stringify({ attachments: appendV1Attachment(current.attachments, attachment) }),
         });
       } else {
         const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
@@ -2493,6 +2494,7 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
             <FieldLabel htmlFor="editor-files">Attachments</FieldLabel>
             <Input
               id="editor-files"
+              accept={mediaAccept}
               type="file"
               multiple
               disabled={uploading || saving}
@@ -2516,7 +2518,7 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
                     setDraft((current) => ({
                       ...current,
                       attachmentsDirty: true,
-                      attachments: [...(current.attachments || []), asset],
+                      attachments: appendV1Attachment(current.attachments, asset),
                     }));
                   }
                 } catch (error) {
@@ -2527,7 +2529,7 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
               }}
             />
             {uploading ? <div className="space-y-2 text-sm text-muted-foreground">
-              <p role="status">{uploadProgress?.phase === "uploading" ? "Uploading" : uploadProgress?.stage === "transcoding" ? "Processing video" : uploadProgress?.stage === "finishing" ? "Finishing…" : "Preparing…"}
+              <p role="status">{uploadProgress?.phase === "uploading" ? "Uploading" : uploadProgress?.stage === "transcoding" ? "Processing media" : uploadProgress?.stage === "finishing" ? "Finishing…" : "Preparing…"}
                 {uploadProgress ? ` · ${uploadProgress.index} / ${uploadProgress.total}` : ""}
                 {uploadProgress?.percent != null ? ` · ${uploadProgress.percent}%` : ""}</p>
               <progress className="h-1 w-full accent-foreground" aria-label="Attachment progress" max={100} value={uploadProgress?.percent ?? undefined} />
@@ -3002,7 +3004,7 @@ function AttachmentsView({ data, search, selectedMemoryId, uploadAttachment, del
                 className="sr-only"
                 type="file"
                 disabled={!memoryId}
-                accept="image/*,video/mp4,video/quicktime,video/webm,.mov,.m4v"
+                accept={mediaAccept}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file && memoryId) uploadAttachment(file, memoryId);

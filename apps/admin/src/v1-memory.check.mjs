@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { archiveV1Memory, syncV1Memory, v1MemoryPayload } from "./v1-memory.js";
+import { appendV1Attachment, archiveV1Memory, syncV1Memory, v1MemoryPayload } from "./v1-memory.js";
 import { collectPages } from "./pagination.js";
 const id = "m11111111111111111111";
 const attachments = [
@@ -91,3 +91,10 @@ await assert.rejects(
   /did not advance/,
 );
 console.log("Admin visibility, attachments, save failure and complete pagination checks passed");
+
+const originalGallery = [{ id: "photo", url: "/photo.jpg", type: "image/jpeg", metadata: { order: 4 } }];
+const appended = appendV1Attachment(originalGallery, { url: "/audio.mp3", type: "audio/mpeg", metadata: { order: 0, duration: 30 } });
+assert.equal(appended[0], originalGallery[0], "Adding audio retains existing attachment identity");
+assert.equal(appended[1].metadata.order, 5, "New audio must follow existing gallery items");
+assert.equal(appended[1].metadata.duration, 30);
+assert.equal(appendV1Attachment(attachments, { type: "audio/mpeg" })[2].metadata.order, 2);

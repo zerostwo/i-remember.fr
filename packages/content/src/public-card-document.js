@@ -16,9 +16,9 @@ function escapeHtml(value = "") {
 
 export function publicCardDocument(memory = {}, settings = {}) {
   const preview = memoryPreview(memory);
-  const image = memory.attachments?.find((item) => /^(image|video)\//.test(item.type));
+  const image = memory.attachments?.find((item) => /^(image|video|audio)\//.test(item.type));
   const imageUrl =
-    (image?.type?.startsWith("video/") ? image?.metadata?.posterUrl : image?.url) ||
+    (/^(video|audio)\//.test(image?.type || "") ? image?.metadata?.posterUrl : image?.url) ||
     `/uploads/posts/${encodeURIComponent(memory.metadata?.imageKey || "revival-upload")}/resized.jpg`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">

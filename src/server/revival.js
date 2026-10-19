@@ -1,3 +1,5 @@
+import { uploadAudio } from "./audio.js";
+import { audioLimits } from "../../packages/config/src/media-limits.js";
 import { createVideoUploads, videoChunkBytes } from "./video-uploads.js";
 import { uploadVideo, videoLimits } from "./video.js";
 import { serveAsset } from "./static-assets.js";
@@ -724,11 +726,11 @@ function v1LegacyPostId(memory, index = 0) {
 }
 
 function v1MemoryPhotos(memory) {
-  return (memory?.attachments || []).filter(a => /^(image|video)\//.test(String(a.type)))
+  return (memory?.attachments || []).filter(a => /^(image|video|audio)\//.test(String(a.type)))
     .map((a, index) => {
       const key = safeUploadedFileId(a.metadata?.imageKey || a.url?.match(/\/posts\/(revival-[a-z0-9-]+)\//i)?.[1]);
-      if (String(a.type).startsWith("video/")) return {
-        type: a.type, video_url: a.url, image_url: a.metadata?.posterUrl || legacyImagePath(key),
+      if (/^(video|audio)\//.test(String(a.type))) return {
+        type: a.type, ...(a.type.startsWith("audio/") ? { audio_url: a.url } : { video_url: a.url }), image_url: a.metadata?.posterUrl || legacyImagePath(key),
         full_image_url: key ? legacyImagePath(key, "full") : a.metadata?.posterUrl,
         order: Number.isFinite(a.metadata?.order) ? a.metadata.order : index };
       return { image_url: key && !a.metadata?.crop ? `/uploads/posts/${key}/square.jpg` : a.url, full_image_url: key ? legacyImagePath(key, "full") : a.url,
@@ -741,7 +743,7 @@ function validatedPhotos(fields) {
   let photos;
   try { photos = typeof fields.photos === "string" ? JSON.parse(fields.photos) : fields.photos; } catch { /* validated below */ }
   if (!Array.isArray(photos) || !photos.length || photos.length > 6) {
-    throw new HttpError(400, "Invalid photo collection", "Choose between 1 and 6 photos or videos.");
+    throw new HttpError(400, "Invalid photo collection", "Choose between 1 and 6 photos, videos or audio files.");
   }
   const seen = new Set();
   return photos.map(photo => {
@@ -1212,6 +1214,11 @@ class RevivalBackend {
   }
 
   async cropPhoto(photo, order) {
+    const audioPath = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", photo.fileId, "audio.json");
+    if (existsSync(audioPath)) return { url: `/uploads/posts/${photo.fileId}/audio.mp3`, type: "audio/mpeg",
+      metadata: { ...JSON.parse(readFileSync(audioPath, "utf8")), imageKey: photo.fileId,
+        posterUrl: `/uploads/posts/${photo.fileId}/resized.jpg`, order } };
+
     const original = await this.imageForPath(legacyImagePath(photo.fileId, "full"));
     if (!original) throw new HttpError(400, "Photo not found", "Please upload the photo again.");
     const { width, height, pages = 1 } = await sharp(original.data).metadata();
@@ -1492,10 +1499,11 @@ async function renderAppHtml(
   let html = versionPublicAssets(readFileSync(appHtmlUrlForLanguage(normalized), "utf8"));
   if (normalized === "zh") html = localizeChineseHtml(html);
   if (backend.production) html = html.replace("/src/public-markdown.js", "/assets/public-markdown.js");
-  html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};window.SONGQI_UPLOAD_LIMITS=${safeScriptJson({ maxBytes: maxUploadBodyBytes, maxPixels: maxImagePixels, ...videoLimits })};</script>`);
+  html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};window.SONGQI_UPLOAD_LIMITS=${safeScriptJson({ maxBytes: maxUploadBodyBytes, maxPixels: maxImagePixels, ...videoLimits, ...audioLimits })};</script>`);
 
-  if (normalized === "zh") html = html.replace('upload<br/><span class="font-light-italic">photos &amp; videos</span>', '上传<br/><span class="font-light-italic">照片和视频</span>');
-  const uploadHint = normalized === "fr" ? `6 fichiers · Photos ${Math.round(maxUploadBodyBytes / 1048576)} Mo · Vidéos ${videoLimits.maxVideoBytes / 1048576} Mo / ${videoLimits.maxVideoSeconds / 60} min` : normalized === "zh" ? `最多 6 项 · 照片 ${Math.round(maxUploadBodyBytes / 1048576)} MB · 视频 ${videoLimits.maxVideoBytes / 1048576} MB / ${videoLimits.maxVideoSeconds / 60} 分钟` : `Up to 6 · Photos ${Math.round(maxUploadBodyBytes / 1048576)} MB · Videos ${videoLimits.maxVideoBytes / 1048576} MB / ${videoLimits.maxVideoSeconds / 60} min`;
+  html = html.replace(/(?:photos &amp; videos|photos et vidéos)<\/span>/, (normalized === "fr" ? 'photos, vidéos &amp; audio' : normalized === "zh" ? '照片、视频和音频' : 'photos, videos &amp; audio') + '</span>');
+  if (normalized === "zh") html = html.replace('upload<br/><span class="font-light-italic">', '上传<br/><span class="font-light-italic">');
+  const uploadHint = normalized === "fr" ? `6 fichiers · Photos ${Math.round(maxUploadBodyBytes / 1048576)} Mo · Vidéos ${videoLimits.maxVideoBytes / 1048576} Mo / ${videoLimits.maxVideoSeconds / 60} min · Audio 100 Mo / 10 min` : normalized === "zh" ? `最多 6 项 · 照片 ${Math.round(maxUploadBodyBytes / 1048576)} MB · 视频 ${videoLimits.maxVideoBytes / 1048576} MB / ${videoLimits.maxVideoSeconds / 60} 分钟 · 音频 100 MB / 10 分钟` : `Up to 6 · Photos ${Math.round(maxUploadBodyBytes / 1048576)} MB · Videos ${videoLimits.maxVideoBytes / 1048576} MB / ${videoLimits.maxVideoSeconds / 60} min · Audio 100 MB / 10 min`;
   html = html.replace(/(class="add-steps-upload-methods-text-size">)[^<]*/g, `$1(${uploadHint})`);
   if (siteSettings.memorySharing) html = html.replace("<body>", '<body data-memory-sharing="true">');
   html = patchLanguageShell(html, normalized, pathname);
@@ -1660,6 +1668,11 @@ export function createRevivalMiddleware(options = {}) {
     return { ...result, attachment };
   });
 
+  backend.audioUploads = createVideoUploads(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), async (result) => {
+    const attachment = await backend.cropPhoto({ fileId: result.fileId }, 0);
+    return { ...result, attachment };
+  }, { kind: "audio", processVideo: uploadAudio, maxBytes: audioLimits.maxAudioBytes, limitMessage: "Choose audio of 100 MB or less." });
+
   return (req, res, next) => {
     handleRequest(backend, req, res, next, options).catch((error) => {
       if (!(error instanceof HttpError) || error.statusCode >= 500) {
@@ -1780,6 +1793,13 @@ async function handleRequest(backend, req, res, next, options = {}) {
     return;
   }
 
+  const audioMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/audio\.mp3$/i);
+  if (audioMatch && (req.method === "GET" || req.method === "HEAD")) {
+    const path = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", audioMatch[1], "audio.mp3");
+    if (!existsSync(path)) throw new HttpError(404, "Audio not found", "Audio not found.");
+    serveAsset(req, res, path, statSync(path), "audio/mpeg");
+    return;
+  }
   const videoMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/video\.mp4$/i);
   if (videoMatch && (req.method === "GET" || req.method === "HEAD")) {
     const path = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", videoMatch[1], "video.mp4");
@@ -1911,39 +1931,42 @@ async function handleRequest(backend, req, res, next, options = {}) {
     return;
   }
 
-  if (pathname === "/api/video-uploads" || pathname.startsWith("/api/video-uploads/")) {
+  if (/^\/api\/(video|audio)-uploads(?:\/|$)/.test(pathname)) {
+    const audio = pathname.startsWith("/api/audio-");
+    const uploads = audio ? backend.audioUploads : backend.videoUploads;
+    const endpoint = audio ? "/api/audio-uploads" : "/api/video-uploads";
     try {
       if (req.method !== "GET") assertSameOrigin(req);
-      const match = pathname.match(/^\/api\/video-uploads\/([a-f0-9]{48})(?:\/(complete|chunks\/(\d+)))?$/);
+      const match = pathname.match(/^\/api\/(?:video|audio)-uploads\/([a-f0-9]{48})(?:\/(complete|chunks\/(\d+)))?$/);
       let result;
-      if (pathname === "/api/video-uploads" && req.method === "POST") {
-        assertRateLimit(req, "upload-video", 6, 10 * 60 * 1000);
+      if (pathname === endpoint && req.method === "POST") {
+        assertRateLimit(req, "upload-media", 6, 10 * 60 * 1000);
         const body = await collectRequest(req, 1024);
         let input;
         try { input = JSON.parse(body.toString()); } catch { throw new HttpError(400, "Invalid upload request", "Invalid upload request."); }
-        result = await backend.videoUploads.start(input?.size);
+        result = await uploads.start(input?.size);
       } else if (match && req.method === "PUT" && match[3] != null) {
-        result = await backend.videoUploads.append(match[1], Number(match[3]), await collectRequest(req, videoChunkBytes));
+        result = await uploads.append(match[1], Number(match[3]), await collectRequest(req, videoChunkBytes));
       } else if (match && req.method === "POST" && match[2] === "complete") {
-        result = backend.videoUploads.complete(match[1]);
+        result = uploads.complete(match[1]);
       } else if (match && !match[2] && req.method === "GET") {
-        result = backend.videoUploads.status(match[1]);
+        result = uploads.status(match[1]);
       } else if (match && !match[2] && req.method === "DELETE") {
-        await backend.videoUploads.cancel(match[1]);
+        await uploads.cancel(match[1]);
         result = { cancelled: true };
       } else {
         throw new HttpError(404, "Upload route not found", "Upload route not found.");
       }
       sendJson(req, res, { success: true, data: result });
     } catch (error) {
-      throw new HttpError(error.statusCode || 500, error.message, error.errorMsg || "Video upload failed. Please try again.");
+      throw new HttpError(error.statusCode || 500, error.message, error.errorMsg || "Media upload failed. Please try again.");
     }
     return;
   }
 
   if (pathname === "/api/upload-video" && req.method === "POST") {
     assertSameOrigin(req);
-    assertRateLimit(req, "upload-video", 6, 10 * 60 * 1000);
+    assertRateLimit(req, "upload-media", 6, 10 * 60 * 1000);
     const body = await collectRequest(req, videoLimits.maxVideoBytes + 64 * 1024);
     const { files } = parseMultipart(req, body);
     let result;

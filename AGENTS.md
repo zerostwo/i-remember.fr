@@ -308,3 +308,7 @@ Current backend/product decisions:
   from the inner photo-navigation arrows and match their visual centerline to
   the outer memory arrows on desktop. Make gallery dots adapt between black and
   white to the brightness of the image behind them, preserving gallery gestures.
+
+- Owner request on 2026-10-19: support MP3 and other audio attachments in public
+  and admin memories, with music-reactive visuals that fit the established galaxy,
+  monochrome particle texture, circular motifs and restrained playback controls.

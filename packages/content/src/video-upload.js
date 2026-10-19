@@ -1,5 +1,5 @@
 import { uploadRequest } from "./upload-request.js";
-import { videoLimits } from "../../config/src/media-limits.js";
+import { videoLimits, audioLimits, isAudioFile } from "../../config/src/media-limits.js";
 
 function pause(ms, signal) {
   return new Promise((resolve, reject) => {
@@ -18,22 +18,24 @@ function pause(ms, signal) {
 }
 
 export async function uploadVideoFile(file, { signal, onProgress = () => {} } = {}) {
-  if (file.size > videoLimits.maxVideoBytes || file.size <= 0)
-    throw new Error("Choose a video of 500 MB or less.");
+  const audio = isAudioFile(file);
+  const endpoint = audio ? "/api/audio-uploads" : "/api/video-uploads";
+  if (file.size > (audio ? audioLimits.maxAudioBytes : videoLimits.maxVideoBytes) || file.size <= 0)
+    throw new Error(audio ? "Choose audio of 100 MB or less." : "Choose a video of 500 MB or less.");
   async function request(path, options = {}) {
     const response = await fetch(path, { credentials: "same-origin", signal, ...options });
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload?.success)
-      throw new Error(payload?.errorMsg || "Video upload failed. Please try again.");
+      throw new Error(payload?.errorMsg || "Media upload failed. Please try again.");
     return payload.data;
   }
   onProgress({ phase: "uploading", percent: 0, loaded: 0, total: file.size });
-  const session = await request("/api/video-uploads", {
+  const session = await request(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ size: file.size }),
   });
-  const url = "/api/video-uploads/" + encodeURIComponent(session.id);
+  const url = endpoint + "/" + encodeURIComponent(session.id);
   try {
     for (let offset = 0, index = 0; offset < file.size; offset += session.chunkBytes, index++) {
       const end = Math.min(offset + session.chunkBytes, file.size);
@@ -53,13 +55,13 @@ export async function uploadVideoFile(file, { signal, onProgress = () => {} } = 
     onProgress(state.progress || { phase: "processing", stage: "preparing", percent: null });
     const deadline = Date.now() + 20 * 60 * 1000;
     while (state.state === "processing") {
-      if (Date.now() > deadline) throw new Error("Video processing timed out. Please try again.");
+      if (Date.now() > deadline) throw new Error("Media processing timed out. Please try again.");
       await pause(1500, signal);
       state = await request(url);
       if (state.state === "processing") onProgress(state.progress || { phase: "processing", stage: "preparing", percent: null });
     }
     if (state.state !== "complete")
-      throw new Error(state.error || "Video processing failed. Please try again.");
+      throw new Error(state.error || "Media processing failed. Please try again.");
     onProgress({ phase: "complete", percent: 100 });
     return state.result;
   } finally {

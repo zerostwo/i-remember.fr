@@ -4,7 +4,7 @@
 [![Docker Hub](https://img.shields.io/badge/Docker_Hub-zerostwo%2Fi--remember.fr-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/zerostwo/i-remember.fr)
 
 A self-hosted personal website and shared memory archive: explore a three-dimensional
-memory galaxy, keep photographs, videos, and stories, and invite visitors to leave a memory.
+memory galaxy, keep photographs, videos, audio, and stories, and invite visitors to leave a memory.
 Built for **Songqi Duan / 段松岐** and the intended personal domain **[songqi.org](https://songqi.org)**.
 Other self-hosters can set their own public name, description, and domain in the admin.
 
@@ -20,7 +20,7 @@ Other self-hosters can set their own public name, description, and domain in the
 - **Keep short moments and longer stories.** Write Markdown, attach photos and videos,
   organize tags, and open longer entries with **Read more** directly after the
   excerpt. Long memories and managed pages share the same restrained reading overlay.
-- **Keep a photo collection together.** Add up to 6 photos/videos per memory, adjust each
+- **Keep a photo collection together.** Add up to 6 photos/videos/audio files per memory, adjust each
   square preview with drag and zoom inside the circular composition guide, and
   drag thumbnails to reorder them (or use Alt + arrow keys). Thumbnails are
   centered in rows of six. Click a memory photo to view the complete original;
@@ -63,10 +63,29 @@ PostgreSQL database and authored demo memories. Demo data is not bundled into a 
 installation. The upload screenshot was captured locally on 2026-10-18 using a
 synthetic file. [Screenshot notes](docs/images/README.md).
 
+## Audio memories
+
+Public and admin uploads accept MP3, M4A, WAV, OGG and FLAC (100 MB / 10 minutes
+per file). Audio shares the six-item public gallery limit with photos and videos.
+Chunked transfers and asynchronous FFmpeg conversion report real upload and
+processing progress. Files are validated by their decoded streams, converted to
+192 kbps MP3, and stored with a generated monochrome particle-ring cover. Source
+files and embedded metadata are discarded after conversion. No database migration
+is required; audio uses the existing attachment records.
+
+Open an audio cover to listen. A silver-white particle ring responds to the actual
+frequency spectrum, with pause, seeking and volume controls. Playback temporarily
+mutes the galaxy soundtrack and restores it on pause or close. Reduced-motion
+preferences use a static ring; background tabs stop visualization rendering.
+The Web Audio analyser requires no microphone access. The shared upload session
+protocol is also available at `/api/audio-uploads`; audio streaming supports Range
+requests at its returned attachment URL. Run `node scripts/check-audio.mjs` to check
+validation, conversion, cover generation and temporary-file cleanup.
+
 ## Photos, videos, and upload progress
 
 Public submissions and the admin memory editor accept MP4, MOV and WebM alongside
-JPEG, PNG, WebP and GIF. New public memories can contain up to six photos/videos
+JPEG, PNG, WebP and GIF. New public memories can contain up to six photos/videos/audio files
 combined; existing larger albums remain readable. Videos are limited to 500 MB,
 ten minutes and 4K input. The server generates a poster for the circular composition
 step and square memory card, then converts video to H.264/AAC MP4 (up to 1920 pixels

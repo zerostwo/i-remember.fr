@@ -47,7 +47,7 @@
     if (!list.length || state.busy || !state.steps) return;
     var existing = append ? state.photos.slice() : [];
     var previousCount = existing.length;
-    if (existing.length + list.length > MAX_UPLOAD_PHOTOS) return error(label("Choose up to 6 photos or videos per memory.", "Choisissez jusqu’à 6 photos ou vidéos par souvenir.", "每条回忆最多添加 6 项照片或视频。"));
+    if (existing.length + list.length > MAX_UPLOAD_PHOTOS) return error(label("Choose up to 6 photos, videos or audio files per memory.", "Choisissez jusqu’à 6 photos, vidéos ou fichiers audio par souvenir.", "每条回忆最多添加 6 项照片、视频或音频。"));
     for (var file of list) {
       var problem = window.__REVIVAL_UPLOAD_ERROR__(file);
       if (problem) return error(problem);
@@ -72,7 +72,7 @@
       var uploading = progress.phase === "uploading";
       var phase = uploading ? label("Uploading", "Envoi", "正在上传")
         : progress.phase === "complete" ? label("Ready", "Prêt", "已就绪")
-        : progress.stage === "transcoding" ? label("Processing video", "Traitement de la vidéo", "正在转码")
+        : progress.stage === "transcoding" ? label("Processing media", "Traitement du fichier", "正在转码")
         : progress.stage === "finishing" ? label("Finishing…", "Finalisation…", "正在完成…")
         : label("Preparing…", "Préparation…", "正在处理…");
       caption.textContent = phase;
@@ -100,7 +100,7 @@
         form.set("local", file);
         var isVideo = /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
         var payload;
-        if (isVideo) {
+        if (isVideo || window.songqiMedia.isAudioFile(file)) {
           payload = { data: await window.songqiVideoUpload(file, { onProgress: showProgress }) };
         } else {
           payload = await window.songqiUploadRequest("/api/upload-image", {
@@ -179,7 +179,7 @@
       sync();
     }
     function zoom(value) {
-      if (!selected() || !activeImage || state.busy) return;
+      if (!selected() || /^audio\//.test(selected().type) || !activeImage || state.busy) return;
       selected().crop.zoom = clamp(value, 1, 4);
       draw();
     }
@@ -189,8 +189,10 @@
       activeImage = null;
       preview.removeAttribute("src");
       preview.hidden = !photo;
-      controls.hidden = !photo;
+      controls.hidden = !photo || /^audio\//.test(photo.type);
       viewport.classList.toggle("is-empty", !photo);
+      viewport.tabIndex = photo && /^audio\//.test(photo.type) ? -1 : 0;
+      viewport.setAttribute("aria-label", photo && /^audio\//.test(photo.type) ? label("Audio cover", "Couverture audio", "音频封面") : label("Photo crop. Drag to move; use arrow keys to adjust.", "Cadrage. Faites glisser ou utilisez les flèches.", "照片裁切。拖拽或使用方向键调整。"));
       if (photo && !state.busy) steps.enableValidateBtn(); else steps.disableValidateBtn();
       strip.replaceChildren();
       state.photos.forEach(function (entry, index) {
@@ -327,14 +329,14 @@
         Array.from(strip.querySelectorAll(".photo-thumb")).forEach(function (thumb, index) { thumb.classList.toggle("is-drop-target", index === closest && index !== sorting.from); });
       });
       ["pointerup", "pointercancel", "lostpointercapture"].forEach(function (type) { strip.addEventListener(type, endSort); });
-      picker = document.createElement("input"); picker.type = "file"; picker.multiple = true; picker.accept = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm,.mov,.m4v"; picker.hidden = true;
+      picker = document.createElement("input"); picker.type = "file"; picker.multiple = true; picker.accept = window.songqiMedia.accept; picker.hidden = true;
       picker.addEventListener("change", function () { uploadFiles(picker.files, true); picker.value = ""; });
-      add = button("+", label("Add photos or videos", "Ajouter des photos ou vidéos", "添加照片或视频"), function () { picker.click(); });
+      add = button("+", label("Add photos, videos or audio", "Ajouter des photos, vidéos ou audio", "添加照片、视频或音频"), function () { picker.click(); });
       add.className = "photo-add";
       root.appendChild(picker);
       ["mousedown", "touchstart", "touchmove", "touchend"].forEach(function (type) { root.addEventListener(type, function (event) { event.stopPropagation(); }, { passive: true }); });
       root.addEventListener("keydown", function (event) { event.stopPropagation(); });
-      viewport.addEventListener("pointerdown", function (event) { if (!activeImage || state.busy) return; event.preventDefault(); event.stopPropagation(); viewport.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
+      viewport.addEventListener("pointerdown", function (event) { if (!activeImage || state.busy || /^audio\//.test(selected()?.type)) return; event.preventDefault(); event.stopPropagation(); viewport.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); });
       viewport.addEventListener("pointermove", function (event) {
         if (!pointers.has(event.pointerId) || !activeImage || !selected()) return;
         event.preventDefault(); event.stopPropagation();
@@ -403,14 +405,15 @@
     element.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + path + '"/></svg>';
   }
   function createVideoPlayer(video) {
+    var isAudio = video.tagName === "AUDIO";
     var root = document.createElement("div"); root.className = "memory-player"; root.hidden = true;
     var controls = document.createElement("div"); controls.className = "memory-player-controls";
-    controls.setAttribute("role", "group"); controls.setAttribute("aria-label", label("Video controls", "Commandes vidéo", "视频控制"));
+    controls.setAttribute("role", "group"); controls.setAttribute("aria-label", label("Playback controls", "Commandes de lecture", "播放控制"));
     var seek = document.createElement("input"); seek.type = "range"; seek.min = "0"; seek.max = "0"; seek.step = "0.1"; seek.value = "0"; seek.disabled = true; seek.className = "memory-player-seek";
-    seek.setAttribute("aria-label", label("Seek video", "Position de lecture", "视频进度"));
+    seek.setAttribute("aria-label", label("Seek", "Position de lecture", "播放进度"));
     seek.__skipPreventDefault = true;
     var row = document.createElement("div"); row.className = "memory-player-row";
-    function toggle() { if (video.paused) video.play().catch(function () {}); else video.pause(); }
+    function toggle() { if (video.paused) { if (video.preparePlayback) video.preparePlayback(); video.play().catch(function () {}); } else video.pause(); }
     var toggleButton = button("", "", toggle);
     var time = document.createElement("span"); time.className = "memory-player-time";
     var mute = button("", "", function () { video.muted = !video.muted; });
@@ -422,7 +425,7 @@
       else if (document.fullscreenEnabled && root.requestFullscreen) root.requestFullscreen().catch(function () {});
       else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
     });
-    fullscreen.hidden = !(document.fullscreenEnabled && root.requestFullscreen) && !video.webkitEnterFullscreen;
+    fullscreen.hidden = isAudio || !(document.fullscreenEnabled && root.requestFullscreen) && !video.webkitEnterFullscreen;
     function fullscreenState() {
       var full = document.fullscreenElement === root;
       fullscreen.setAttribute("aria-label", full ? label("Exit full screen", "Quitter le plein écran", "退出全屏") : label("Full screen", "Plein écran", "全屏"));
@@ -432,13 +435,13 @@
     row.append(toggleButton, time, mute, volume, fullscreen); controls.append(seek, row); root.append(video, controls);
     video.controls = false;
     var loading = document.createElement("span"); loading.className = "memory-player-loading"; loading.hidden = true; loading.setAttribute("role", "status");
-    loading.textContent = label("Loading video…", "Chargement de la vidéo…", "视频加载中…"); root.appendChild(loading);
+    loading.textContent = label("Loading…", "Chargement…", "正在加载…"); root.appendChild(loading);
     ["waiting", "seeking"].forEach(function (type) { video.addEventListener(type, function () { loading.hidden = false; }); });
     ["playing", "canplay", "seeked", "pause", "ended", "emptied", "error"].forEach(function (type) { video.addEventListener(type, function () { loading.hidden = true; }); });
     var idleTimer;
     function reveal() {
       clearTimeout(idleTimer); root.classList.remove("controls-hidden");
-      if (!video.paused && !video.ended) idleTimer = setTimeout(function () {
+      if (!isAudio && !video.paused && !video.ended) idleTimer = setTimeout(function () {
         if (!controls.querySelector(":focus-visible") && !root.classList.contains("is-seeking")) root.classList.add("controls-hidden");
       }, 2400);
     }
@@ -477,7 +480,7 @@
       if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && Number.isFinite(video.duration)) { event.preventDefault(); video.currentTime = clamp(video.currentTime + (event.key === "ArrowLeft" ? -5 : 5), 0, video.duration); }
       reveal();
     });
-    root.tabIndex = 0; root.setAttribute("role", "group"); root.setAttribute("aria-label", label("Video player", "Lecteur vidéo", "视频播放器"));
+    root.tabIndex = 0; root.setAttribute("role", "group"); root.setAttribute("aria-label", isAudio ? label("Audio player", "Lecteur audio", "音频播放器") : label("Video player", "Lecteur vidéo", "视频播放器"));
     sync();
     return { element: root, reset: function () { clearTimeout(idleTimer); root.classList.remove("controls-hidden", "is-seeking"); if (document.fullscreenElement === root) document.exitFullscreen().catch(function () {}); }, focus: function () { root.focus({ preventScroll: true }); } };
   }
@@ -525,7 +528,7 @@
     var count = document.createElement("span"); count.className = "photo-gallery-status";
     count.setAttribute("role", "status");
     var dots = document.createElement("div"); dots.className = "photo-gallery-dots";
-    dots.setAttribute("role", "group"); dots.setAttribute("aria-label", label("Photos and videos", "Photos et vidéos", "照片和视频"));
+    dots.setAttribute("role", "group"); dots.setAttribute("aria-label", label("Photos, videos and audio", "Photos, vidéos et audio", "照片、视频和音频"));
     var previous = button("‹", label("Previous item", "Élément précédent", "上一项"), function () { move(-1); });
     var next = button("›", label("Next item", "Élément suivant", "下一项"), function () { move(1); });
     previous.className = "photo-gallery-prev"; next.className = "photo-gallery-next";
@@ -545,21 +548,28 @@
     var video = document.createElement("video"); video.controls = true; video.playsInline = true; video.preload = "metadata"; video.hidden = true;
     video.setAttribute("aria-label", label("Memory video", "Vidéo du souvenir", "回忆视频"));
     var player = createVideoPlayer(video);
+    var audio = document.createElement("audio"); audio.preload = "metadata";
+    var audioPlayer = createVideoPlayer(audio);
+    audioPlayer.element.classList.add("memory-audio-player");
+    var visualizer = window.songqiAudioVisualizer(audio, audioPlayer.element);
+
     var play = document.createElement("span"); play.className = "memory-video-play"; play.textContent = "▶"; play.setAttribute("aria-hidden", "true"); card.appendChild(play);
     var mediaError = document.createElement("p"); mediaError.className = "media-playback-error"; mediaError.hidden = true;
     var resumeSound = false;
     function restoreSound() { var sound = window.SongqiPhotos.sound; if (resumeSound && sound) sound.unmute(); resumeSound = false; }
-    video.addEventListener("play", function () { var sound = window.SongqiPhotos.sound; if (sound && !sound.isMute) { resumeSound = true; sound.mute(0); } });
-    video.addEventListener("pause", restoreSound);
-    video.addEventListener("ended", restoreSound);
-    video.addEventListener("error", function () { mediaError.hidden = false; mediaError.textContent = label("This video could not be played. Please try again.", "Impossible de lire cette vidéo.", "视频无法播放，请重试。"); });
+    [video, audio].forEach(function (media) {
+    media.addEventListener("play", function () { var sound = window.SongqiPhotos.sound; if (sound && !sound.isMute) { resumeSound = true; sound.mute(0); } });
+    media.addEventListener("pause", restoreSound);
+    media.addEventListener("ended", restoreSound);
+    media.addEventListener("error", function () { restoreSound(); mediaError.hidden = false; mediaError.textContent = label("This media could not be played. Please try again.", "Impossible de lire ce fichier.", "媒体无法播放，请重试。"); });
+    });
     var close = button("×", label("Close gallery", "Fermer la galerie", "关闭相册"), function () { viewer.close(); });
     close.className = "photo-viewer-close";
     var fullPrevious = button("‹", previous.getAttribute("aria-label"), function () { move(-1); });
     var fullNext = button("›", next.getAttribute("aria-label"), function () { move(1); });
     fullPrevious.className = "photo-gallery-prev"; fullNext.className = "photo-gallery-next";
     icon(fullPrevious, "M14 6l-6 6 6 6"); icon(fullNext, "M10 6l6 6-6 6");
-    viewer.append(close, image, player.element, mediaError, fullPrevious, fullNext); document.body.appendChild(viewer);
+    viewer.append(close, image, player.element, audioPlayer.element, mediaError, fullPrevious, fullNext); document.body.appendChild(viewer);
     // Keep native touch clicks and photo gestures out of the galaxy input controller.
     ["touchstart", "touchmove", "touchend", "mousedown", "mouseup", "wheel"].forEach(function (type) {
       viewer.addEventListener(type, function (event) { event.stopPropagation(); }, { passive: true });
@@ -568,12 +578,15 @@
       var photo = currentMemory[memoryIndex];
       controls.hidden = currentMemory.length < 2;
       fullPrevious.hidden = fullNext.hidden = currentMemory.length < 2;
-      player.reset(); video.pause(); video.removeAttribute("src"); video.load(); mediaError.hidden = true;
+      player.reset(); video.pause(); video.removeAttribute("src"); video.load();
+      audioPlayer.reset(); audio.pause(); audio.removeAttribute("src"); audio.load(); visualizer.reset();
+      mediaError.hidden = true;
       if (!photo) return;
       var isVideo = !!photo.video_url;
-      play.hidden = !isVideo;
-      card.setAttribute("aria-label", isVideo ? label("Play video", "Lire la vidéo", "播放视频") : label("Open photo", "Ouvrir la photo", "打开照片"));
-      image.hidden = isVideo; video.hidden = !isVideo; player.element.hidden = !isVideo;
+      var isAudio = !!photo.audio_url;
+      play.hidden = !isVideo || isAudio;
+      card.setAttribute("aria-label", isAudio ? label("Play audio", "Écouter", "播放音频") : isVideo ? label("Play video", "Lire la vidéo", "播放视频") : label("Open photo", "Ouvrir la photo", "打开照片"));
+      image.hidden = isVideo || isAudio; video.hidden = !isVideo; player.element.hidden = !isVideo; audioPlayer.element.hidden = !isAudio;
       card.style.backgroundImage = 'url("' + photo.image_url.replace(/"/g, "%22") + '")';
       count.textContent = label("Item", "Élément", "项目") + " " + (memoryIndex + 1) + " / " + currentMemory.length;
       if (dots.children.length !== currentMemory.length) {
@@ -587,30 +600,33 @@
       Array.prototype.forEach.call(dots.children, function (dot, index) { dot.setAttribute("aria-pressed", String(index === memoryIndex)); });
       updateContrast(photo.image_url);
       if (viewer.open && isVideo) { image.removeAttribute("src"); video.poster = photo.full_image_url; video.src = photo.video_url; }
-      if (viewer.open && !isVideo) { image.src = photo.full_image_url; image.alt = label("Memory photo", "Photo du souvenir", "回忆照片") + " " + (memoryIndex + 1); }
+      if (viewer.open && isAudio) { image.removeAttribute("src"); audio.src = photo.audio_url; visualizer.reset(); }
+      if (viewer.open && !isVideo && !isAudio) { image.src = photo.full_image_url; image.alt = label("Memory photo", "Photo du souvenir", "回忆照片") + " " + (memoryIndex + 1); }
     }
     function move(delta) { if (currentMemory.length < 2) return; memoryIndex = (memoryIndex + delta + currentMemory.length) % currentMemory.length; render(); }
     function open(event) {
       if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
       if (!currentMemory.length) return;
-      event.preventDefault(); event.stopPropagation(); viewer.showModal(); render(); if (currentMemory[memoryIndex].video_url) video.play().catch(function () {}); if (currentMemory[memoryIndex].video_url) player.focus(); else viewer.focus({ preventScroll: true });
+      event.preventDefault(); event.stopPropagation(); viewer.showModal(); render(); if (currentMemory[memoryIndex].audio_url) { audio.preparePlayback(); audio.play().catch(function () {}); audioPlayer.focus(); } if (currentMemory[memoryIndex].video_url) video.play().catch(function () {}); if (currentMemory[memoryIndex].video_url) player.focus(); else if (!currentMemory[memoryIndex].audio_url) viewer.focus({ preventScroll: true });
     }
     card.addEventListener("click", open); card.addEventListener("keydown", open);
-    viewer.addEventListener("keydown", function (event) { if (!player.element.contains(event.target) && (event.key === "ArrowLeft" || event.key === "ArrowRight")) { event.preventDefault(); move(event.key === "ArrowLeft" ? -1 : 1); } event.stopPropagation(); });
-    viewer.addEventListener("close", function () { player.reset(); video.pause(); video.removeAttribute("src"); video.load(); image.removeAttribute("src"); card.focus({ preventScroll: true }); });
+    viewer.addEventListener("keydown", function (event) { if (!player.element.contains(event.target) && !audioPlayer.element.contains(event.target) && (event.key === "ArrowLeft" || event.key === "ArrowRight")) { event.preventDefault(); move(event.key === "ArrowLeft" ? -1 : 1); } event.stopPropagation(); });
+    viewer.addEventListener("close", function () { audioPlayer.reset(); audio.pause(); audio.removeAttribute("src"); audio.load(); visualizer.reset(); player.reset(); video.pause(); video.removeAttribute("src"); video.load(); image.removeAttribute("src"); card.focus({ preventScroll: true }); });
     viewer.addEventListener("click", function (event) { if (event.target === viewer) viewer.close(); });
+    window.addEventListener("popstate", function () { if (viewer.open) viewer.close(); });
+    window.addEventListener("pagehide", function () { audio.pause(); video.pause(); });
     function swipe(element) {
       var start;
       element.addEventListener("touchstart", function (event) { start = event.touches.length === 1 ? { x: event.touches[0].clientX, y: event.touches[0].clientY } : null; }, { passive: true });
       element.addEventListener("touchend", function (event) { if (!start || !event.changedTouches.length) return; var point = event.changedTouches[0]; var dx = point.clientX - start.x; var dy = point.clientY - start.y; start = null; if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { event.preventDefault(); move(dx > 0 ? -1 : 1); } }, { passive: false });
     }
-    swipe(card); swipe(image);
+    swipe(card); swipe(image); swipe(audioPlayer.element.querySelector("canvas"));
     window.SongqiPhotos.renderMemory = render;
   }
   function showMemory(post) {
     installViewer();
     var photos = post.photos && post.photos.length ? post.photos : [{ image_url: post.image_url, full_image_url: post.full_image_url || post.image_url }];
-    currentMemory = photos.slice(0, MAX_VIEW_PHOTOS).map(function (photo) { return { video_url: photo.video_url ? safeImageUrl(photo.video_url) : "", image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
+    currentMemory = photos.slice(0, MAX_VIEW_PHOTOS).map(function (photo) { return { audio_url: photo.audio_url ? safeImageUrl(photo.audio_url) : "", video_url: photo.video_url ? safeImageUrl(photo.video_url) : "", image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
     memoryIndex = 0;
     if (window.SongqiPhotos.renderMemory) window.SongqiPhotos.renderMemory();
   }

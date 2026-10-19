@@ -2071,7 +2071,8 @@
   function uploadFileError(file) {
     var limits = window.SONGQI_UPLOAD_LIMITS || { maxBytes: 8388608, maxVideoBytes: 524288000 };
     var video = /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
-    var maxBytes = video ? (limits.maxVideoBytes || 524288000) : limits.maxBytes;
+    var audio = /^audio\//.test(file.type) || /\.(mp3|m4a|wav|ogg|flac)$/i.test(file.name);
+    var maxBytes = audio ? (limits.maxAudioBytes || 104857600) : video ? (limits.maxVideoBytes || 524288000) : limits.maxBytes;
     if (file.size <= maxBytes) return "";
     var mb = Math.round(maxBytes / 1048576);
     var language = siteLanguage();
@@ -2151,7 +2152,7 @@
     });
 
     var uploadInput = document.querySelector("#local-upload");
-    if (uploadInput) { uploadInput.setAttribute("aria-label", siteLanguage() === "fr" ? "Choisir des photos ou vidéos" : siteLanguage() === "zh" ? "选择照片或视频" : "Choose photos or videos from this device"); uploadInput.accept = "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm,.mov,.m4v"; }
+    if (uploadInput) { uploadInput.setAttribute("aria-label", siteLanguage() === "fr" ? "Choisir des photos, vidéos ou fichiers audio" : siteLanguage() === "zh" ? "选择照片、视频或音频" : "Choose photos, videos or audio from this device"); uploadInput.accept = window.songqiMedia.accept; }
 
     var intro = document.querySelector(".preloader");
     if (intro) intro.setAttribute("aria-live", "polite");

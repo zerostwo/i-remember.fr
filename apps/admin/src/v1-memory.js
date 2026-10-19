@@ -78,3 +78,9 @@ export function archiveV1Memory(v1Api, memory) {
   if (!memory.publicId) throw new Error("No memory selected");
   return v1Api(`/api/v1/memories/${encodeURIComponent(memory.publicId)}`, { method: "DELETE" });
 }
+
+export function appendV1Attachment(attachments = [], attachment) {
+  const order = Math.max(-1, ...attachments.map((item, index) =>
+    Number.isFinite(item.metadata?.order) ? item.metadata.order : index)) + 1;
+  return [...attachments, { ...attachment, metadata: { ...attachment.metadata, order } }];
+}

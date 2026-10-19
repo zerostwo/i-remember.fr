@@ -727,3 +727,11 @@ html body .revival-menu-close { top: calc(var(--photo-close-center-y) - 22px); r
   .memory-player input.memory-player-volume { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .memory-player-controls { transition: none; } }
+
+/* Audio echoes the archive's particle circle, leaving the controls quiet and legible. */
+.memory-audio-player { --video-aspect: 1; width: min(680px, 100%, calc(100dvh - 100px)); aspect-ratio: 1; }
+.memory-audio-player audio { display: none; }
+.memory-audio-orbit { display: block; width: 100%; height: calc(100% - 76px); }
+.memory-audio-caption { position: absolute; top: calc(50% - 38px); left: 0; right: 0; transform: translateY(-50%); text-align: center; color: #bcbcbc; font: italic 19px/1.5 Georgia,serif; pointer-events: none; }
+.memory-audio-player .memory-player-controls { padding-top: 0; background: transparent; }
+@media (max-width: 600px) { .memory-audio-caption { font-size: 15px; } }

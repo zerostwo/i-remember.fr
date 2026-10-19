@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- MP3/M4A/WAV/OGG/FLAC audio memories in public and admin flows, with 100 MB /
+  10 minute limits, chunked upload progress, MP3 conversion, particle-ring covers
+  and a real-frequency reactive monochrome player with reduced-motion support.
+
 - Photo/video albums with circular crop composition, independent crops, drag/touch
   reordering, animated GIFs, complete-photo viewing, and video playback.
 - MP4/MOV/WebM uploads with 500 MB / 10 minute defaults, configurable limits,

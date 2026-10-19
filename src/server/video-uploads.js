@@ -12,7 +12,7 @@ const fail = (statusCode, message) =>
 // request bodies are bounded, and only two unfinished uploads may occupy disk.
 export function createVideoUploads(storageRoot, finalize = async (result) => result, options = {}) {
   const sessions = new Map();
-  const directory = `${storageRoot}.video-uploads`;
+  const directory = `${storageRoot}.${options.kind || "video"}-uploads`;
   const now = options.now || Date.now;
   const processVideo = options.processVideo || uploadVideo;
   let initializing;
@@ -53,7 +53,7 @@ export function createVideoUploads(storageRoot, finalize = async (result) => res
   timer.unref();
   function get(id) {
     const session = sessions.get(id);
-    if (!session) throw fail(404, "This upload expired. Please choose the video again.");
+    if (!session) throw fail(404, "This upload expired. Please choose the file again.");
     session.touched = now();
     return session;
   }
@@ -71,14 +71,14 @@ export function createVideoUploads(storageRoot, finalize = async (result) => res
   }
   return {
     async start(size) {
-      if (!Number.isSafeInteger(size) || size <= 0 || size > videoLimits.maxVideoBytes)
-        throw fail(413, "Choose a video of 500 MB or less.");
+      if (!Number.isSafeInteger(size) || size <= 0 || size > (options.maxBytes || videoLimits.maxVideoBytes))
+        throw fail(413, options.limitMessage || "Choose a video of 500 MB or less.");
       await initialize();
       await expire();
       if (
         [...sessions.values()].filter((s) => !["complete", "failed"].includes(s.state)).length >= 2
       )
-        throw fail(429, "Other videos are uploading. Please try again shortly.");
+        throw fail(429, "Other files are uploading. Please try again shortly.");
       const id = randomBytes(24).toString("hex");
       const session = {
         id,
@@ -101,7 +101,7 @@ export function createVideoUploads(storageRoot, finalize = async (result) => res
     async append(id, index, data) {
       const session = get(id);
       if (session.state !== "uploading" || index !== session.received / videoChunkBytes)
-        throw fail(409, "The upload is out of order. Please choose the video again.");
+        throw fail(409, "The upload is out of order. Please choose the file again.");
       const expected = Math.min(videoChunkBytes, session.size - session.received);
       if (!expected || data.length !== expected)
         throw fail(400, "An upload part is incomplete. Please try again.");
@@ -122,7 +122,7 @@ export function createVideoUploads(storageRoot, finalize = async (result) => res
       const session = get(id);
       if (["processing", "complete", "failed"].includes(session.state)) return status(session);
       if (session.state !== "uploading" || session.received !== session.size)
-        throw fail(409, "The video upload is incomplete. Please try again.");
+        throw fail(409, "The media upload is incomplete. Please try again.");
       session.state = "processing";
       session.progress = { phase: "processing", stage: "preparing", percent: null };
       // Acknowledge immediately: a ten-minute transcode can outlast an edge request.
@@ -143,7 +143,7 @@ export function createVideoUploads(storageRoot, finalize = async (result) => res
         })
         .catch((error) => {
           session.state = "failed";
-          session.error = error.errorMsg || "This video could not be processed. Please try again.";
+          session.error = error.errorMsg || "This media file could not be processed. Please try again.";
         })
         .finally(async () => {
           session.touched = now();
