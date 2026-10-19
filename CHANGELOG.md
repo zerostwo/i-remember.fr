@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Photo/video albums with circular crop composition, independent crops, drag/touch
-  reordering, animated GIFs, complete-photo viewing, and native video playback.
+  reordering, animated GIFs, complete-photo viewing, and video playback.
 - MP4/MOV/WebM uploads with 500 MB / 10 minute defaults, configurable limits,
   H.264/AAC conversion and posters; FFmpeg/ffprobe in the single Docker image.
 - Chunked video transfers, asynchronous conversion status, expiry and cleanup;
@@ -45,6 +45,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restore commands plus fresh-volume, restart, backup, and restore smoke tests.
 
 ### Changed
+
+- Replaced browser video chrome with thin-line playback, seek, volume and full-screen
+  controls that fade during playback and support keyboard and touch input.
+- Removed inner gallery-arrow circles, aligned their SVG chevrons with outer memory
+  arrows on desktop, and adapted arrows/dots to local image brightness.
 
 - Softened both ends of the particle upload-progress arc, including its circular
   seam and indeterminate processing animation, while preserving the original motion.

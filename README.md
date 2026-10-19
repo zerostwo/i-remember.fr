@@ -70,9 +70,13 @@ JPEG, PNG, WebP and GIF. New public memories can contain up to six photos/videos
 combined; existing larger albums remain readable. Videos are limited to 500 MB,
 ten minutes and 4K input. The server generates a poster for the circular composition
 step and square memory card, then converts video to H.264/AAC MP4 (up to 1920 pixels
-on either side, 30 fps). Opening the card plays the complete frame with native
-controls; changing media or closing stops playback. Gallery navigation does not
-count as another memory view. Source video is discarded after conversion.
+on either side, 30 fps). Opening the card plays the complete frame with thin-line,
+auto-hiding controls for playback, seeking, sound and full screen. Keyboard users
+can tab through the controls; Space/K toggles playback and left/right seeks five
+seconds when the player itself is focused. Changing media or closing stops playback.
+Photo arrows are unframed, and gallery dots and arrows adapt to local image brightness.
+Images that cannot be sampled retain white controls with contrasting shadows.
+Gallery navigation does not count as another memory view. Source video is discarded after conversion.
 
 The single Docker image includes FFmpeg/ffprobe. Local development needs both on
 PATH. Run `node scripts/check-video.mjs` for decoder/limit/cleanup regression checks.

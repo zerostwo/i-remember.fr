@@ -302,3 +302,9 @@ Current backend/product decisions:
 - Owner feedback on 2026-10-18: soften the upload ring's progress boundary.
   Feather both ends of the illuminated arc into the original particles, including
   the twelve-o'clock seam, instead of using a sharp radial cutoff.
+
+- Owner feedback on 2026-10-18: modernize opened-video playback with quiet,
+  thin-line controls that fit the existing dark archive style. Remove circles
+  from the inner photo-navigation arrows and match their visual centerline to
+  the outer memory arrows on desktop. Make gallery dots adapt between black and
+  white to the brightness of the image behind them, preserving gallery gestures.
