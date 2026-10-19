@@ -12,6 +12,8 @@ export function createAudioVisualizer(audio, root) {
   let context,
     analyser,
     spectrum,
+    motion = 0,
+    levels = new Float32Array(512),
     frame = 0,
     last = 0;
   const particles = createAudioParticles();
@@ -30,17 +32,27 @@ export function createAudioVisualizer(audio, root) {
     paint.clearRect(0, 0, bounds.width, bounds.height);
     const active =
       analyser && !audio.paused && !audio.ended && !document.hidden && !reduced.matches;
-    if (active) analyser.getByteFrequencyData(spectrum);
+    if (active) {
+      analyser.getByteFrequencyData(spectrum);
+      motion = audio.currentTime;
+      for (let i = 0; i < levels.length; i++) levels[i] += (spectrum[i] / 255 - levels[i]) * 0.2;
+    }
     for (const particle of particles) {
-      const energy = active ? spectrum[particle.bin] / 255 : 0;
-      // A loose horizontal star field expands vertically with each frequency band.
-      // Its resting silhouette is illustrative, not a precomputed track waveform.
-      const amplitude = active ? 0.28 + energy * 1.15 : 0.65;
-      const x = bounds.width * particle.x;
-      const y = bounds.height * (0.5 + particle.y * amplitude);
-      paint.fillStyle = `rgba(238,238,238,${Math.min(1, particle.opacity + energy * 0.2)})`;
+      const energy = reduced.matches ? 0 : levels[particle.bin];
+      const drift = energy * (0.008 + particle.depth * 0.016);
+      const phase = motion * (0.35 + particle.depth * 0.25) + particle.phase;
+      const x = bounds.width * (particle.x + Math.sin(phase) * drift);
+      const y = bounds.height * (0.5 + particle.y * (1 + energy * 0.35) + Math.cos(phase) * drift);
+      const opacity = Math.min(1, particle.opacity * (1 + energy * 0.65));
+      if (!particle.dust) {
+        paint.fillStyle = `rgba(224,216,202,${opacity * 0.06})`;
+        paint.beginPath();
+        paint.arc(x, y, particle.size * 3.5, 0, Math.PI * 2);
+        paint.fill();
+      }
+      paint.fillStyle = `rgba(230,226,218,${opacity})`;
       paint.beginPath();
-      paint.arc(x, y, particle.size + energy * 0.45, 0, Math.PI * 2);
+      paint.arc(x, y, particle.size + energy * 0.15, 0, Math.PI * 2);
       paint.fill();
     }
   }
@@ -90,5 +102,5 @@ export function createAudioVisualizer(audio, root) {
     if (!reduced.matches) start();
   });
   new ResizeObserver(draw).observe(canvas);
-  return { reset: stop };
+  return { reset() { motion = 0; levels.fill(0); stop(); } };
 }

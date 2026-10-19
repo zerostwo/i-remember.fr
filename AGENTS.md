@@ -322,3 +322,7 @@ Current backend/product decisions:
 - Owner feedback on 2026-10-19: remove the audio particle ring. Use a horizontal
   cosmic-particle waveform that vibrates with the music, keeping inline playback
   and quiet transport controls below the particles.
+
+- Owner feedback on 2026-10-19: the horizontal particle-waveform revision was
+  also rejected visually. Do not treat that proposal as an approved design;
+  retain inline audio and the existing galaxy while refining the visual effect.

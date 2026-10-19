@@ -4,17 +4,24 @@ export function createAudioParticles() {
     const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
     return value - Math.floor(value);
   };
-  return Array.from({ length: 1800 }, (_, i) => {
-    const band = i % 100;
-    const x = band / 99;
-    const taper = Math.pow(Math.sin(x * Math.PI), 0.65);
-    const peak = 0.2 + 0.8 * Math.pow(Math.abs(Math.sin(x * 28) * Math.cos(x * 11 + 1)), 1.3);
+  return Array.from({ length: 1500 }, (_, i) => {
+    const x = noise(i + 1);
+    const position = x * 2 - 1;
+    const depth = noise(i + 6001);
+    const dust = i % 19 !== 0;
+    const gaussian = Math.sqrt(-2 * Math.log(Math.max(0.001, noise(i + 1801)))) *
+      Math.cos(noise(i + 3601) * Math.PI * 2);
+    const spread = 0.015 + Math.pow(Math.sin(x * Math.PI), 1.5) * 0.065;
     return {
-      x: 0.08 + x * 0.84 + (noise(i + 1) - 0.5) * 0.008,
-      y: (noise(i + 1801) * 2 - 1) * taper * peak * 0.38,
+      x: 0.08 + x * 0.84,
+      y: dust ? -position * 0.14 + Math.sin(position * 4) * 0.035 + gaussian * spread
+        : (noise(i + 1801) - 0.5) * 0.75,
       bin: Math.min(220, Math.floor(2 * Math.pow(110, x))),
-      size: i % 13 === 0 ? 1.1 : 0.55,
-      opacity: 0.2 + noise(i + 3601) * 0.65,
+      size: dust ? 0.3 + depth * depth * 0.55 : 0.7 + depth * 0.5,
+      opacity: (0.12 + depth * depth * 0.65) * Math.pow(Math.sin(x * Math.PI), 0.35),
+      phase: noise(i + 4201) * Math.PI * 2,
+      depth,
+      dust,
     };
   });
 }

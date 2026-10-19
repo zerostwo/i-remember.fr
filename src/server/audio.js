@@ -17,7 +17,7 @@ function cover() {
   for (const particle of createAudioParticles()) {
     points += `<circle cx="${particle.x * 600}" cy="${300 + particle.y * 390}" r="${particle.size * 1.5}" opacity="${particle.opacity}"/>`;
   }
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#080808"/><g fill="#eee">${points}</g></svg>`);
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#000"/><g fill="#e6e2da">${points}</g></svg>`);
 }
 
 export async function uploadAudio(file, storageRoot, onProgress = () => {}) {
