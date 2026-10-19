@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Restored touch activation of the memory close button while keeping photo taps
+  and text scrolling native; suppress duplicated compatibility mouse events.
+
 - Replaced browser video chrome with thin-line playback, seek, volume and full-screen
   controls that fade during playback and support keyboard and touch input.
 - Removed inner gallery-arrow circles, aligned their SVG chevrons with outer memory

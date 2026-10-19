@@ -558,7 +558,8 @@
     function touch(event) {
       lastTouch = Date.now();
       if (event.type === "touchstart" && !pinching) {
-        nativeTouch = !!event.target.closest("button,a,input,select,textarea,label,[contenteditable='true'],[data-menu-id],.search-btn,.photo-editor,.post-2d,.revival-photo-viewer,.revival-menu-memory");
+        // The archive close button still dispatches through the legacy tap controller.
+        nativeTouch = !!event.target.closest("button,a,input,select,textarea,label,[contenteditable='true'],[data-menu-id],.search-btn,.photo-editor,.post-2d,.revival-photo-viewer,.revival-menu-memory") && !event.target.closest(".post-2d-close-btn");
       }
       if (nativeTouch) return;
       if (event.type === "touchstart") {
