@@ -9,14 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Audio plays inline inside the memory cover with a centered play control and
-  compact transport controls, keeping the story visible.
+- Audio plays inline inside the memory cover with a horizontal cosmic-particle waveform and
+  compact transport controls below it, keeping the story visible.
 - Direct memory links skip the homepage introduction and artificial startup delay.
 
 ### Added
 
 - MP3/M4A/WAV/OGG/FLAC audio memories in public and admin flows, with 100 MB /
-  10 minute limits, chunked upload progress, MP3 conversion, particle-ring covers
+  10 minute limits, chunked upload progress, MP3 conversion, particle-waveform covers
   and a real-frequency reactive monochrome player with reduced-motion support.
 
 - Photo/video albums with circular crop composition, independent crops, drag/touch

@@ -432,7 +432,7 @@
       icon(fullscreen, full ? "M9 3v6H3m12-6v6h6M3 15h6v6m12-6h-6v6" : "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5");
     }
     document.addEventListener("fullscreenchange", fullscreenState); fullscreenState();
-    if (isAudio) { toggleButton.className = "memory-audio-toggle"; row.append(time, mute, volume); root.appendChild(toggleButton); }
+    if (isAudio) { toggleButton.className = "memory-audio-toggle"; row.append(toggleButton, time, mute, volume); }
     else row.append(toggleButton, time, mute, volume, fullscreen);
     controls.append(seek, row); root.append(video, controls);
     video.controls = false;

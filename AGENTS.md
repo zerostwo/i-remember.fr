@@ -318,3 +318,7 @@ Current backend/product decisions:
   visualizer and playback controls inside the cover and remove the oversized
   separate listening presentation. Direct `/memory/:id` links must skip the
   introduction and display the requested memory as soon as its assets are ready.
+
+- Owner feedback on 2026-10-19: remove the audio particle ring. Use a horizontal
+  cosmic-particle waveform that vibrates with the music, keeping inline playback
+  and quiet transport controls below the particles.

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { audioLimits } from "../../packages/config/src/media-limits.js";
+import { createAudioParticles } from "../../packages/content/src/audio-particles.js";
 
 const run = promisify(execFile);
 let processing = false;
@@ -13,12 +14,10 @@ const failure = (statusCode, message) => Object.assign(new Error(message), { sta
 // A deterministic monochrome cover keeps audio visible in the existing galaxy and gallery.
 function cover() {
   let points = "";
-  for (let i = 0; i < 960; i++) {
-    const angle = i * 2.3999632297;
-    const radius = 176 + Math.sin(i * 12.9898) * 17 + Math.cos(i * 4.17) * 7;
-    points += `<circle cx="${300 + Math.cos(angle) * radius}" cy="${300 + Math.sin(angle) * radius}" r="${i % 5 === 0 ? 1.3 : .7}" opacity="${.18 + (i % 9) * .08}"/>`;
+  for (const particle of createAudioParticles()) {
+    points += `<circle cx="${particle.x * 600}" cy="${300 + particle.y * 390}" r="${particle.size * 1.5}" opacity="${particle.opacity}"/>`;
   }
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#080808"/><g fill="#eee">${points}</g><path d="M287 280l32 20-32 20Z" fill="none" stroke="#ddd" stroke-width="1.5"/></svg>`);
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="600" height="600" fill="#080808"/><g fill="#eee">${points}</g></svg>`);
 }
 
 export async function uploadAudio(file, storageRoot, onProgress = () => {}) {

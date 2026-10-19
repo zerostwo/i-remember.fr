@@ -1,8 +1,10 @@
+import { createAudioParticles } from "./audio-particles.js";
+
 // One persistent analyser per player, created only by an explicit playback gesture.
 // Frequency data follows the media element through seeking, volume and gallery changes.
 export function createAudioVisualizer(audio, root) {
   const canvas = document.createElement("canvas");
-  canvas.className = "memory-audio-orbit";
+  canvas.className = "memory-audio-waveform";
   canvas.setAttribute("aria-hidden", "true");
   root.prepend(canvas);
   const paint = canvas.getContext("2d");
@@ -12,12 +14,7 @@ export function createAudioVisualizer(audio, root) {
     spectrum,
     frame = 0,
     last = 0;
-  const particles = Array.from({ length: 1100 }, (_, i) => ({
-    angle: i * 2.3999632297,
-    spread: Math.sin(i * 12.9898) * 0.022 + Math.cos(i * 4.17) * 0.012,
-    size: i % 7 === 0 ? 1.25 : 0.65,
-    opacity: 0.15 + (i % 11) * 0.065,
-  }));
+  const particles = createAudioParticles();
   function draw() {
     if (!paint) return;
     const bounds = canvas.getBoundingClientRect();
@@ -31,18 +28,16 @@ export function createAudioVisualizer(audio, root) {
     }
     paint.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     paint.clearRect(0, 0, bounds.width, bounds.height);
-    const size = Math.min(bounds.width, bounds.height);
     const active =
       analyser && !audio.paused && !audio.ended && !document.hidden && !reduced.matches;
     if (active) analyser.getByteFrequencyData(spectrum);
     for (const particle of particles) {
-      // Mirror logarithmic bands around the orbit; no hard seam at twelve o'clock.
-      const position = (1 + Math.sin(particle.angle)) / 2;
-      const bin = Math.min(220, Math.floor(2 * Math.pow(110, position)));
-      const energy = active ? spectrum[bin] / 255 : 0;
-      const radius = size * (0.3 + particle.spread + energy * 0.045);
-      const x = bounds.width / 2 + Math.cos(particle.angle) * radius;
-      const y = bounds.height / 2 + Math.sin(particle.angle) * radius;
+      const energy = active ? spectrum[particle.bin] / 255 : 0;
+      // A loose horizontal star field expands vertically with each frequency band.
+      // Its resting silhouette is illustrative, not a precomputed track waveform.
+      const amplitude = active ? 0.28 + energy * 1.15 : 0.65;
+      const x = bounds.width * particle.x;
+      const y = bounds.height * (0.5 + particle.y * amplitude);
       paint.fillStyle = `rgba(238,238,238,${Math.min(1, particle.opacity + energy * 0.2)})`;
       paint.beginPath();
       paint.arc(x, y, particle.size + energy * 0.45, 0, Math.PI * 2);

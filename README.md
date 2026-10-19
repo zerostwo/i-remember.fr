@@ -69,12 +69,12 @@ Public and admin uploads accept MP3, M4A, WAV, OGG and FLAC (100 MB / 10 minutes
 per file). Audio shares the six-item public gallery limit with photos and videos.
 Chunked transfers and asynchronous FFmpeg conversion report real upload and
 processing progress. Files are validated by their decoded streams, converted to
-192 kbps MP3, and stored with a generated monochrome particle-ring cover. Source
+192 kbps MP3, and stored with a generated monochrome particle-waveform cover. Source
 files and embedded metadata are discarded after conversion. No database migration
 is required; audio uses the existing attachment records.
 
-Play audio directly inside its memory card, alongside the story. A silver-white particle ring responds to the actual
-frequency spectrum, with a centered play/pause control, seeking and volume controls; audio does not open a fullscreen viewer. Playback temporarily
+Play audio directly inside its memory card, alongside the story. A horizontal field of silver-white particles rises and falls with the actual
+frequency spectrum, with play/pause, seeking and volume controls below the waveform; audio does not open a fullscreen viewer. Playback temporarily
 mutes the galaxy soundtrack and restores it on pause or close. Reduced-motion
 preferences use a static ring; background tabs stop visualization rendering.
 Direct `/memory/:id` visits skip the homepage introduction and open the requested card as soon as its assets are ready.
