@@ -268,7 +268,15 @@
       ring.uniforms.uploadReducedMotion = { type: "f", value: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0 };
       ring.material.vertexShader = "uniform float uploadActive;\nuniform float uploadProgress;\nuniform float uploadReducedMotion;\n" + ring.material.vertexShader.replace("vec4 modelViewPos =", [
         "float uploadAngle = mod(atan(pos.x, pos.y) + PI * 2.0, PI * 2.0) / (PI * 2.0);",
-        "float uploadLit = uploadProgress < 0.0 ? (1.0 - step(.16, fract(uploadAngle - time * .15 * (1.0 - uploadReducedMotion)))) : step(uploadAngle, uploadProgress);",
+        // Measure distance around the circle so both arc ends feather through
+        // twelve o'clock without a straight seam or changing the particles.
+        "float uploadArc = uploadProgress < 0.0 ? .16 : clamp(uploadProgress, 0.0, 1.0);",
+        "float uploadCenter = uploadArc * .5 + (uploadProgress < 0.0 ? time * .15 * (1.0 - uploadReducedMotion) : 0.0);",
+        "float uploadDistance = abs(fract(uploadAngle - uploadCenter + .5) - .5);",
+        "float uploadFeather = .035;",
+        "float uploadLit = 1.0 - smoothstep(uploadArc * .5 - uploadFeather, uploadArc * .5 + uploadFeather, uploadDistance);",
+        "if (uploadProgress == 0.0) uploadLit = 0.0;",
+        "if (uploadProgress >= 1.0) uploadLit = 1.0;",
         "pAlpha *= mix(1.0, .14 + uploadLit * 1.06, uploadActive);",
         "vec4 modelViewPos ="
       ].join("\n"));

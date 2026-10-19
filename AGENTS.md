@@ -298,3 +298,7 @@ Current backend/product decisions:
 - Owner request on 2026-10-18: keep README and CHANGELOG aligned with shipped
   features and simplify unused code, dependencies and build paths while preserving
   all current public/admin functionality, interactions and visual behavior.
+
+- Owner feedback on 2026-10-18: soften the upload ring's progress boundary.
+  Feather both ends of the illuminated arc into the original particles, including
+  the twelve-o'clock seam, instead of using a sharp radial cutoff.

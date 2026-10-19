@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Softened both ends of the particle upload-progress arc, including its circular
+  seam and indeterminate processing animation, while preserving the original motion.
+
 - New public albums accept six photos/videos combined; older larger albums remain
   readable. Gallery dots replace numeric counts, and photo arrows appear on
   hover/focus. Public date/location display is hidden while saved data is retained.
