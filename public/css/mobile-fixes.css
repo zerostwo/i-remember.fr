@@ -706,8 +706,8 @@ html body .revival-menu-close { top: calc(var(--photo-close-center-y) - 22px); r
 .memory-player.controls-hidden .memory-player-controls { opacity: 0; pointer-events: none; }
 .memory-player-loading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 8px 12px; background: #0009; color: #eee; font: 15px/1.5 Georgia,serif; pointer-events: none; }
 .memory-player-row { display: flex; align-items: center; gap: 8px; }
-.revival-photo-viewer .memory-player button { position: static; flex: 0 0 44px; display: grid; place-items: center; width: 44px; height: 44px; padding: 11px; border: 0; border-radius: 0; background: transparent; color: #eee; transform: none; -webkit-tap-highlight-color: transparent; }
-.revival-photo-viewer .memory-player button:hover { color: #fff; }
+.memory-player button { position: static; flex: 0 0 44px; display: grid; place-items: center; width: 44px; height: 44px; padding: 11px; border: 0; border-radius: 0; background: transparent; color: #eee; transform: none; -webkit-tap-highlight-color: transparent; }
+.memory-player button:hover { color: #fff; }
 .memory-player button svg { display: block; width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .memory-player-time { margin-right: auto; color: #ddd; font: 13px/1.4 Georgia,serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .memory-player input[type="range"] { display: block; appearance: none; -webkit-appearance: none; height: 28px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: none; cursor: pointer; touch-action: none; background: transparent; color: #fff; }
@@ -728,10 +728,15 @@ html body .revival-menu-close { top: calc(var(--photo-close-center-y) - 22px); r
 }
 @media (prefers-reduced-motion: reduce) { .memory-player-controls { transition: none; } }
 
-/* Audio echoes the archive's particle circle, leaving the controls quiet and legible. */
-.memory-audio-player { --video-aspect: 1; width: min(680px, 100%, calc(100dvh - 100px)); aspect-ratio: 1; }
+/* Audio stays inside the memory cover, beside its story. */
+html body .post-2d-img.has-inline-audio { cursor: default; }
+.memory-audio-player[hidden] { display: none !important; }
+.post-2d-img .memory-audio-player { position: absolute; inset: 0; top: 0; width: 100%; height: 100%; margin: 0; transform: none; aspect-ratio: auto; background: #080808; }
 .memory-audio-player audio { display: none; }
-.memory-audio-orbit { display: block; width: 100%; height: calc(100% - 76px); }
-.memory-audio-caption { position: absolute; top: calc(50% - 38px); left: 0; right: 0; transform: translateY(-50%); text-align: center; color: #bcbcbc; font: italic 19px/1.5 Georgia,serif; pointer-events: none; }
-.memory-audio-player .memory-player-controls { padding-top: 0; background: transparent; }
-@media (max-width: 600px) { .memory-audio-caption { font-size: 15px; } }
+.memory-audio-orbit { display: block; width: 100%; height: calc(100% - 96px); }
+.memory-audio-player .memory-audio-toggle { position: absolute; left: 50%; top: calc(50% - 48px); transform: translate(-50%, -50%); width: 64px; height: 64px; padding: 20px; }
+.memory-audio-player .memory-audio-toggle svg { width: 24px; height: 24px; }
+.memory-audio-player .memory-player-controls { bottom: 30px; padding: 0 24px; background: transparent; }
+.memory-audio-player button:focus-visible { outline: 1px solid #ffffff66; outline-offset: 2px; }
+.memory-audio-player .media-playback-error { position: absolute; bottom: 108px; left: 12px; right: 12px; text-align: center; font: 13px/1.4 Georgia,serif; }
+@media (max-width: 600px) { .memory-audio-player .memory-player-controls { padding: 0 20px; } }

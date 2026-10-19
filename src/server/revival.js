@@ -1521,6 +1521,8 @@ async function renderAppHtml(
 
   html = renderSeo(html, siteSettings, directPayload?.data, defaultPosts);
   if (!directPayload) return html;
+  html = html.replace("<head>", '<head><script>window.SONGQI_DIRECT_MEMORY=true;</script><style>.preloader{display:none!important}</style>');
+
 
   return html.replace(
     /var DEFAULT_POST = \(function \(\) \{[\s\S]*?\n\s*\}\(\)\);/,

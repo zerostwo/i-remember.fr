@@ -73,10 +73,11 @@ processing progress. Files are validated by their decoded streams, converted to
 files and embedded metadata are discarded after conversion. No database migration
 is required; audio uses the existing attachment records.
 
-Open an audio cover to listen. A silver-white particle ring responds to the actual
-frequency spectrum, with pause, seeking and volume controls. Playback temporarily
+Play audio directly inside its memory card, alongside the story. A silver-white particle ring responds to the actual
+frequency spectrum, with a centered play/pause control, seeking and volume controls; audio does not open a fullscreen viewer. Playback temporarily
 mutes the galaxy soundtrack and restores it on pause or close. Reduced-motion
 preferences use a static ring; background tabs stop visualization rendering.
+Direct `/memory/:id` visits skip the homepage introduction and open the requested card as soon as its assets are ready.
 The Web Audio analyser requires no microphone access. The shared upload session
 protocol is also available at `/api/audio-uploads`; audio streaming supports Range
 requests at its returned attachment URL. Run `node scripts/check-audio.mjs` to check

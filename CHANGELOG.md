@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Audio plays inline inside the memory cover with a centered play control and
+  compact transport controls, keeping the story visible.
+- Direct memory links skip the homepage introduction and artificial startup delay.
+
 ### Added
 
 - MP3/M4A/WAV/OGG/FLAC audio memories in public and admin flows, with 100 MB /

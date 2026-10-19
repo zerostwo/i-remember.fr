@@ -77,6 +77,11 @@ assert.ok(!patchedMain.includes("r.width>5e3||r.height>5e3"), "Camera photos mus
 assert.ok(patchedMain.includes("window.SongqiPhotos.showMemory(e)"), "All memory entry paths must initialize the gallery");
 assert.ok(patchedMain.includes("JSON.stringify(r.data.photos)"), "Submission must persist every crop");
 assert.ok(patchedMain.includes("window.SongqiPhotos.createAdjustmentStep"), "The old drag-only editor must be replaced");
+// Direct links bypass both intro stages and the artificial startup/card delays.
+assert.ok(patchedMain.includes('e.SKIP_PRELOADER=!!window.SONGQI_DIRECT_MEMORY||LANG=="zh"'));
+assert.ok(patchedMain.includes('n._appInitFunc=m,u.start()},window.SONGQI_DIRECT_MEMORY?0:1e3)'));
+assert.ok(patchedMain.includes('d.fromTo(g,revivalDirect?0:1'));
+assert.ok(patchedMain.includes('window.SongqiPhotos.closeMemory&&window.SongqiPhotos.closeMemory()'));
 // Exercise native touch sequences even when the page started with mouse input.
 const touchListeners = new Map();
 const inputEvents = [], zoomEvents = [];

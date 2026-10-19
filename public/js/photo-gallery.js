@@ -432,7 +432,9 @@
       icon(fullscreen, full ? "M9 3v6H3m12-6v6h6M3 15h6v6m12-6h-6v6" : "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5");
     }
     document.addEventListener("fullscreenchange", fullscreenState); fullscreenState();
-    row.append(toggleButton, time, mute, volume, fullscreen); controls.append(seek, row); root.append(video, controls);
+    if (isAudio) { toggleButton.className = "memory-audio-toggle"; row.append(time, mute, volume); root.appendChild(toggleButton); }
+    else row.append(toggleButton, time, mute, volume, fullscreen);
+    controls.append(seek, row); root.append(video, controls);
     video.controls = false;
     var loading = document.createElement("span"); loading.className = "memory-player-loading"; loading.hidden = true; loading.setAttribute("role", "status");
     loading.textContent = label("Loading…", "Chargement…", "正在加载…"); root.appendChild(loading);
@@ -552,6 +554,7 @@
     var audioPlayer = createVideoPlayer(audio);
     audioPlayer.element.classList.add("memory-audio-player");
     var visualizer = window.songqiAudioVisualizer(audio, audioPlayer.element);
+    card.appendChild(audioPlayer.element);
 
     var play = document.createElement("span"); play.className = "memory-video-play"; play.textContent = "▶"; play.setAttribute("aria-hidden", "true"); card.appendChild(play);
     var mediaError = document.createElement("p"); mediaError.className = "media-playback-error"; mediaError.hidden = true;
@@ -561,7 +564,7 @@
     media.addEventListener("play", function () { var sound = window.SongqiPhotos.sound; if (sound && !sound.isMute) { resumeSound = true; sound.mute(0); } });
     media.addEventListener("pause", restoreSound);
     media.addEventListener("ended", restoreSound);
-    media.addEventListener("error", function () { restoreSound(); mediaError.hidden = false; mediaError.textContent = label("This media could not be played. Please try again.", "Impossible de lire ce fichier.", "媒体无法播放，请重试。"); });
+    media.addEventListener("error", function () { restoreSound(); (media === audio ? audioPlayer.element : viewer).appendChild(mediaError); mediaError.hidden = false; mediaError.textContent = label("This media could not be played. Please try again.", "Impossible de lire ce fichier.", "媒体无法播放，请重试。"); });
     });
     var close = button("×", label("Close gallery", "Fermer la galerie", "关闭相册"), function () { viewer.close(); });
     close.className = "photo-viewer-close";
@@ -569,7 +572,7 @@
     var fullNext = button("›", next.getAttribute("aria-label"), function () { move(1); });
     fullPrevious.className = "photo-gallery-prev"; fullNext.className = "photo-gallery-next";
     icon(fullPrevious, "M14 6l-6 6 6 6"); icon(fullNext, "M10 6l6 6-6 6");
-    viewer.append(close, image, player.element, audioPlayer.element, mediaError, fullPrevious, fullNext); document.body.appendChild(viewer);
+    viewer.append(close, image, player.element, mediaError, fullPrevious, fullNext); document.body.appendChild(viewer);
     // Keep native touch clicks and photo gestures out of the galaxy input controller.
     ["touchstart", "touchmove", "touchend", "mousedown", "mouseup", "wheel"].forEach(function (type) {
       viewer.addEventListener(type, function (event) { event.stopPropagation(); }, { passive: true });
@@ -585,7 +588,9 @@
       var isVideo = !!photo.video_url;
       var isAudio = !!photo.audio_url;
       play.hidden = !isVideo || isAudio;
-      card.setAttribute("aria-label", isAudio ? label("Play audio", "Écouter", "播放音频") : isVideo ? label("Play video", "Lire la vidéo", "播放视频") : label("Open photo", "Ouvrir la photo", "打开照片"));
+      card.classList.toggle("has-inline-audio", isAudio);
+      card.setAttribute("role", isAudio ? "group" : "button"); card.tabIndex = isAudio ? -1 : 0;
+      card.setAttribute("aria-label", isAudio ? label("Audio memory", "Souvenir audio", "音频回忆") : isVideo ? label("Play video", "Lire la vidéo", "播放视频") : label("Open photo", "Ouvrir la photo", "打开照片"));
       image.hidden = isVideo || isAudio; video.hidden = !isVideo; player.element.hidden = !isVideo; audioPlayer.element.hidden = !isAudio;
       card.style.backgroundImage = 'url("' + photo.image_url.replace(/"/g, "%22") + '")';
       count.textContent = label("Item", "Élément", "项目") + " " + (memoryIndex + 1) + " / " + currentMemory.length;
@@ -600,27 +605,31 @@
       Array.prototype.forEach.call(dots.children, function (dot, index) { dot.setAttribute("aria-pressed", String(index === memoryIndex)); });
       updateContrast(photo.image_url);
       if (viewer.open && isVideo) { image.removeAttribute("src"); video.poster = photo.full_image_url; video.src = photo.video_url; }
-      if (viewer.open && isAudio) { image.removeAttribute("src"); audio.src = photo.audio_url; visualizer.reset(); }
+      if (isAudio) { if (viewer.open) viewer.close(); image.removeAttribute("src"); audio.src = photo.audio_url; visualizer.reset(); }
       if (viewer.open && !isVideo && !isAudio) { image.src = photo.full_image_url; image.alt = label("Memory photo", "Photo du souvenir", "回忆照片") + " " + (memoryIndex + 1); }
     }
     function move(delta) { if (currentMemory.length < 2) return; memoryIndex = (memoryIndex + delta + currentMemory.length) % currentMemory.length; render(); }
     function open(event) {
       if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
-      if (!currentMemory.length) return;
-      event.preventDefault(); event.stopPropagation(); viewer.showModal(); render(); if (currentMemory[memoryIndex].audio_url) { audio.preparePlayback(); audio.play().catch(function () {}); audioPlayer.focus(); } if (currentMemory[memoryIndex].video_url) video.play().catch(function () {}); if (currentMemory[memoryIndex].video_url) player.focus(); else if (!currentMemory[memoryIndex].audio_url) viewer.focus({ preventScroll: true });
+      if (!currentMemory.length || currentMemory[memoryIndex].audio_url) return;
+      event.preventDefault(); event.stopPropagation(); viewer.showModal(); render(); if (currentMemory[memoryIndex].video_url) video.play().catch(function () {}); if (currentMemory[memoryIndex].video_url) player.focus(); else if (!currentMemory[memoryIndex].audio_url) viewer.focus({ preventScroll: true });
     }
     card.addEventListener("click", open); card.addEventListener("keydown", open);
     viewer.addEventListener("keydown", function (event) { if (!player.element.contains(event.target) && !audioPlayer.element.contains(event.target) && (event.key === "ArrowLeft" || event.key === "ArrowRight")) { event.preventDefault(); move(event.key === "ArrowLeft" ? -1 : 1); } event.stopPropagation(); });
-    viewer.addEventListener("close", function () { audioPlayer.reset(); audio.pause(); audio.removeAttribute("src"); audio.load(); visualizer.reset(); player.reset(); video.pause(); video.removeAttribute("src"); video.load(); image.removeAttribute("src"); card.focus({ preventScroll: true }); });
+    viewer.addEventListener("close", function () { player.reset(); video.pause(); video.removeAttribute("src"); video.load(); image.removeAttribute("src"); card.focus({ preventScroll: true }); });
     viewer.addEventListener("click", function (event) { if (event.target === viewer) viewer.close(); });
-    window.addEventListener("popstate", function () { if (viewer.open) viewer.close(); });
+    window.addEventListener("popstate", function () { audio.pause(); if (viewer.open) viewer.close(); });
     window.addEventListener("pagehide", function () { audio.pause(); video.pause(); });
     function swipe(element) {
       var start;
-      element.addEventListener("touchstart", function (event) { start = event.touches.length === 1 ? { x: event.touches[0].clientX, y: event.touches[0].clientY } : null; }, { passive: true });
+      element.addEventListener("touchstart", function (event) { start = !event.target.closest("button,input") && event.touches.length === 1 ? { x: event.touches[0].clientX, y: event.touches[0].clientY } : null; }, { passive: true });
       element.addEventListener("touchend", function (event) { if (!start || !event.changedTouches.length) return; var point = event.changedTouches[0]; var dx = point.clientX - start.x; var dy = point.clientY - start.y; start = null; if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) { event.preventDefault(); move(dx > 0 ? -1 : 1); } }, { passive: false });
     }
-    swipe(card); swipe(image); swipe(audioPlayer.element.querySelector("canvas"));
+    swipe(card); swipe(image);
+    window.SongqiPhotos.closeMemory = function () {
+      audio.pause(); audio.removeAttribute("src"); audio.load(); visualizer.reset();
+      if (viewer.open) viewer.close();
+    };
     window.SongqiPhotos.renderMemory = render;
   }
   function showMemory(post) {

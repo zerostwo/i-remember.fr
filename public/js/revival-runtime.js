@@ -618,6 +618,12 @@
       'g.css("visibility","visible"),m.text(""),x.css',
       'g.css("visibility","visible"),m.text(""),m[0].style.fontSize="",m[0].style[t.transform3DStyle]="",x.css'
     );
+    // Shared memory links open the requested card as soon as assets are ready.
+    // Keep the normal homepage introduction and its click-to-fast-forward flow.
+    patched = patched.replace('e.SKIP_PRELOADER=LANG=="zh"',
+      'e.SKIP_PRELOADER=!!window.SONGQI_DIRECT_MEMORY||LANG=="zh"')
+      .replace('n._appInitFunc=m,u.start()},1e3)',
+        'n._appInitFunc=m,u.start()},window.SONGQI_DIRECT_MEMORY?0:1e3)');
     // The portrait footer row's map center is viewport height minus 74px. Mirror
     // that coordinate in the WebGL overlay so its pixels and hit target agree.
     patched = patched.replace(
@@ -667,8 +673,10 @@
         patched.slice(adjustmentEnd);
     }
     patched = patched.replace('function U(e){M=e;var t=new Image', 'function U(e){window.SongqiPhotos.showMemory(e);M=e;var t=new Image');
-    patched = patched.replace('function z(e){f.trackPage({trackPage:"memory-view"})', 'function z(e){window.SongqiMemoryNavigation.opened(e);f.trackPage({trackPage:"memory-view"})');
-    patched = patched.replace('function Q(){history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()', 'function Q(){window.SongqiMemoryNavigation.closed();history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()');
+    patched = patched.replace('function z(e){f.trackPage({trackPage:"memory-view"})', 'function z(e){var revivalDirect=!!window.SONGQI_DIRECT_MEMORY;window.SONGQI_DIRECT_MEMORY=false;window.SongqiMemoryNavigation.opened(e);f.trackPage({trackPage:"memory-view"})');
+    patched = patched.replace('d.fromTo(g,1,{opacity:0},{opacity:1,ease:"linear"}),d.to(b,0,{width:0}),d.to(b,.6,{delay:.4,width:348})',
+      'd.fromTo(g,revivalDirect?0:1,{opacity:0},{opacity:1,ease:"linear"}),d.to(b,0,{width:0}),d.to(b,revivalDirect?0:.6,{delay:revivalDirect?0:.4,width:348})');
+    patched = patched.replace('function Q(){history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()', 'function Q(){window.SongqiPhotos.closeMemory&&window.SongqiPhotos.closeMemory();window.SongqiMemoryNavigation.closed();history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()');
     patched = patched.replace('e.preShow=U,e.show=z,e.hide=Q,e.updateFading=Y', 'e.preShow=U,e.show=z,e.hide=Q,e.replace=function(t){U(t);O=t;history.replaceState(null,"",window.__REVIVAL_PUBLIC_MEMORY_PATH__(t));b[0].scrollpane.onResize();window.SongqiMemoryNavigation.opened(t)},e.updateFading=Y');
     patched = patched.replace('e.append("fileId",r.data.fileId),', 'e.append("fileId",r.data.fileId),r.data.photos&&r.data.photos.length&&e.append("photos",JSON.stringify(r.data.photos)),');
     // Retain the original noise field, geometry and transitions. Only replace

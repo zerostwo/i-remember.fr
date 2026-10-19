@@ -4,16 +4,7 @@ export function createAudioVisualizer(audio, root) {
   const canvas = document.createElement("canvas");
   canvas.className = "memory-audio-orbit";
   canvas.setAttribute("aria-hidden", "true");
-  const caption = document.createElement("div");
-  caption.className = "memory-audio-caption";
-  const language = window.LANG || "en";
-  caption.textContent =
-    language === "fr"
-      ? "Un souvenir en son"
-      : language === "zh"
-        ? "声音里的回忆"
-        : "A memory in sound";
-  root.prepend(canvas, caption);
+  root.prepend(canvas);
   const paint = canvas.getContext("2d");
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   let context,

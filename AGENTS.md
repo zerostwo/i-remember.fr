@@ -312,3 +312,9 @@ Current backend/product decisions:
 - Owner request on 2026-10-19: support MP3 and other audio attachments in public
   and admin memories, with music-reactive visuals that fit the established galaxy,
   monochrome particle texture, circular motifs and restrained playback controls.
+
+- Owner feedback on 2026-10-19: audio must play inline within its memory card,
+  keeping the story visible; do not open a fullscreen audio gallery. Keep the
+  visualizer and playback controls inside the cover and remove the oversized
+  separate listening presentation. Direct `/memory/:id` links must skip the
+  introduction and display the requested memory as soon as its assets are ready.
