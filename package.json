@@ -35,7 +35,7 @@
     "test:video": "node scripts/check-video.mjs",
     "test:audio": "node scripts/check-audio.mjs",
     "test:postgres": "node scripts/check-postgres-regressions.mjs",
-    "test:integration": "node scripts/check-server-proxy.mjs && node scripts/check-mobile-ux.mjs && node packages/content/src/check.mjs && node scripts/check-static-assets.mjs && node scripts/check-public-runtime.mjs && node scripts/check-memory-map.mjs && node scripts/check-vite-proxy.mjs && node scripts/check-seo.mjs && node scripts/check-video-uploads.mjs"
+    "test:integration": "node scripts/check-server-proxy.mjs && node scripts/check-mobile-ux.mjs && node packages/content/src/check.mjs && node scripts/check-static-assets.mjs && node scripts/check-public-runtime.mjs && node scripts/check-memory-map.mjs && node scripts/check-touch-selection.mjs && node scripts/check-vite-proxy.mjs && node scripts/check-seo.mjs && node scripts/check-video-uploads.mjs"
   },
   "dependencies": {
     "micromark": "4.0.2",

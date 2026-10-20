@@ -544,12 +544,29 @@
     };
   }
 
+  function pickTouchMemory(event, posts, camera, projector, raycaster, Vector3, width, height) {
+    // Touch has no preceding hover. Resolve the rendered memory under this tap
+    // synchronously, even when down/up both arrive between animation frames.
+    var point = new Vector3(event.x / width * 2 - 1, -event.y / height * 2 + 1, 1);
+    projector.unprojectVector(point, camera);
+    raycaster.set(camera.position, point.sub(camera.position).normalize());
+    var nearest = null, distance = Infinity;
+    posts.forEach(function (post) {
+      if (!post.visible || !post.interactive || !post.post) return;
+      if (post.uniforms.fade.value <= 0.05 || post.uniforms.alpha.value <= 0.05) return;
+      var hit = raycaster.intersectObject(post)[0];
+      if (hit && hit.distance < distance) { nearest = post; distance = hit.distance; }
+    });
+    return nearest;
+  }
+
   function bindLegacyInput(target, down, move, up, wheel, gesture) {
     // Always listen for touch: hybrid devices and emulation can change mode
     // after initialization. Non-passive handlers let the legacy controller own
     // galaxy gestures without cancelling native form interactions.
     var lastTouch = -Infinity;
     var pinching = false, pinchDistance = 0, nativeTouch = false;
+    var galaxyTouch = false, startX = 0, startY = 0, moved = false;
     function distance(event) {
       return event.touches.length < 2 ? 0 : Math.hypot(
         event.touches[0].pageX - event.touches[1].pageX,
@@ -562,6 +579,12 @@
         nativeTouch = !!event.target.closest("button,a,input,select,textarea,label,[contenteditable='true'],[data-menu-id],.search-btn,.photo-editor,.post-2d,.revival-photo-viewer,.revival-menu-memory") && !event.target.closest(".post-2d-close-btn");
       }
       if (nativeTouch) return;
+      if (event.type === "touchstart" && event.touches.length === 1 && !pinching) {
+        galaxyTouch = !!event.target.closest(".base-3d-container");
+        startX = event.touches[0].pageX; startY = event.touches[0].pageY; moved = false;
+      }
+      var contact = event.touches[0] || event.changedTouches[0];
+      if (galaxyTouch && contact && Math.hypot(contact.pageX - startX, contact.pageY - startY) > 12) moved = true;
       if (event.type === "touchstart") {
         if (event.touches.length > 1) { if (!pinching) down(event); pinching = true; pinchDistance = distance(event); return; }
         pinching = false; down(event);
@@ -576,7 +599,7 @@
           pinchDistance = next;
         } else move(event);
       } else if (!event.touches.length) {
-        if (pinching || event.type === "touchcancel") {
+        if (pinching || moved || event.type === "touchcancel") {
           up({ type: "touchend", cancelled: true, touches: [], changedTouches: event.changedTouches,
             target: event.target, preventDefault: function () { if (event.cancelable) event.preventDefault(); } });
         } else up(event);
@@ -646,8 +669,16 @@
       'var t=Number.isFinite(e.wheelDelta)?e.wheelDelta/120:-e.detail/3;if(!Number.isFinite(t)||t===0)return;');
     patched = patched.replace('s=e.isClick=e.distanceTime!==null', 's=e.isClick=!e.originalEvent.cancelled&&e.distanceTime!==null');
     patched = patched.replace('e.isDoubleClick=e.currentTime-l.lastUpTime<400',
-      'e.isDoubleClick=!e.originalEvent.cancelled&&e.currentTime-l.lastUpTime<400');
-    patched = patched.replace('l.lastUpTime=e.currentTime', 'l.lastUpTime=e.originalEvent.cancelled?0:e.currentTime');
+      'e.isDoubleClick=!e.originalEvent.cancelled&&e.currentTime-l.lastUpTime<400&&(!e.isTouch||(e.isClick&&l.revivalLastTouchClick&&Math.hypot(e.x-l.revivalLastTouchX,e.y-l.revivalLastTouchY)<24))');
+    patched = patched.replace('l.lastUpTime=e.currentTime', 'l.lastUpTime=e.originalEvent.cancelled?0:e.currentTime,l.revivalLastTouchClick=e.isTouch&&e.isClick,l.revivalLastTouchX=e.x,l.revivalLastTouchY=e.y');
+    // Keep the desktop hover path, but never use its stale target for touch.
+    patched = patched.replace('function Mt(e){K=!0}',
+      'function Mt(e){K=!0;if(e.isTouch){wt=e.x/B*2-1;Et=-e.y/j*2+1}}');
+    patched = patched.replace('var et=a.update(),st=f.update();',
+      'var et=a.update(),st=f.update();revivalTouchPosts=et.concat(st);');
+    patched = patched.replace('var bt=null,wt=0,Et=0,', 'var revivalTouchPosts=[],bt=null,wt=0,Et=0,');
+    patched = patched.replace('function Dt(t){K=!1,',
+      'function Dt(t){if(t.isTouch){var revivalWasDown=K;K=!1;if(!revivalWasDown||!t.isClick||t.originalEvent.cancelled)return;wt=t.x/B*2-1;Et=-t.y/j*2+1;var revivalHit=e.canInteractiveWithPost&&window.__REVIVAL_PICK_TOUCH_MEMORY__(t,revivalTouchPosts,it,at,ft,b.Vector3,B,j);if(bt){bt.onOut();bt=null}if(revivalHit){revivalHit.onClick();return}if(e.hasControl&&t.isDoubleClick){tt-=wt*F*.001*(1-e.zoom*.25);e.targetZoom=y(e.targetZoom+.2,0,1)}return}K=!1,');
     patched = patched.replace('function Pt(t){if(!e.hasControl)return;',
       'function Pt(t){if(!e.hasControl||!Number.isFinite(t))return;');
     // The globe is drawn in the shared WebGL canvas, outside the HTML nav.
@@ -2354,6 +2385,7 @@
   installSearchFallback();
   window.__REVIVAL_EXIT_SEARCH__ = exitLegacySearch;
   window.__REVIVAL_BIND_INPUT__ = bindLegacyInput;
+  window.__REVIVAL_PICK_TOUCH_MEMORY__ = pickTouchMemory;
   window.__REVIVAL_UPLOAD_ERROR__ = uploadFileError;
 
   document.addEventListener(

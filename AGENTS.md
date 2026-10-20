@@ -336,3 +336,7 @@ Current backend/product decisions:
   setting, disabled by default so visitors discover memories through the galaxy.
   When disabled, hide outer memory arrows and disable cross-memory swipe and
   keyboard shortcuts; retain photo navigation within each memory and view counts.
+
+- Owner feedback on 2026-10-19: touchscreen galaxy memories should open with a
+  normal light tap, without requiring a long press or prior hover. Keep dragging
+  and pinch zoom distinct from memory selection and preserve desktop behavior.

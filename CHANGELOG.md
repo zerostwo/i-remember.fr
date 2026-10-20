@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Touchscreen galaxy selection resolves the memory at the tap position immediately,
+  without requiring a prior hover; drags and pinches cannot turn into accidental opens.
+
 ### Changed
 
 - Audio plays inline inside the memory cover with a soft, music-reactive stardust field and
