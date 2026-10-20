@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Site setting for cross-memory arrows, swipes and keyboard shortcuts, disabled
+  by default to encourage galaxy exploration; in-memory photo navigation remains available.
+
 - MP3/M4A/WAV/OGG/FLAC audio memories in public and admin flows, with 100 MB /
   10 minute limits, chunked upload progress, MP3 conversion, stardust covers
   and a real-frequency reactive monochrome player with reduced-motion support.

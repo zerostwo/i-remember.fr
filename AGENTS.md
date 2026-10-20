@@ -331,3 +331,8 @@ Current backend/product decisions:
   disperses with the music, with no fixed waveform silhouette. This supersedes
   the earlier ring and horizontal waveform directions. Keep playback inline;
   selection of this direction does not establish approval of the final polish.
+
+- Owner feedback on 2026-10-19: make cross-memory navigation an admin Site
+  setting, disabled by default so visitors discover memories through the galaxy.
+  When disabled, hide outer memory arrows and disable cross-memory swipe and
+  keyboard shortcuts; retain photo navigation within each memory and view counts.

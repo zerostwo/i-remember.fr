@@ -305,6 +305,7 @@ function settingsFromV1(settings = {}, account = {}) {
     timezone: settings.timezone || "Asia/Shanghai",
     defaultLanguage: settings.defaultLanguage || "en",
     memorySharing: settings.memorySharing === true,
+    memoryNavigation: settings.memoryNavigation === true,
     anonymousSubmissions: settings.anonymousSubmissions === true,
     tracking: {
       enabled: Boolean(settings.tracking?.enabled),
@@ -3071,6 +3072,7 @@ function SettingsView({
     timezone: settings.timezone || "Asia/Shanghai",
     defaultLanguage: settings.defaultLanguage || "en",
     memorySharing: settings.memorySharing === true,
+    memoryNavigation: settings.memoryNavigation === true,
     anonymousSubmissions: Boolean(settings.anonymousSubmissions),
     tracking: {
       enabled: Boolean(settings.tracking?.enabled),
@@ -3100,6 +3102,7 @@ function SettingsView({
       timezone: settings.timezone || "Asia/Shanghai",
       defaultLanguage: settings.defaultLanguage || "en",
       memorySharing: settings.memorySharing === true,
+      memoryNavigation: settings.memoryNavigation === true,
       anonymousSubmissions: Boolean(settings.anonymousSubmissions),
       tracking: {
         enabled: Boolean(settings.tracking?.enabled),
@@ -3118,6 +3121,7 @@ function SettingsView({
     settings.timezone,
     settings.defaultLanguage,
     settings.memorySharing,
+    settings.memoryNavigation,
     settings.anonymousSubmissions,
     settings.tracking,
     account.email,
@@ -3212,6 +3216,13 @@ function SettingsView({
                       description="Display social sharing on public memories and after submission. Off by default."
                       checked={siteDraft.memorySharing}
                       onCheckedChange={(value) => updateSite("memorySharing", value)}
+                    />
+                    <ToggleField
+                      className="admin-settings-toggle"
+                      label="Allow switching between memories"
+                      description="Show memory arrows and allow swipe or keyboard shortcuts to open another memory. Off by default so visitors explore the galaxy. Photo navigation stays available."
+                      checked={siteDraft.memoryNavigation}
+                      onCheckedChange={(value) => updateSite("memoryNavigation", value)}
                     />
                     <p className="admin-settings-section-label">Public submissions</p>
                     <ToggleField

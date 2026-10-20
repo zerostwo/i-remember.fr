@@ -57,6 +57,7 @@ export type RuntimeSettings = {
   defaultLanguage: "en" | "fr" | "zh";
   anonymousSubmissions: boolean;
   memorySharing: boolean;
+  memoryNavigation: boolean;
   tracking: {
     enabled: boolean;
     umamiSrc: string;
@@ -95,6 +96,7 @@ function initialRuntimeSettings(): RuntimeSettings {
     timezone: String(process.env.TZ || "Asia/Shanghai"),
     defaultLanguage,
     memorySharing: false,
+    memoryNavigation: false,
     anonymousSubmissions: environmentBoolean(process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS, false),
     tracking: {
       enabled: Boolean(umamiSrc && umamiWebsiteId),
@@ -132,6 +134,7 @@ function normalizedRuntimeSettings(values: Record<string, unknown>): RuntimeSett
       ? (language as RuntimeSettings["defaultLanguage"])
       : "en",
     memorySharing: runtimeBoolean(values.memorySharing, false),
+    memoryNavigation: runtimeBoolean(values.memoryNavigation, false),
     anonymousSubmissions: runtimeBoolean(values.anonymousSubmissions, false),
     tracking: {
       enabled: runtimeBoolean(tracking.enabled, false),

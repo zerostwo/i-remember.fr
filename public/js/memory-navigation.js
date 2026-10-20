@@ -2,20 +2,21 @@
   "use strict";
   var current = "", recent = [], busy = false, sequence = 0, controller, animation;
   var root, panel, controls, mobile, buttons = [], status;
+  function enabled() { return Boolean(window.SONGQI_SITE_SETTINGS && window.SONGQI_SITE_SETTINGS.memoryNavigation === true); }
   function syncPresentation() {
     if (!root) return;
     var compact = mobile.matches;
     document.documentElement.classList.toggle("revival-memory-mobile-open", Boolean(current && compact));
     // Keep navigation outside the scrolling card on phones, so it never covers
     // the text. Desktop arrows remain anchored to the card's sides.
-    (compact ? root : panel).appendChild(controls);
+    if (enabled()) (compact ? root : panel).appendChild(controls);
   }
   function copy(en, fr, zh) { return window.LANG === "fr" ? fr : window.LANG === "zh" ? zh : en; }
   function swipeDirection(dx, dy, elapsed) {
     return elapsed < 1200 && Math.abs(dy) >= 65 && Math.abs(dy) > Math.abs(dx) * 1.5 ? (dy < 0 ? 1 : -1) : 0;
   }
   function available() {
-    return current && root && root.getBoundingClientRect().height && getComputedStyle(root).display !== "none" &&
+    return enabled() && current && root && root.getBoundingClientRect().height && getComputedStyle(root).display !== "none" &&
       !document.querySelector("dialog[open],.revival-menu-memory.is-visible") && !document.hidden;
   }
   function setBusy(value) { busy = value; buttons.forEach(function (button) { button.disabled = value; }); }
@@ -86,7 +87,7 @@
       buttons.push(button); controls.appendChild(button);
     });
     status = document.createElement("span"); status.className = "memory-navigation-status"; status.setAttribute("role", "status");
-    controls.appendChild(status); panel.appendChild(controls);
+    controls.appendChild(status);
     var start, suppressClickUntil = 0;
     function begin(x, y, target) {
       if (!available() || busy || target.closest("button,a,input,[contenteditable=true],.circle-btn,.revival-memory-explore")) return null;

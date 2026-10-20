@@ -206,6 +206,7 @@ export function v1SettingsPayload(settings = {}) {
     timezone: String(settings.timezone || "Asia/Shanghai").trim() || "Asia/Shanghai",
     defaultLanguage: language(settings.defaultLanguage),
     memorySharing: settings.memorySharing === true,
+    memoryNavigation: settings.memoryNavigation === true,
     anonymousSubmissions: Boolean(settings.anonymousSubmissions),
     tracking: {
       enabled: Boolean(settings.tracking?.enabled),

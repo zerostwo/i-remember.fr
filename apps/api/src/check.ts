@@ -589,6 +589,7 @@ assert.equal(publicSettings.body.data.timezone, "Asia/Shanghai");
 assert.equal(publicSettings.body.data.defaultLanguage, "en");
 assert.equal(publicSettings.body.data.anonymousSubmissions, false);
 assert.equal(publicSettings.body.data.memorySharing, false);
+assert.equal(publicSettings.body.data.memoryNavigation, false);
 assert.deepEqual(publicSettings.body.data.tracking, {
   enabled: false,
   umamiSrc: "",
@@ -602,10 +603,11 @@ for (const canonicalUrl of ["javascript:alert(1)", "https://example.org/path", "
 }
 const oversizedSeo = await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ ownerName: "x".repeat(121) }) });
 assert.equal(oversizedSeo.response.status, 400);
-const customSeo = await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ memorySharing: true, siteName: "Alex’s archive", canonicalUrl: "https://example.org/", ownerName: "Alex Example", ownerAlternateName: "", siteDescription: "Another personal archive" }) });
+const customSeo = await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ memoryNavigation: true, memorySharing: true, siteName: "Alex’s archive", canonicalUrl: "https://example.org/", ownerName: "Alex Example", ownerAlternateName: "", siteDescription: "Another personal archive" }) });
 assert.equal(customSeo.response.status, 200);
 const savedSeo = (await json("/api/v1/public/settings")).body.data;
 assert.equal(savedSeo.memorySharing, true);
+assert.equal(savedSeo.memoryNavigation, true);
 assert.equal(savedSeo.siteName, "Alex’s archive");
 assert.equal(savedSeo.siteTitle, publicSettings.body.data.siteTitle);
 assert.equal(savedSeo.canonicalUrl, "https://example.org");
@@ -613,6 +615,7 @@ assert.equal(savedSeo.ownerName, "Alex Example");
 assert.equal(savedSeo.ownerAlternateName, "");
 assert.equal(savedSeo.siteDescription, "Another personal archive");
 await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify(publicSettings.body.data) });
+assert.equal((await json("/api/v1/public/settings")).body.data.memoryNavigation, false);
 
 const defaultDisabledSubmission = await json("/api/v1/memories", {
   method: "POST",

@@ -69,6 +69,7 @@ assert.equal(v1PagePayload({ slug: "about", defaultLanguage: "zh" }).language, "
 assert.equal(v1MenuItemPayload({ label: "About", siteDefaultLanguage: "fr" }).language, "fr");
 const settingsPayload = v1SettingsPayload({
   memorySharing: true,
+  memoryNavigation: true,
   siteName: "I remember,",
   siteTitle: "Songqi",
   ownerName: "Someone Else", ownerAlternateName: "", siteDescription: "Another archive",
@@ -79,6 +80,8 @@ const settingsPayload = v1SettingsPayload({
 });
 assert.equal(settingsPayload.defaultLanguage, "zh");
 assert.equal(settingsPayload.memorySharing, true);
+assert.equal(settingsPayload.memoryNavigation, true);
+assert.equal(v1SettingsPayload({}).memoryNavigation, false);
 assert.equal(v1SettingsPayload({}).memorySharing, false);
 assert.equal(settingsPayload.siteName, "I remember,");
 assert.equal(settingsPayload.siteTitle, "Songqi");

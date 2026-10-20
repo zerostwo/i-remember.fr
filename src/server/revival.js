@@ -941,6 +941,7 @@ function environmentSiteSettings() {
     timezone: process.env.TZ || "Asia/Shanghai",
     defaultLanguage: normalizeLanguage(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en"),
     memorySharing: false,
+    memoryNavigation: false,
     anonymousSubmissions: process.env.I_REMEMBER_ANONYMOUS_SUBMISSIONS === "true",
     tracking: {
       enabled: Boolean(process.env.UMAMI_SRC && process.env.UMAMI_WEBSITE_ID),
@@ -966,6 +967,7 @@ function normalizedSiteSettings(value, fallback) {
     timezone: value.timezone || fallback.timezone,
     defaultLanguage: normalizeLanguage(value.defaultLanguage || fallback.defaultLanguage),
     memorySharing: value.memorySharing === true,
+    memoryNavigation: value.memoryNavigation === true,
     anonymousSubmissions:
       typeof value.anonymousSubmissions === "boolean"
         ? value.anonymousSubmissions

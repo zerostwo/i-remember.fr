@@ -156,6 +156,7 @@ export interface AppSettings {
   defaultLanguage?: "en" | "fr" | "zh";
   anonymousSubmissions?: boolean;
   memorySharing?: boolean;
+  memoryNavigation?: boolean;
   tracking?: {
     enabled?: boolean;
     umamiSrc?: string;

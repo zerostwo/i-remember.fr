@@ -30,7 +30,9 @@ Other self-hosters can set their own public name, description, and domain in the
   displayed on public cards. Sharing is off by default and can
   be enabled in **Settings → Site → Show sharing buttons**.
 - **Discover another moment.** Swipe vertically on an opened photo or choose
-  either circular side arrow to visit a random memory with a short transition. Horizontal
+  either circular side arrow to visit a random memory with a short transition when
+  **Settings → Site → Memory cards → Allow switching between memories** is enabled
+  (off by default). Visitors can always explore the galaxy. Horizontal
   swipes browse its photos. Admin **Memories** shows sortable view totals;
   opening a memory counts once, while prefetching and changing photos do not.
 - **Invite contributions.** Optional anonymous submissions follow a staged

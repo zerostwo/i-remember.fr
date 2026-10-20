@@ -238,7 +238,7 @@ assert.equal(navigation.swipeDirection(10, 100, 2000), 0, "Slow scrolling must n
   let breakpointChanged, controlsParent;
   const mobile = { matches: true, addEventListener(_type, handler) { breakpointChanged = handler; } };
   const element = () => ({ appendChild() { controlsParent = this; }, setAttribute() {}, addEventListener() {} });
-  const root = element(), panel = element(), testWindow = { matchMedia: () => mobile };
+  const root = element(), panel = element(), testWindow = { SONGQI_SITE_SETTINGS: { memoryNavigation: true }, matchMedia: () => mobile };
   runInNewContext(navigationSource, {
     window: testWindow,
     document: { documentElement: { classList: { toggle(name, value) { classes.set(name, value); } } }, createElement: element,
@@ -261,19 +261,23 @@ assert.equal(navigation.swipeDirection(10, 100, 2000), 0, "Slow scrolling must n
   assert.ok(patchedMain.includes('r.particles.visible=!document.documentElement.classList.contains("revival-memory-mobile-open")'));
 }
 // Exercise the actual transition path, including directional and reduced-motion behavior.
-for (const [direction, axis, reduced, outgoing, incoming] of [
+for (const [direction, axis, reduced, outgoing, incoming, memoryNavigation = true] of [
   [1, undefined, false, "-48px 0", "48px 0"],
   [-1, undefined, false, "48px 0", "-48px 0"],
   [1, "vertical", false, "0 -48px", "0 48px"],
   [-1, "vertical", false, "0 48px", "0 -48px"],
   [1, undefined, true, null, null],
+  [1, undefined, false, null, null, false],
+  [-1, "vertical", false, null, null, false],
+  [1, undefined, false, null, null, null],
 ]) {
-  const frames = [], replacements = [];
-  const element = () => ({ appendChild() {}, setAttribute() {}, addEventListener() {}, getBoundingClientRect: () => ({ height: 400 }) });
+  const frames = [], replacements = [], requests = [], attached = [];
+  const element = () => ({ appendChild(child) { attached.push(child); }, setAttribute() {}, addEventListener() {}, getBoundingClientRect: () => ({ height: 400 }) });
   const root = element(), panel = element();
   panel.animate = (keyframes) => { frames.push(keyframes); return { finished: Promise.resolve(), cancel() {} }; };
   const testWindow = {
     setTimeout, clearTimeout,
+    SONGQI_SITE_SETTINGS: memoryNavigation === null ? undefined : { memoryNavigation },
     matchMedia: (query) => ({ matches: query.includes("reduced-motion") && reduced, addEventListener() {} }),
     __REVIVAL_REPLACE_MEMORY__: (post) => replacements.push(post.public_id),
   };
@@ -281,10 +285,17 @@ for (const [direction, axis, reduced, outgoing, incoming] of [
     window: testWindow,
     document: { documentElement: { classList: { toggle() {} } }, hidden: false, createElement: element, querySelector: (selector) => selector === ".post-2d" ? root : selector === ".post-2d-center-wrapper" ? panel : null },
     getComputedStyle: () => ({ display: "block" }), AbortController,
-    fetch: async () => ({ ok: true, json: async () => ({ data: { post: { public_id: "second-memory" } } }) }),
+    fetch: async (url) => { requests.push(url); return { ok: true, json: async () => ({ data: { post: { public_id: "second-memory" } } }) }; },
   });
   testWindow.SongqiMemoryNavigation.opened({ public_id: "first-memory" });
   await testWindow.SongqiMemoryNavigation.next(direction, axis);
+  if (!memoryNavigation) {
+    assert.deepEqual(replacements, [], "Disabled or absent setting must prevent memory replacement");
+    assert.deepEqual(requests, ["/api/v1/memories/first-memory/view"], "Views still count without random requests");
+    assert.ok(!attached.some(child => child.className === "memory-navigation"), "Disabled navigation has no visible controls");
+    assert.equal(frames.length, 0);
+    continue;
+  }
   assert.deepEqual(replacements, ["second-memory"]);
   assert.equal(frames.length, reduced ? 0 : 2);
   if (!reduced) {
