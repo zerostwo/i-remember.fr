@@ -82,6 +82,41 @@ assert.ok(patchedMain.includes('e.SKIP_PRELOADER=!!window.SONGQI_DIRECT_MEMORY||
 assert.ok(patchedMain.includes('n._appInitFunc=m,u.start()},window.SONGQI_DIRECT_MEMORY?0:1e3)'));
 assert.ok(patchedMain.includes('d.fromTo(g,revivalDirect?0:1'));
 assert.ok(patchedMain.includes('window.SongqiPhotos.closeMemory&&window.SongqiPhotos.closeMemory()'));
+// Natural completion and fast-forward share a single initialization latch, even
+// if an early click arrives before assets and a later callback arrives afterward.
+const startupSource = patchedMain.slice(patchedMain.indexOf("function m(){if(window.I_REMEMBER_REVIVAL.introAppInitialized)"));
+assert.ok(startupSource.startsWith("function m(){if("));
+let startupReady = false;
+const startupCalls = [];
+const startupWindow = { I_REMEMBER_REVIVAL: { introAppInitialized: false } };
+const startup = runInNewContext(`(${startupSource.slice(0, startupSource.indexOf("function g(){"))})`, {
+  window: startupWindow, e: { uiAssetPath: "ui.png" },
+  u: { getLoadedItemByURL: () => startupReady ? { content: {} } : null },
+  n: { init: () => startupCalls.push("ui") },
+  r: { init: () => startupCalls.push("posts") },
+  i: { init: () => startupCalls.push("steps"), show: () => startupCalls.push("show") },
+  f: { showParticles: () => startupCalls.push("particles") },
+});
+startup();
+assert.equal(startupWindow.I_REMEMBER_REVIVAL.introAppInitialized, false);
+startupReady = true;
+for (let attempt = 0; attempt < 5; attempt++) startup();
+assert.deepEqual(startupCalls, ["ui", "posts", "steps", "particles", "show"]);
+const photoSource = await readFile(new URL("../public/js/photo-gallery.js", import.meta.url), "utf8");
+const uploadStart = photoSource.indexOf("  function installUploadProgress(");
+const uploadEnd = photoSource.indexOf("  function createAdjustmentStep(", uploadStart);
+const installProgress = runInNewContext(`(${photoSource.slice(uploadStart, uploadEnd)})`, {
+  window: { matchMedia: () => ({ matches: false }) },
+});
+const ring = { uniforms: {}, material: { vertexShader: "void main() { vec4 modelViewPos = vec4(1.); }" } };
+installProgress(ring);
+const firstShader = ring.material.vertexShader;
+ring.uniforms.uploadProgress.value = 0.42;
+for (let attempt = 0; attempt < 5; attempt++) installProgress(ring);
+assert.equal(ring.material.vertexShader, firstShader);
+assert.equal(ring.uniforms.uploadProgress.value, 0.42, "Re-initialization must not reset an upload");
+assert.equal(firstShader.match(/uniform float uploadActive;/g).length, 1);
+
 // Exercise native touch sequences even when the page started with mouse input.
 const touchListeners = new Map();
 const inputEvents = [], zoomEvents = [];

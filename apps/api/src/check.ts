@@ -672,7 +672,7 @@ const invalidLatitude = await json("/api/v1/memories", {
 assert.equal(invalidLatitude.response.status, 400);
 assert.equal(invalidLatitude.body.error.code, "invalid_latitude");
 
-const memoryMarkdown = "# Created\n\nThrough v1 API";
+const memoryMarkdown = "# Created\n\n" + "完整回忆 with emoji 🌌\n\n".repeat(20000) + "END";
 const anonymousAuthor = await json("/api/v1/memories", {
   method: "POST",
   body: JSON.stringify({ title: "Spoofed", content: "Nope", authorId: "u1" }),
@@ -769,6 +769,13 @@ assert.equal(created.body.data.status, "NORMAL");
 assert.equal(created.body.data.legacyId, undefined);
 assert.equal(created.body.data.authorId, "u1");
 assert.equal(created.body.data.content, memoryMarkdown);
+const longUpdate = await json(`/api/v1/memories/${created.body.data.id}`, {
+  method: "PATCH", headers: adminHeaders, body: JSON.stringify({ content: memoryMarkdown + " updated" }),
+});
+assert.equal(longUpdate.response.status, 200);
+assert.equal(longUpdate.body.data.content, memoryMarkdown + " updated");
+assert.equal((await json(`/api/v1/memories/${created.body.data.id}`)).body.data.content, memoryMarkdown + " updated");
+
 assert.deepEqual(created.body.data.embedding, [0.1, 0.2]);
 assert.equal(created.body.data.aiSummary, "API-created memory summary");
 assert.equal(created.body.data.knowledgeGraph.nodes[0], "memory");
@@ -1181,13 +1188,13 @@ const createdPage = await json("/api/v1/pages", {
   body: JSON.stringify({
     slug: "about",
     title: "About",
-    bodyMarkdown: "# About\n\nManaged in v1.",
+    bodyMarkdown: memoryMarkdown,
     status: "DRAFT",
   }),
 });
 assert.equal(createdPage.response.status, 201);
 assert.equal(createdPage.body.data.slug, "about");
-assert.equal(createdPage.body.data.bodyMarkdown, "# About\n\nManaged in v1.");
+assert.equal(createdPage.body.data.bodyMarkdown, memoryMarkdown);
 
 const invalidPageRename = await json("/api/v1/pages/about", {
   method: "PATCH",
@@ -1200,9 +1207,10 @@ assert.equal(invalidPageRename.body.error.code, "invalid_page_slug");
 const updatedPage = await json("/api/v1/pages/about", {
   method: "PATCH",
   headers: adminHeaders,
-  body: JSON.stringify({ status: "PUBLISHED", metadata: { footer: true } }),
+  body: JSON.stringify({ status: "PUBLISHED", metadata: { footer: true }, bodyMarkdown: memoryMarkdown + " page" }),
 });
 assert.equal(updatedPage.body.data.status, "PUBLISHED");
+assert.equal(updatedPage.body.data.bodyMarkdown, memoryMarkdown + " page");
 assert.equal(updatedPage.body.data.metadata.footer, true);
 
 const listedPages = await json("/api/v1/pages", {

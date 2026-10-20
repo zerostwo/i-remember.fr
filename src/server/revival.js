@@ -24,8 +24,10 @@ const postSearchResultMax = 200;
 const colorMapStartupDelayMs = 1000;
 const apiFetchTimeoutMs = 2500;
 const siteSettingsCacheMs = 5000;
-const maxJsonBodyBytes = 64 * 1024;
-const maxFormBodyBytes = 256 * 1024;
+// Transport protection, not a text-length limit; never truncate accepted content.
+const configuredContentBytes = Number(process.env.API_MAX_CONTENT_JSON_BODY_BYTES);
+const maxFormBodyBytes = Number.isSafeInteger(configuredContentBytes) && configuredContentBytes >= 256 * 1024 && configuredContentBytes <= 64 * 1024 * 1024
+  ? configuredContentBytes : 16 * 1024 * 1024;
 const maxUploadBodyBytes = Number.parseInt(
   process.env.I_REMEMBER_MAX_UPLOAD_BYTES || `${8 * 1024 * 1024}`,
   10,
@@ -921,7 +923,7 @@ function validatedPostFields(fields = {}, defaultLanguage = "en") {
   return {
     language,
     name: cleanText(name, "I Remember", 80),
-    message: cleanText(message, defaultMessage(language), 1000),
+    message: String(message || defaultMessage(language)).replace(/\r\n?/g, "\n").trim(),
     fileId: safeUploadedFileId(fileId) || "revival-upload",
     imgOffsetX: String(clampNumber(fields.imgOffsetX || fields.img_offset_x, -1, 1)),
     imgOffsetY: String(clampNumber(fields.imgOffsetY || fields.img_offset_y, -1, 1)),

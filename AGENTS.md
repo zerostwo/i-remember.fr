@@ -340,3 +340,8 @@ Current backend/product decisions:
 - Owner feedback on 2026-10-19: touchscreen galaxy memories should open with a
   normal light tap, without requiring a long press or prior hover. Keep dragging
   and pinch zoom distinct from memory selection and preserve desktop behavior.
+
+- Owner request on 2026-10-20: memory body text has no fixed word or character
+  limit in public submissions or admin editing. Preserve complete long-form
+  content and paragraphs; card excerpts still use Read more. Transport capacity
+  protection must reject oversized requests explicitly, never silently truncate.

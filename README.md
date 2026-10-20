@@ -13,6 +13,12 @@ Other self-hosters can set their own public name, description, and domain in the
 
 ![Interactive memory galaxy with the original orbit, search, and add-memory controls](docs/images/galaxy.webp)
 
+Memory and managed-page bodies have no fixed word or character limit. Public
+submissions and admin edits preserve complete text, while cards show an excerpt
+with **Read more**. A separate configurable request budget
+(`API_MAX_CONTENT_JSON_BODY_BYTES`, 16 MiB by default) protects the server;
+oversized requests fail explicitly instead of silently cutting off the text.
+
 ## What you can do
 
 - **Explore memories in 3D.** Drag, orbit, zoom, search, and open individual memories;

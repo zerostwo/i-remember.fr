@@ -9,10 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Homepage natural intro completion and fast-forward share one initialization
+  guard; repeated calls no longer duplicate particle shaders or crop controls.
+
 - Touchscreen galaxy selection resolves the memory at the tap position immediately,
   without requiring a prior hover; drags and pinches cannot turn into accidental opens.
 
 ### Changed
+
+- Memory and managed-page bodies no longer have fixed character limits or silent
+  truncation. Public submissions preserve paragraphs; content requests have a
+  separate configurable 16 MiB transport budget.
 
 - Audio plays inline inside the memory cover with a soft, music-reactive stardust field and
   compact transport controls below it, keeping the story visible.

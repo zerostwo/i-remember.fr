@@ -200,7 +200,7 @@ export class MemoryController {
         ...REQUEST_RATE_LIMITS.anonymousSubmission,
       });
     }
-    const input = memoryInput(await readJson(context.req));
+    const input = memoryInput(await readJson(context.req, { maxBytes: JSON_BODY_LIMITS.contentBytes }));
     const hasAiFields =
       input.embedding !== undefined ||
       input.aiSummary !== undefined ||
@@ -237,7 +237,7 @@ export class MemoryController {
     const data = await this.memories.update(
       authenticate(context.req),
       context.params.id,
-      memoryPatchInput(await readJson(context.req)),
+      memoryPatchInput(await readJson(context.req, { maxBytes: JSON_BODY_LIMITS.contentBytes })),
     );
     return { success: true, data: memoryDto(data, true) };
   }
@@ -309,7 +309,7 @@ export class PageController {
   async create(context: RequestContext) {
     const data = await this.pages.create(
       authenticate(context.req),
-      pageInput(await readJson(context.req)),
+      pageInput(await readJson(context.req, { maxBytes: JSON_BODY_LIMITS.contentBytes })),
     );
     context.res.statusCode = 201;
     return { success: true, data: pageDto(data) };
@@ -319,7 +319,7 @@ export class PageController {
     const data = await this.pages.update(
       authenticate(context.req),
       pageSlugInput(context.params.slug),
-      pagePatchInput(await readJson(context.req)),
+      pagePatchInput(await readJson(context.req, { maxBytes: JSON_BODY_LIMITS.contentBytes })),
       languageQuery(context.url.searchParams),
     );
     return { success: true, data: pageDto(data) };

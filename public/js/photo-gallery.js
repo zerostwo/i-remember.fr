@@ -127,10 +127,34 @@
     }
     if (failure) error(failure);
   }
+  function installUploadProgress(ring) {
+    if (ring.material.vertexShader.includes("uniform float uploadActive;")) return;
+    // Keep the original particle geometry and movement; illuminate its existing
+    // circumference clockwise using measured transfer / transcode progress.
+    ring.uniforms.uploadActive = { type: "f", value: 0 };
+    ring.uniforms.uploadProgress = { type: "f", value: 0 };
+    ring.uniforms.uploadReducedMotion = { type: "f", value: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0 };
+    ring.material.vertexShader = "uniform float uploadActive;\nuniform float uploadProgress;\nuniform float uploadReducedMotion;\n" + ring.material.vertexShader.replace("vec4 modelViewPos =", [
+      "float uploadAngle = mod(atan(pos.x, pos.y) + PI * 2.0, PI * 2.0) / (PI * 2.0);",
+      // Measure distance around the circle so both arc ends feather through
+      // twelve o'clock without a straight seam or changing the particles.
+      "float uploadArc = uploadProgress < 0.0 ? .16 : clamp(uploadProgress, 0.0, 1.0);",
+      "float uploadCenter = uploadArc * .5 + (uploadProgress < 0.0 ? time * .15 * (1.0 - uploadReducedMotion) : 0.0);",
+      "float uploadDistance = abs(fract(uploadAngle - uploadCenter + .5) - .5);",
+      "float uploadFeather = .035;",
+      "float uploadLit = 1.0 - smoothstep(uploadArc * .5 - uploadFeather, uploadArc * .5 + uploadFeather, uploadDistance);",
+      "if (uploadProgress == 0.0) uploadLit = 0.0;",
+      "if (uploadProgress >= 1.0) uploadLit = 1.0;",
+      "pAlpha *= mix(1.0, .14 + uploadLit * 1.06, uploadActive);",
+      "vec4 modelViewPos ="
+    ].join("\n"));
+    ring.material.needsUpdate = true;
+  }
   function createAdjustmentStep(steps, input, circle, tween, ring) {
     state.steps = steps;
     state.input = input;
     var root, viewport, preview, range, strip, controls, add, picker, activeImage;
+    var initialized = false;
     var active = false;
     var confirming = false;
     var pointers = new Map();
@@ -262,27 +286,9 @@
       finally { confirming = false; }
     }
     function init() {
-      // Keep the original particle geometry and movement; illuminate its existing
-      // circumference clockwise using measured transfer / transcode progress.
+      if (initialized) return;
       state.ring = ring;
-      ring.uniforms.uploadActive = { type: "f", value: 0 };
-      ring.uniforms.uploadProgress = { type: "f", value: 0 };
-      ring.uniforms.uploadReducedMotion = { type: "f", value: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0 };
-      ring.material.vertexShader = "uniform float uploadActive;\nuniform float uploadProgress;\nuniform float uploadReducedMotion;\n" + ring.material.vertexShader.replace("vec4 modelViewPos =", [
-        "float uploadAngle = mod(atan(pos.x, pos.y) + PI * 2.0, PI * 2.0) / (PI * 2.0);",
-        // Measure distance around the circle so both arc ends feather through
-        // twelve o'clock without a straight seam or changing the particles.
-        "float uploadArc = uploadProgress < 0.0 ? .16 : clamp(uploadProgress, 0.0, 1.0);",
-        "float uploadCenter = uploadArc * .5 + (uploadProgress < 0.0 ? time * .15 * (1.0 - uploadReducedMotion) : 0.0);",
-        "float uploadDistance = abs(fract(uploadAngle - uploadCenter + .5) - .5);",
-        "float uploadFeather = .035;",
-        "float uploadLit = 1.0 - smoothstep(uploadArc * .5 - uploadFeather, uploadArc * .5 + uploadFeather, uploadDistance);",
-        "if (uploadProgress == 0.0) uploadLit = 0.0;",
-        "if (uploadProgress >= 1.0) uploadLit = 1.0;",
-        "pAlpha *= mix(1.0, .14 + uploadLit * 1.06, uploadActive);",
-        "vec4 modelViewPos ="
-      ].join("\n"));
-      ring.material.needsUpdate = true;
+      installUploadProgress(ring);
       root = document.querySelector(".add-steps-adjustment");
       root.classList.add("photo-editor");
       viewport = document.createElement("div");
@@ -384,6 +390,7 @@
       var originalShow = steps.show;
       steps.show = function () { state.photos = []; state.selected = 0; state.steps.data.photos = []; state.steps.data.fileId = null; state.images.clear(); return originalShow.apply(this, arguments); };
       state.editor = { refresh: refresh, setBusy: setBusy };
+      initialized = true;
     }
     function show() {
       // Remote-provider single uploads still enter the same crop editor.

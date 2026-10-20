@@ -27,10 +27,9 @@ async function freePort() {
 }
 
 const upstream = createServer(async (req, res) => {
-  let body = "";
-  for await (const chunk of req) {
-    body += chunk;
-  }
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const body = Buffer.concat(chunks).toString("utf8");
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   if (req.method === "GET" && req.url === "/readyz") {
     if (!v1Reachable) {
@@ -569,13 +568,18 @@ try {
     { fileId: cameraId, crop: { x: 1, y: 0.5, zoom: 4 } },
     { fileId: publicUploadBody.data.fileId, crop: { x: 0.5, y: 0.5, zoom: 1 } },
   ];
+  const longMessage = "中文回忆 🌌\n\n".repeat(20000) + "END";
+  const longForm = new FormData();
+  longForm.set("name", "Gallery test");
+  longForm.set("message", longMessage);
+  longForm.set("photos", JSON.stringify(crops));
   const albumResponse = await fetch(`${baseUrl}/api/post`, {
-    method: "POST", headers: { "Content-Type": "application/json", Origin: baseUrl },
-    body: JSON.stringify({ name: "Gallery test", message: "Two independently cropped photos.", photos: crops }),
+    method: "POST", headers: { Origin: baseUrl }, body: longForm,
   });
   assert.equal(albumResponse.status, 200);
   const album = (await albumResponse.json()).data;
   assert.equal(album.photos.length, 2);
+  assert.equal(v1CreateBodies.at(-1).content, longMessage, "Public submissions must preserve the complete text and paragraphs");
   assert.ok(album.photos[0].image_url.includes("/crop-"));
   assert.equal(album.photos[0].full_image_url, `/uploads/posts/${cameraId}/full.jpg`);
   assert.deepEqual(v1CreateBodies.at(-1).attachments.map(a => a.metadata.crop), crops.map(p => p.crop));

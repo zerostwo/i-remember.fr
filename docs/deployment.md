@@ -215,3 +215,12 @@ files below still need host-level rotation and retention:
 - `logs/startup.log`;
 - `logs/app.log`;
 - `logs/postgres.log`.
+
+### Long-form request capacity
+
+Memory and page bodies have no character-count limit. Both the public submission
+proxy and the API use `API_MAX_CONTENT_JSON_BODY_BYTES` (default 16777216 bytes,
+configurable from 256 KiB through 64 MiB) for content writes. Other JSON endpoints
+retain the smaller standard budget. Requests above the transport budget receive
+HTTP 413 without saving truncated text. Allow the same request size in any outer
+reverse proxy; URL-encoded public submissions include encoding overhead.

@@ -25,6 +25,12 @@ export const JSON_BODY_LIMITS = {
     16 * 1024,
     2 * 1024 * 1024,
   ),
+  contentBytes: boundedEnvironmentInteger(
+    process.env.API_MAX_CONTENT_JSON_BODY_BYTES,
+    16 * 1024 * 1024,
+    256 * 1024,
+    64 * 1024 * 1024,
+  ),
   assetBytes: boundedEnvironmentInteger(
     process.env.API_MAX_ASSET_JSON_BODY_BYTES || process.env.API_MAX_JSON_BODY_BYTES,
     Math.ceil((rawUploadBytes * 4) / 3) + 64 * 1024,

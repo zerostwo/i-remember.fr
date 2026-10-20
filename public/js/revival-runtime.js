@@ -647,6 +647,12 @@
       'e.SKIP_PRELOADER=!!window.SONGQI_DIRECT_MEMORY||LANG=="zh"')
       .replace('n._appInitFunc=m,u.start()},1e3)',
         'n._appInitFunc=m,u.start()},window.SONGQI_DIRECT_MEMORY?0:1e3)');
+    // Both the natural intro and fast-forward call this entry. Guard before any
+    // controllers, renderers or shader extensions can initialize twice.
+    patched = patched.replace(
+      'function m(){e.uiAsset=u.getLoadedItemByURL(e.uiAssetPath).content,',
+      'function m(){if(window.I_REMEMBER_REVIVAL.introAppInitialized)return;if(!u.getLoadedItemByURL(e.uiAssetPath))return;window.I_REMEMBER_REVIVAL.introAppInitialized=true;e.uiAsset=u.getLoadedItemByURL(e.uiAssetPath).content,'
+    );
     // The portrait footer row's map center is viewport height minus 74px. Mirror
     // that coordinate in the WebGL overlay so its pixels and hit target agree.
     patched = patched.replace(
@@ -1768,17 +1774,6 @@
     preloader.setAttribute("data-fast-forward-phase", phase);
   }
 
-  function wrapLegacyAppInit(ui) {
-    if (!ui || typeof ui._appInitFunc !== "function" || ui._revivalIntroInitWrapped) return;
-    var originalInit = ui._appInitFunc;
-    ui._appInitFunc = function () {
-      if (window.I_REMEMBER_REVIVAL.introAppInitialized) return null;
-      window.I_REMEMBER_REVIVAL.introAppInitialized = true;
-      return originalInit.apply(this, arguments);
-    };
-    ui._revivalIntroInitWrapped = true;
-  }
-
   function legacyAssetsReadyForIntroExit() {
     var config = legacyModule("config");
     var preloader = legacyModule("preloaderController");
@@ -1790,7 +1785,6 @@
     var ui = legacyModule("uiController");
     if (!ui || typeof ui._appInitFunc !== "function") return false;
     if (!legacyAssetsReadyForIntroExit()) return false;
-    wrapLegacyAppInit(ui);
     ui._appInitFunc();
     return true;
   }

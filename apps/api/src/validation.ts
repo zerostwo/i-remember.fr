@@ -39,7 +39,7 @@ function text(value: unknown, fallback = "", max = 1000) {
     .slice(0, max);
 }
 
-function bodyText(value: unknown, fallback = "", max = 50000) {
+function bodyText(value: unknown, fallback = "", max = Infinity) {
   return String(value ?? fallback)
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
@@ -198,7 +198,7 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
     throw new ApiError(400, "Legacy memory ids are not supported", "unsupported_legacy_id");
   }
   const title = text(value.title, "", 180);
-  const content = bodyText(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
+  const content = bodyText(value.content ?? value.bodyMarkdown ?? value.text);
   const visibility = text(value.visibility, "PUBLIC", 20).toUpperCase();
   const status = has(value, "status") ? text(value.status, "NORMAL", 20).toUpperCase() : "";
 
@@ -280,7 +280,7 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
   }
 
   if (has(value, "content") || has(value, "bodyMarkdown") || has(value, "text")) {
-    input.content = bodyText(value.content ?? value.bodyMarkdown ?? value.text, "", 50000);
+    input.content = bodyText(value.content ?? value.bodyMarkdown ?? value.text);
     if (!input.content) throw new ApiError(400, "Content is required", "missing_content");
   }
 
@@ -378,7 +378,7 @@ export function pageInput(value: Record<string, unknown>): PageInput {
     language: language(value.language ?? value.ln ?? "en"),
     title,
     excerpt: value.excerpt ? text(value.excerpt, "", 600) : undefined,
-    bodyMarkdown: bodyText(value.bodyMarkdown ?? value.body_markdown ?? value.content, "", 50000),
+    bodyMarkdown: bodyText(value.bodyMarkdown ?? value.body_markdown ?? value.content),
     status: status as PageStatus,
     linkedMemoryId:
       value.linkedMemoryId || value.linked_memory_id
@@ -404,8 +404,6 @@ export function pagePatchInput(value: Record<string, unknown>): PageUpdateInput 
   if (has(value, "bodyMarkdown") || has(value, "body_markdown") || has(value, "content")) {
     input.bodyMarkdown = bodyText(
       value.bodyMarkdown ?? value.body_markdown ?? value.content,
-      "",
-      50000,
     );
   }
   if (has(value, "status")) {
