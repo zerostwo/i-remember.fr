@@ -1415,6 +1415,9 @@ try {
 
   const servedAsset = await fetch(`${assetBaseUrl}/uploads/served.txt`);
   assert.equal(servedAsset.status, 200);
+  assert.equal(servedAsset.headers.get("x-robots-tag"), "noindex, nofollow, noimageindex");
+  const assetHead = await fetch(`${assetBaseUrl}/uploads/served.txt`, { method: "HEAD" });
+  assert.equal(assetHead.headers.get("x-robots-tag"), "noindex, nofollow, noimageindex");
   assert.equal(servedAsset.headers.get("content-type"), "text/plain; charset=utf-8");
   assert.equal(await servedAsset.text(), "served asset");
 

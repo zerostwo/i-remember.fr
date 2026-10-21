@@ -14,30 +14,42 @@ descriptions, owner identity, or tracking settings.
 
 ## Implemented behavior
 
-- HTML responses contain one title, description, and canonical link, plus Open
-  Graph, Twitter card metadata, and JSON-LD `WebSite` / `Person` information.
-- Homepage interactive content and fallback memory links use `data-nosnippet`;
-  the configured description remains eligible for snippets. Links stay crawlable,
-  and memory permalinks retain their own descriptions and readable content.
-- Published memory pages contain content-specific descriptions and `CreativeWork`
-  data. Anonymous memories are not falsely attributed to the site owner.
-- Names and text are escaped in HTML, XML, and JSON-LD. Canonical origins are
-  validated when saved. Clearing the alternate name removes it from public metadata.
-- `/robots.txt` advertises the current domain's `/sitemap.xml`. Larger archives
-  use a sitemap index and numbered files, with up to 20,000 memories per file.
-- Only valid, nonempty published public memories returned by the unauthenticated
-  API enter the sitemap. Unlisted/private/draft/archived content stays out.
-- `/memory/<id>` uses one canonical content URL regardless of display language;
-  homepage language variants canonicalize to `/`. The display language translates
-  interface text, not the underlying memory collection.
-- JavaScript-free visitors get a readable fallback with links to real memories.
-  The normal rendered page keeps the original galaxy and its interaction model.
-- Admin and API responses use `X-Robots-Tag: noindex, nofollow`. Robots exclusion
-  is a crawling hint, not an access-control mechanism; authentication remains required.
+- Only the homepage and configured site identity are eligible for search indexing.
+  Homepage language variants canonicalize to `/`.
+- Public pages use `noimageindex`; memory permalinks additionally use `noindex,
+  nofollow` in both HTML metadata and `X-Robots-Tag` response headers.
+- Uploaded files receive `X-Robots-Tag: noindex, nofollow, noimageindex`, including
+  originals, crops, thumbnails, GIFs, video and audio. This applies to the public
+  upload routes and the API's configurable local storage path, including HEAD
+  requests and partial responses where supported.
+- Metadata retains the configured site description, static site thumbnail and
+  JSON-LD `WebSite` / `Person` identity. It no longer publishes memory text,
+  `CreativeWork` data or uploaded media as search/share metadata.
+- `/sitemap.xml` lists only the homepage. Previous numbered sitemaps return 404.
+  The homepage's no-JavaScript fallback contains no memory directory. Direct
+  memory pages keep readable fallback text, excluded from snippets and indexing.
+- Admin/API responses remain `noindex, nofollow`. `/robots.txt` advertises the
+  homepage sitemap and blocks admin/API crawling. Do not disallow `/memory/` or
+  `/uploads/`: crawlers need access to their noindex headers to remove old results.
+- Public viewing, memory links, albums and the galaxy remain available. No
+  user-agent-specific content is served. These directives are not authentication
+  and cannot stop noncompliant scrapers or people opening public image URLs.
 
-Metadata is generated for everyone, without special crawler-only HTML. It does not
-change the normal public layout or add keywords hidden solely for search ranking.
-Private account email and credentials are never included in the identity schema.
+If storage is served by an external CDN or object store, configure the same
+`X-Robots-Tag` on that origin and invalidate cached responses. Application headers
+cannot protect a URL served directly by another origin.
+
+## Remove previously indexed content
+
+Deploy first, then verify actual memory and image response headers. In Google
+Search Console, inspect a memory URL and request recrawling as appropriate. For
+faster removal, use **Removals → New request → Remove all URLs with this prefix**
+for `https://songqi.org/uploads/` and separately `https://songqi.org/memory/`.
+Include any other storage prefixes or origins actually used. Never request removal
+of the whole domain or `/`, since the homepage should remain discoverable.
+Temporary removal is not permanent: retain noindex after it expires. Search
+Console access is needed to submit these requests; deploying does not submit them.
+Results disappear only after Google processes the removal or recrawls the content.
 
 ## Launch on songqi.org
 
@@ -72,7 +84,7 @@ verify a Search Console property, or submit a sitemap on the owner's behalf.
 ## Content and indexing
 
 Write a useful published introduction that names the owner and explains the site.
-Use meaningful memory titles and original stories. Avoid repeating names and keywords
+Keep memory content out of search results. Avoid repeating names and keywords
 unnaturally. A public homepage is a shared archive, so the schema describes a `WebSite`
 about a `Person`; it does not claim a special Google profile-page rich result.
 
@@ -87,3 +99,7 @@ ranking for Songqi Duan / 段松岐. New domains may take time to be discovered 
 - [Google: canonical URLs](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls)
 - [Google Search Console](https://search.google.com/search-console/about)
 - [Bing Webmaster Tools](https://www.bing.com/webmasters/about)
+
+- [Google: remove your images from search](https://developers.google.com/search/docs/crawling-indexing/prevent-images-on-your-page)
+- [Google: block indexing with noindex](https://developers.google.com/search/docs/crawling-indexing/block-indexing)
+- [Google: Removals tool](https://support.google.com/webmasters/answer/9689846)

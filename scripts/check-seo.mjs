@@ -18,13 +18,15 @@ const post = {
   image_url: "/uploads/morning.jpg",
 };
 const template =
-  '<html><head><title>Old</title><meta name="description" content="Old"><meta property="og:url" content="old"></head><body><div class="app"><div class="post">A rendered memory</div></div></body></html>';
+  '<html><head><title>Old</title><meta name="description" content="Old"><meta property="og:url" content="old"><meta name="robots" content="index"></head><body><div class="app"><div class="post">A rendered memory</div></div></body></html>';
 const dollarTitle = renderSeo(template, { ...settings, siteTitle: "$& $` $'" }, null, []);
 assert.match(dollarTitle, /<title>\$&amp; \$` \$&#39;/);
 const home = renderSeo(template, settings, null, [post]);
 assert.match(home, /<meta property="og:site_name" content="Remember &amp; share">/);
 assert.match(home, /<div class="app" data-nosnippet>/);
-assert.match(home, /<div data-nosnippet><ul><li><a href="\/memory\//);
+assert.doesNotMatch(home, /href="\/memory\//);
+assert.match(home, /name="robots" content="index, follow, noimageindex"/);
+assert.equal((home.match(/name="robots"/g) || []).length, 1);
 assert.match(home, /<title>My archive<\/title>/);
 assert.match(home, /"name":"Jane Doe","alternateName":"简"/);
 const personalSettings = { ...settings, siteName: "I remember,", siteTitle: "Songqi Duan | 段松岐", ownerName: "Songqi Duan", ownerAlternateName: "段松岐", siteDescription: "A quiet place for the moments we might one day forget." };
@@ -39,14 +41,16 @@ assert.match(home, /href="https:\/\/example.org\/"/);
 assert.match(home, /A home for &lt;moments&gt; &amp; &quot;stories&quot;/);
 assert.equal((home.match(/name="description"/g) || []).length, 1);
 assert.ok(!home.includes("songqi.org"));
-assert.ok(home.includes(`/memory/${post.public_id}`));
+assert.ok(!home.includes(`/memory/${post.public_id}`));
 const memory = renderSeo(template, settings, post, [post]);
-assert.ok(!memory.includes('class="app" data-nosnippet') && !memory.includes('<div data-nosnippet>'), "Memory content remains eligible for its own snippets");
-assert.match(memory, /https:\/\/example.org\/uploads\/morning.jpg/);
+assert.match(memory, /name="robots" content="noindex, nofollow, noimageindex"/);
+assert.match(memory, /class="app" data-nosnippet/);
+assert.ok(!memory.includes(post.image_url), "Uploaded media must not be promoted by metadata");
 const structured = JSON.parse(
   memory.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1],
 );
-assert.equal(structured["@graph"].at(-1).text, post.body_markdown);
+assert.ok(!structured["@graph"].some(node => node["@type"] === "CreativeWork"));
+assert.equal(memory.match(/name="description" content="([^"]*)"/)[1], home.match(/name="description" content="([^"]*)"/)[1]);
 assert.ok(!memory.includes("<script>alert(1)</script>"));
 assert.match(memory, new RegExp(`href="https://example.org/memory/${post.public_id}"`));
 const cleared = renderSeo(
@@ -65,7 +69,7 @@ assert.deepEqual(
   ]),
   [post],
 );
-assert.equal((sitemapXml(settings, [post, post]).match(/<url>/g) || []).length, 2);
+assert.equal((sitemapXml(settings, [post, post]).match(/<url>/g) || []).length, 1);
 assert.equal((sitemapXml(settings, []).match(/<url>/g) || []).length, 1);
 assert.equal(siteOrigin("javascript:alert(1)"), "https://songqi.org");
 assert.equal(siteOrigin("https://example.org/path"), "https://example.org");
@@ -83,7 +87,7 @@ for (const languageFile of ["index.html", "fr.html"]) {
 const shortPosts = ["ZDfRmeuj", "rainbow", "my-memory"].map(public_id => ({ ...post, public_id }));
 assert.deepEqual(publicPosts([post, ...shortPosts, ...shortPosts]), [post, ...shortPosts]);
 for (const entry of shortPosts) {
-  assert.ok(sitemapXml(settings, [post, ...shortPosts]).includes(`/memory/${entry.public_id}`));
-  assert.ok(renderSeo(template, settings, null, shortPosts).includes(`/memory/${entry.public_id}`));
+  assert.ok(!sitemapXml(settings, [post, ...shortPosts]).includes(`/memory/${entry.public_id}`));
+  assert.ok(!renderSeo(template, settings, null, shortPosts).includes(`/memory/${entry.public_id}`));
 }
 assert.equal(publicPosts([{ ...post, public_id: "bad/id" }, { ...post, public_id: "12345678" }]).length, 0);

@@ -345,3 +345,10 @@ Current backend/product decisions:
   limit in public submissions or admin editing. Preserve complete long-form
   content and paragraphs; card excerpts still use Read more. Transport capacity
   protection must reject oversized requests explicitly, never silently truncate.
+
+- Owner decision on 2026-10-20: search engines may index the website homepage
+  and its configured identity only. Uploaded photos/media and individual memories
+  must not appear in search results. This supersedes earlier memory-detail indexing
+  and sitemap discovery decisions. Apply noindex to media responses and memory
+  pages, noimageindex to public pages, and keep only the homepage in the sitemap.
+  Preserve normal visitor access and the galaxy experience.

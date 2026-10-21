@@ -48,7 +48,7 @@ oversized requests fail explicitly instead of silently cutting off the text.
 - **Own the data.** PostgreSQL/Prisma, local upload storage, two-factor authentication,
   full backup/restore tooling, and optional self-hosted Umami analytics.
 - **Make content discoverable.** Server-rendered metadata, canonical URLs, structured
-  data, `robots.txt`, and a sitemap of real published public memories.
+  data, `robots.txt`, and a homepage-only sitemap. Memories and uploads are excluded from search indexing.
 - **Use your language.** English by default, with French and Chinese support. UI
   language does not select a different content collection.
 
@@ -216,13 +216,15 @@ ID** can be customized (4–32 letters, digits or hyphens; start with a letter).
 Changing it keeps earlier links working through redirects and preserves the
 memory's photos, map position and view count. Existing long links remain valid.
 
-Public `/memory/<random-id>` pages have their own title, description, canonical URL,
-sharing image, and structured content. Display-language variants canonicalize to the
-same content URL. JavaScript-free visitors receive readable text and memory links;
-homepage memory excerpts are excluded from search snippets, while detail pages
-and discovery links remain indexable. The interactive galaxy remains the normal experience. Admin/API responses carry
-`noindex`; sitemap generation uses only the public API, excluding private, unlisted,
-draft, archived, and empty entries.
+Search discovery is limited to the homepage and configured site identity. Memory
+pages use `noindex, nofollow, noimageindex`; uploaded photos, thumbnails, GIFs,
+video and audio responses also carry `X-Robots-Tag: noindex, nofollow, noimageindex`.
+Public pages forbid image indexing. Metadata uses only the site description and
+static site thumbnail, without publishing stories or uploaded photos as structured
+data. The sitemap lists only `/`; the homepage fallback has no memory directory.
+Visitor access, direct memory links and the interactive galaxy remain available.
+These directives control search indexing, not access to publicly available content.
+Already indexed results require recrawling or a Search Console removal request.
 
 After deploying your own domain:
 
@@ -231,7 +233,7 @@ After deploying your own domain:
 3. Verify your domain in [Google Search Console](https://search.google.com/search-console/about)
    and [Bing Webmaster Tools](https://www.bing.com/webmasters/about), then submit `/sitemap.xml`.
 4. Publish an introduction using your real public name and link to the site from your
-   public profiles. Use descriptive memory titles and original content.
+   public profiles. Memories themselves are excluded from search results.
 
 This helps search engines discover and understand the website; **indexing, ranking,
 and appearing for a particular name are not guaranteed or immediate**. See the

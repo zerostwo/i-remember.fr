@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import sharp from "sharp";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -325,11 +325,22 @@ try {
   assert.match(homeHtml, /src="\/assets\/public-markdown.js"/);
   assert.match(homeHtml, /name="description" content="A configured archive"/);
   const robots = await fetch(`${baseUrl}/robots.txt`);
-  assert.match(await robots.text(), /Sitemap: https:\/\/songqi.org\/sitemap.xml/);
+  const robotsText = await robots.text();
+  assert.match(robotsText, /Sitemap: https:\/\/songqi.org\/sitemap.xml/);
+  assert.doesNotMatch(robotsText, /Disallow: \/(?:uploads|memory)/, "Crawlers must be able to read noindex to remove existing results");
   const sitemap = await fetch(`${baseUrl}/sitemap.xml`);
   const xml = await sitemap.text();
   assert.equal(sitemap.status, 200);
-  assert.match(xml, new RegExp(`/memory/${v1PublicId}`));
+  assert.doesNotMatch(xml, /\/memory\//);
+  assert.equal((xml.match(/<url>/g) || []).length, 1);
+  assert.equal((await fetch(`${baseUrl}/sitemap-1.xml`)).status, 404);
+  assert.equal(homeResponse.headers.get("x-robots-tag"), "index, follow, noimageindex");
+  for (const path of [`/memory/${v1PublicId}`, `/memory/${v1PublicId}?ln=fr`]) {
+    const response = await fetch(`${baseUrl}${path}`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow, noimageindex");
+    assert.match(await response.text(), /name="robots" content="noindex, nofollow, noimageindex"/);
+  }
   assert.ok(!xml.includes("/admin"));
   const adminSeo = await fetch(`${baseUrl}/admin/login`);
   assert.equal(adminSeo.headers.get("x-robots-tag"), "noindex, nofollow");
@@ -392,7 +403,7 @@ try {
   const v1PublicMemoryHtml = await v1PublicMemoryResponse.text();
   assert.match(v1PublicMemoryHtml, /var LANG = 'zh';/);
   assert.match(v1PublicMemoryHtml, /Rendered from the v1 direct memory API/);
-  assert.match(v1PublicMemoryHtml, /<title>Prisma public memory &amp; notes · Configured title<\/title>/);
+  assert.match(v1PublicMemoryHtml, /<title>Configured title<\/title>/);
   assert.match(v1PublicMemoryHtml, new RegExp(`"public_id":"${v1PublicId}"`));
   const directListPayload = JSON.parse(
     v1PublicMemoryHtml.match(/var DEFAULT_POSTS = ([\s\S]*?);\n\s*var DEFAULT_POST =/)?.[1] ||
@@ -512,6 +523,7 @@ try {
 
   const uploadedAssetResponse = await fetch(`${baseUrl}/uploads/admin/new-photo.jpg`);
   assert.equal(uploadedAssetResponse.status, 200);
+  assert.equal(uploadedAssetResponse.headers.get("x-robots-tag"), "noindex, nofollow, noimageindex");
   const uploadedAssetBody = await uploadedAssetResponse.json();
   assert.equal(uploadedAssetBody.url, "/uploads/admin/new-photo.jpg");
 
@@ -552,6 +564,32 @@ try {
   const cameraId = (await cameraResponse.json()).data.fileId;
   const fullResponse = await fetch(`${baseUrl}/uploads/posts/${cameraId}/full.jpg`);
   assert.equal(fullResponse.status, 200);
+  assert.equal(fullResponse.headers.get("x-robots-tag"), "noindex, nofollow, noimageindex");
+  for (const options of [{ method: "HEAD" }, { headers: { Range: "bytes=0-9" } }]) {
+    const response = await fetch(`${baseUrl}/uploads/posts/${cameraId}/full.jpg`, options);
+    assert.ok(response.ok);
+    assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow, noimageindex");
+    await response.arrayBuffer();
+  }
+  // Exercise stream responses without invoking unrelated media encoders.
+  for (const filename of ["video.mp4", "audio.mp3"]) {
+    await writeFile(join(dataDir, "uploads", "posts", cameraId, filename), "media-header-fixture");
+    const url = `${baseUrl}/uploads/posts/${cameraId}/${filename}`;
+    const full = await fetch(url);
+    const etag = full.headers.get("etag");
+    assert.equal(full.headers.get("x-robots-tag"), "noindex, nofollow, noimageindex");
+    await full.arrayBuffer();
+    for (const [options, status] of [
+      [{ method: "HEAD" }, 200],
+      [{ headers: { Range: "bytes=0-4" } }, 206],
+      [{ headers: { "If-None-Match": etag } }, 304],
+    ]) {
+      const response = await fetch(url, options);
+      assert.equal(response.status, status);
+      assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow, noimageindex");
+      await response.arrayBuffer();
+    }
+  }
   const fullPhoto = Buffer.from(await fullResponse.arrayBuffer());
   const dimensions = await sharp(fullPhoto).metadata();
   assert.equal(dimensions.width, 2400);
@@ -618,6 +656,7 @@ try {
   for (const url of [gifMemory.photos[0].image_url, gifMemory.photos[0].full_image_url, `/uploads/posts/${gifId}/resized.jpg`]) {
     const response = await fetch(`${baseUrl}${url}`);
     assert.equal(response.headers.get("content-type"), "image/gif");
+    assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow, noimageindex");
     const data = Buffer.from(await response.arrayBuffer());
     const meta = await sharp(data).metadata();
     assert.equal(meta.pages, 2, "Both animation frames must survive upload and cropping");

@@ -56,6 +56,9 @@ export function serveLocalAsset(
   const resolved = assetPath(req.url || "/", rootDir, publicBaseUrl(options.publicBaseUrl));
   if (!resolved.handled) return false;
 
+  // Covers originals and all derivatives, including direct asset URLs.
+  res.setHeader("X-Robots-Tag", "noindex, nofollow, noimageindex");
+
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.statusCode = 405;
     res.setHeader("Content-Type", "application/json; charset=utf-8");

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Limit search indexing to the homepage: exclude memories and uploaded media with
+  noindex headers, prevent public-page image indexing, remove memory sitemap
+  entries and stop promoting uploaded photos or stories in SEO metadata.
+
 - Homepage natural intro completion and fast-forward share one initialization
   guard; repeated calls no longer duplicate particle shaders or crop controls.
 

@@ -202,6 +202,10 @@ async function proxyApi(req, res, target) {
     upstream.headers.forEach((value, name) => {
       if (!hopByHopHeaders.has(name.toLowerCase())) res.setHeader(name, value);
     });
+    // Also enforce this at the public edge when storage is served upstream.
+    if (url.pathname.startsWith(`${storagePublicBaseUrl}/`)) {
+      res.setHeader("X-Robots-Tag", "noindex, nofollow, noimageindex");
+    }
     if (req.method === "HEAD" || !upstream.body) {
       res.end();
       logProxyRequest(req, url.pathname, upstream.status, Date.now() - startedAt);

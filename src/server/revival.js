@@ -1523,7 +1523,7 @@ async function renderAppHtml(
     input: { ln: normalized },
   }, memoryFadePercent(defaultPosts));
 
-  html = renderSeo(html, siteSettings, directPayload?.data, defaultPosts);
+  html = renderSeo(html, siteSettings, directPayload?.data);
   if (!directPayload) return html;
   html = html.replace("<head>", '<head><script>window.SONGQI_DIRECT_MEMORY=true;</script><style>.preloader{display:none!important}</style>');
 
@@ -1709,6 +1709,10 @@ async function handleRequest(backend, req, res, next, options = {}) {
   if (req.method === "GET" && ["/index.html", "/fr.html", "/legal.html"].includes(pathname)) {
     res.statusCode = 308; res.setHeader("Location", `${pathname === "/fr.html" ? "/fr" : pathname === "/legal.html" ? "/legal" : "/"}${url.search}`); res.end(); return;
   }
+  if (appShellRequested(pathname)) res.setHeader("X-Robots-Tag", "index, follow, noimageindex");
+  if (memoryShellRequested(pathname) || pathname.startsWith("/uploads/")) {
+    res.setHeader("X-Robots-Tag", "noindex, nofollow, noimageindex");
+  }
   if (pathname.startsWith("/admin") || pathname.startsWith("/api/") || legalPageRequested(pathname)) res.setHeader("X-Robots-Tag", "noindex, nofollow");
   const needsRuntimeSettings =
     pathname === "/robots.txt" || /^\/sitemap(?:-\d+)?\.xml$/.test(pathname) ||
@@ -1728,21 +1732,18 @@ async function handleRequest(backend, req, res, next, options = {}) {
   const memoryLanguage = contentLanguage(defaultLanguage);
   if (req.method === "GET" && pathname === "/robots.txt") {
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    // Keep memories/uploads crawlable so crawlers can read noindex and remove old results.
+    res.setHeader("Cache-Control", "no-cache");
     res.end(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${siteOrigin(siteSettings.canonicalUrl)}/sitemap.xml\n`);
     return;
   }
   if (req.method === "GET" && /^\/sitemap(?:-\d+)?\.xml$/.test(pathname)) {
-    const posts = publicPosts(await backend.allPosts(memoryLanguage));
-    const size = 20000;
-    const page = pathname.match(/^\/sitemap-(\d+)\.xml$/)?.[1];
     res.setHeader("Content-Type", "application/xml; charset=utf-8");
-    if (!page && posts.length > size) {
-      const origin = siteOrigin(siteSettings.canonicalUrl);
-      res.end(`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${Array.from({ length: Math.ceil(posts.length / size) }, (_, index) => `<sitemap><loc>${origin}/sitemap-${index + 1}.xml</loc></sitemap>`).join("")}</sitemapindex>`);
-    } else if (page && (Number(page) < 1 || Number(page) > Math.ceil(posts.length / size))) {
+    res.setHeader("Cache-Control", "no-cache");
+    if (pathname !== "/sitemap.xml") {
       sendStatus(res, 404, "Not found");
     } else {
-      res.end(sitemapXml(siteSettings, page ? posts.slice((Number(page) - 1) * size, Number(page) * size) : posts));
+      res.end(sitemapXml(siteSettings));
     }
     return;
   }
