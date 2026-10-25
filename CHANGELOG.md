@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Version the production media module by its content so CDN caches cannot mix
+  old media factories with new memory-gallery code after an upgrade.
+
 - Recognize Apple's Live Photo pairing tag with Debian's ExifTool naming, and
   verify pairing, audio and privacy inside the release image before publishing.
 

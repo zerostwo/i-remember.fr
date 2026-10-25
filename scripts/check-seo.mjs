@@ -82,6 +82,10 @@ for (const languageFile of ["index.html", "fr.html"]) {
     assert.ok(html.includes(`/${path}?v=${hash}`), `${languageFile}: ${path} must invalidate old browser/CDN copies`);
   }
   assert.equal(versionPublicAssets(html), html, "Asset versioning must be stable");
+  const productionHtml = versionPublicAssets(html.replace("/src/public-markdown.js", "/assets/public-markdown.js"));
+  const mediaHash = createHash("sha256").update(readFileSync(new URL("../dist/assets/public-markdown.js", import.meta.url))).digest("hex").slice(0, 16);
+  assert.ok(productionHtml.includes(`/assets/public-markdown.js?v=${mediaHash}`), "The production media entry must invalidate old CDN copies too");
+  assert.equal(versionPublicAssets(productionHtml), productionHtml);
 }
 
 const shortPosts = ["ZDfRmeuj", "rainbow", "my-memory"].map(public_id => ({ ...post, public_id }));

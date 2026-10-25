@@ -1512,9 +1512,10 @@ async function renderAppHtml(
 ) {
   const normalized = normalizeLanguage(language);
   const normalizedMemoryLanguage = normalizeLanguage(memoryLanguage);
-  let html = versionPublicAssets(readFileSync(appHtmlUrlForLanguage(normalized), "utf8"));
+  let html = readFileSync(appHtmlUrlForLanguage(normalized), "utf8");
   if (normalized === "zh") html = localizeChineseHtml(html);
   if (backend.production) html = html.replace("/src/public-markdown.js", "/assets/public-markdown.js");
+  html = versionPublicAssets(html);
   html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};window.SONGQI_UPLOAD_LIMITS=${safeScriptJson({ maxBytes: maxUploadBodyBytes, maxPixels: maxImagePixels, ...videoLimits, ...audioLimits })};</script>`);
 
   html = html.replace(/(?:photos &amp; videos|photos et vidéos)<\/span>/, (normalized === "fr" ? 'photos, vidéos &amp; audio' : normalized === "zh" ? '照片、视频和音频' : 'photos, videos &amp; audio') + '</span>');

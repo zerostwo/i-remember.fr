@@ -322,7 +322,7 @@ try {
   assert.match(homeHtml, /<title>Configured title<\/title>/);
   assert.ok(homeHtml.indexOf("window.SONGQI_SITE_SETTINGS=") < homeHtml.indexOf("js/revival-runtime.js"), "Configured default language must be available before runtime URL normalization");
   assert.match(homeHtml, /rel="canonical" href="https:\/\/songqi.org\/"/);
-  assert.match(homeHtml, /src="\/assets\/public-markdown.js"/);
+  assert.match(homeHtml, /src="\/assets\/public-markdown\.js\?v=[a-f0-9]{16}"/);
   assert.match(homeHtml, /name="description" content="A configured archive"/);
   const robots = await fetch(`${baseUrl}/robots.txt`);
   const robotsText = await robots.text();
