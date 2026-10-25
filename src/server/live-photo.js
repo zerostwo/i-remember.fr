@@ -35,8 +35,10 @@ export async function uploadLivePhoto(file, root, onProgress = () => {}) {
     const photoPath = join(temporary, "source-photo"), moviePath = join(temporary, "source.mov");
     await writeFile(photoPath, pair.photo, { mode: 0o600 });
     await writeFile(moviePath, pair.movie, { mode: 0o600 });
-    const tags = JSON.parse((await run("exiftool", ["-j", "-n", "-ContentIdentifier", "-ImageWidth", "-ImageHeight", "-FileType", photoPath, moviePath], { timeout: 15000, maxBuffer: 65536 })).stdout);
-    const id = tags[0]?.ContentIdentifier;
+    const tags = JSON.parse((await run("exiftool", ["-j", "-n", "-ContentIdentifier", "-MediaGroupUUID", "-ImageWidth", "-ImageHeight", "-FileType", photoPath, moviePath], { timeout: 15000, maxBuffer: 65536 })).stdout);
+    // Debian's ExifTool 12 calls Apple MakerNote tag 17 MediaGroupUUID;
+    // newer versions call the same tag ContentIdentifier.
+    const id = tags[0]?.ContentIdentifier || tags[0]?.MediaGroupUUID;
     if (!id || id !== tags[1]?.ContentIdentifier) throw fail(400, "These files are not a matching Live Photo. Export the unmodified photo and MOV together.");
     if (!["JPEG", "HEIC", "HEIF"].includes(tags[0].FileType) || !(tags[0].ImageWidth > 0 && tags[0].ImageHeight > 0) || tags[0].ImageWidth * tags[0].ImageHeight > 64000000) throw fail(400, "Choose a JPEG or HEIC Live Photo under 64 megapixels.");
     const probe = JSON.parse((await run("ffprobe", ["-v", "error", "-protocol_whitelist", "file,pipe", "-show_streams", "-show_format", "-of", "json", moviePath], { timeout: 15000, maxBuffer: 1024 * 1024 })).stdout);

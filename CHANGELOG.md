@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recognize Apple's Live Photo pairing tag with Debian's ExifTool naming, and
+  verify pairing, audio and privacy inside the release image before publishing.
+
 - Wait for shared media modules before direct-memory initialization, and preserve
   playback promise failures so blocked autoplay can offer a working play action.
 

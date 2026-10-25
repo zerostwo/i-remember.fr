@@ -113,8 +113,9 @@ try {
   await writeFile(movPath, exported.movie);
   const stillTags = await metadata(stillPath),
     movTags = await metadata(movPath);
-  assert.equal(stillTags["Apple:ContentIdentifier"], movTags["Keys:ContentIdentifier"]);
-  assert.notEqual(stillTags["Apple:ContentIdentifier"], identifier);
+  const stillIdentifier = stillTags["Apple:ContentIdentifier"] || stillTags["Apple:MediaGroupUUID"];
+  assert.equal(stillIdentifier, movTags["Keys:ContentIdentifier"]);
+  assert.notEqual(stillIdentifier, identifier);
   for (const tags of [stillTags, movTags, await metadata(join(folder, "video.mp4"))]) {
     assert.doesNotMatch(
       JSON.stringify(tags),

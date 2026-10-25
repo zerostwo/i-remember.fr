@@ -43,6 +43,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Exercise the exact runtime's FFmpeg and ExifTool before publishing an image.
+docker run --rm --network none \
+  -v "$(pwd)/scripts/check-live-photo.mjs:/app/scripts/check-live-photo.mjs:ro" \
+  --entrypoint node "$image_ref" /app/scripts/check-live-photo.mjs
+
 container_port() {
   docker port "$1" 7890/tcp | awk -F: 'NR == 1 { print $NF }'
 }
