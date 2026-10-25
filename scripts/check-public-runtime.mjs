@@ -6,6 +6,15 @@ const source = await readFile(new URL("../public/js/revival-runtime.js", import.
 const englishShell = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const frenchShell = await readFile(new URL("../fr.html", import.meta.url), "utf8");
 
+// The legacy rejection handler must not turn denied playback into success.
+const deniedPlay = Promise.reject(Object.assign(new Error("Autoplay denied"), { name: "NotAllowedError" }));
+class FakeMedia { play() { return deniedPlay; } }
+const mediaPatchStart = source.indexOf("  if (window.HTMLMediaElement");
+const mediaPatchEnd = source.indexOf('\n  window.addEventListener("unhandledrejection"', mediaPatchStart);
+runInNewContext(source.slice(mediaPatchStart, mediaPatchEnd), { window: { HTMLMediaElement: FakeMedia }, HTMLMediaElement: FakeMedia });
+assert.equal(new FakeMedia().play(), deniedPlay);
+await assert.rejects(new FakeMedia().play(), error => error.name === "NotAllowedError");
+
 assert.match(englishShell, /Let's keep the moments we never want to lose\./);
 assert.match(englishShell, /Your memory now has a place to stay\./);
 assert.match(frenchShell, /Gardons les moments que nous ne voulons jamais perdre\./);
@@ -88,7 +97,10 @@ const startupSource = patchedMain.slice(patchedMain.indexOf("function m(){if(win
 assert.ok(startupSource.startsWith("function m(){if("));
 let startupReady = false;
 const startupCalls = [];
-const startupWindow = { I_REMEMBER_REVIVAL: { introAppInitialized: false } };
+const mediaReadyListeners = [];
+const startupWindow = { I_REMEMBER_REVIVAL: { introAppInitialized: false }, addEventListener: (name, callback) => {
+  assert.equal(name, "songqi-markdown-ready"); mediaReadyListeners.push(callback);
+} };
 const startup = runInNewContext(`(${startupSource.slice(0, startupSource.indexOf("function g(){"))})`, {
   window: startupWindow, e: { uiAssetPath: "ui.png" },
   u: { getLoadedItemByURL: () => startupReady ? { content: {} } : null },
@@ -100,6 +112,12 @@ const startup = runInNewContext(`(${startupSource.slice(0, startupSource.indexOf
 startup();
 assert.equal(startupWindow.I_REMEMBER_REVIVAL.introAppInitialized, false);
 startupReady = true;
+for (let attempt = 0; attempt < 5; attempt++) startup();
+assert.deepEqual(startupCalls, [], "Wait for shared media modules before initializing the gallery");
+assert.equal(mediaReadyListeners.length, 1);
+startupWindow.songqiMedia = {};
+startupWindow.songqiLivePhotoPlayer = () => {};
+mediaReadyListeners[0]();
 for (let attempt = 0; attempt < 5; attempt++) startup();
 assert.deepEqual(startupCalls, ["ui", "posts", "steps", "particles", "show"]);
 const photoSource = await readFile(new URL("../public/js/photo-gallery.js", import.meta.url), "utf8");
@@ -358,6 +376,8 @@ const validateUpload = runtimeFunction("uploadFileError", {
 assert.equal(validateUpload({ size: 2117493 }), "");
 assert.equal(validateUpload({ size: 8388608 }), "");
 assert.match(validateUpload({ size: 8388609 }), /8 MB/);
+assert.equal(validateUpload({ name: "Memory.livp", size: 104857600 }), "");
+assert.match(validateUpload({ name: "Memory.livp", size: 104857601 }), /100 MB/);
 // Execute URL changes through the actual history wrapper, including existing
 // links, in-place language switching, memory open/close, and back navigation.
 const languageEvents = new Map();

@@ -34,6 +34,7 @@
     "docker:push": "docker push ${DOCKERHUB_IMAGE:-zerostwo/i-remember.fr}:${TAG:?Set TAG to an immutable sha-* or release version}",
     "test:video": "node scripts/check-video.mjs",
     "test:audio": "node scripts/check-audio.mjs",
+    "test:live-photo": "node scripts/check-live-photo.mjs",
     "test:postgres": "node scripts/check-postgres-regressions.mjs",
     "test:integration": "node scripts/check-server-proxy.mjs && node scripts/check-mobile-ux.mjs && node packages/content/src/check.mjs && node scripts/check-static-assets.mjs && node scripts/check-public-runtime.mjs && node scripts/check-memory-map.mjs && node scripts/check-touch-selection.mjs && node scripts/check-vite-proxy.mjs && node scripts/check-seo.mjs && node scripts/check-video-uploads.mjs"
   },

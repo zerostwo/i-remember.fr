@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import sharp from "sharp";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { createServer } from "node:http";
@@ -424,9 +425,11 @@ class AssetRepo implements AssetRepository {
 
 class Storage implements StorageAdapter {
   keys = new Set<string>();
+  bytes = new Map<string, Buffer>();
 
-  async upload(key: string) {
+  async upload(key: string, data: Buffer | Uint8Array | string) {
     this.keys.add(key);
+    this.bytes.set(key, Buffer.from(data));
     return `/uploads/${key}`;
   }
 
@@ -1322,6 +1325,19 @@ const uploaded = await json("/api/v1/assets", {
 assert.equal(uploaded.response.status, 201);
 assert.equal(uploaded.body.data.url, "/uploads/asset-test.txt");
 assert.equal(uploaded.body.data.memoryId, created.body.data.id);
+
+const privateImage = await sharp({ create: { width: 40, height: 60, channels: 3, background: "#778899" } })
+  .withExif({ IFD0: { Make: "PRIVATE-CAMERA", Artist: "PRIVATE-OWNER" }, IFD2: { DateTimeOriginal: "2020:01:02 03:04:05" } }).jpeg().toBuffer();
+const sanitizedUpload = await json("/api/v1/assets", { method: "POST", headers: adminHeaders,
+  body: JSON.stringify({ key: "privacy.jpg", contentBase64: privateImage.toString("base64"), contentType: "image/jpeg" }) });
+assert.equal(sanitizedUpload.response.status, 201);
+const sanitizedBytes = storage.bytes.get("privacy.jpg")!;
+assert.doesNotMatch(sanitizedBytes.toString("latin1"), /PRIVATE-CAMERA|PRIVATE-OWNER|2020:01:02/);
+assert.equal((await sharp(sanitizedBytes).metadata()).exif, undefined);
+const invalidImageUpload = await json("/api/v1/assets", { method: "POST", headers: adminHeaders,
+  body: JSON.stringify({ key: "invalid.jpg", contentBase64: Buffer.from("not an image").toString("base64"), contentType: "image/jpeg" }) });
+assert.equal(invalidImageUpload.response.status, 400);
+assert.equal(storage.keys.has("invalid.jpg"), false);
 
 const invalidAssetContent = await json("/api/v1/assets", {
   method: "POST",

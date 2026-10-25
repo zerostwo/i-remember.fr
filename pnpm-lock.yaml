@@ -113,6 +113,9 @@ importers:
       '@i-remember/types':
         specifier: workspace:*
         version: link:../../packages/types
+      sharp:
+        specifier: ^0.35.5
+        version: 0.35.5(@types/node@26.1.1)
 
   apps/web: {}
 

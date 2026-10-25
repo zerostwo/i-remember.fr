@@ -12,4 +12,4 @@ export const audioLimits = Object.freeze({
 export const isAudioFile = (file) =>
   /^audio\//.test(file.type) || /\.(mp3|m4a|wav|ogg|flac)$/i.test(file.name);
 export const mediaAccept =
-  "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/webm,.mov,.m4v,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/flac,.mp3,.m4a,.wav,.ogg,.flac";
+  "image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif,.heic,.heif,.livp,.zip,video/mp4,video/quicktime,video/webm,.mov,.m4v,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/flac,.mp3,.m4a,.wav,.ogg,.flac";

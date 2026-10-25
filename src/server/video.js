@@ -90,6 +90,8 @@ export async function uploadVideo(file, storageRoot, onProgress = () => {}) {
         "0:a:0?",
         "-map_metadata",
         "-1",
+        "-map_metadata:s",
+        "-1",
         "-map_chapters",
         "-1",
         "-t",

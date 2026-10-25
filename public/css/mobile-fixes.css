@@ -743,3 +743,15 @@ html body .post-2d-img.has-inline-audio { cursor: default; }
 .memory-audio-player button:focus-visible { outline: 1px solid #ffffff66; outline-offset: 2px; }
 .memory-audio-player .media-playback-error { position: absolute; bottom: 108px; left: 12px; right: 12px; text-align: center; font: 13px/1.4 Georgia,serif; }
 @media (max-width: 600px) { .memory-audio-player .memory-player-controls { bottom: 34px; left: 9%; right: 9%; } }
+
+.memory-live-photo { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.memory-live-photo[hidden] { display: none !important; }
+.memory-live-photo video { position: absolute; max-width: none; visibility: hidden; pointer-events: none; }
+.memory-live-controls { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; align-items: center; gap: 6px; color: white; font: 11px/1.4 Arial,sans-serif; }
+.memory-live-controls button, .memory-live-controls a { pointer-events: auto; min-width: 38px; min-height: 38px; padding: 0 8px; border: 1px solid #ffffff55; border-radius: 20px; background: #0009; color: white; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.memory-live-controls button { font: inherit; letter-spacing: 1px; }
+.memory-live-controls a { font-size: 20px; }
+.memory-live-controls button:focus-visible, .memory-live-controls a:focus-visible { outline: 1px solid white; outline-offset: 2px; }
+.memory-live-status { position: absolute; top: 46px; left: 0; padding: 3px 6px; background: #000b; max-width: calc(100% - 12px); }
+.memory-live-status:empty { display: none; }
+.live-photo-upload-hint { text-align: center; color: #999; font: 12px/1.5 Georgia,serif; max-width: 320px; margin: 12px auto; }

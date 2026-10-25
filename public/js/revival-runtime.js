@@ -118,7 +118,9 @@
     HTMLMediaElement.prototype.play = function () {
       var result = originalMediaPlay.apply(this, arguments);
       if (result && typeof result.catch === "function") {
-        return result.catch(function () {});
+        // Observe legacy fire-and-forget calls without hiding autoplay errors
+        // from managed media players that await the original promise.
+        result.catch(function () {});
       }
       return result;
     };
@@ -651,7 +653,7 @@
     // controllers, renderers or shader extensions can initialize twice.
     patched = patched.replace(
       'function m(){e.uiAsset=u.getLoadedItemByURL(e.uiAssetPath).content,',
-      'function m(){if(window.I_REMEMBER_REVIVAL.introAppInitialized)return;if(!u.getLoadedItemByURL(e.uiAssetPath))return;window.I_REMEMBER_REVIVAL.introAppInitialized=true;e.uiAsset=u.getLoadedItemByURL(e.uiAssetPath).content,'
+      'function m(){if(window.I_REMEMBER_REVIVAL.introAppInitialized)return;if(!u.getLoadedItemByURL(e.uiAssetPath))return;if(!window.songqiMedia||!window.songqiLivePhotoPlayer){if(!window.I_REMEMBER_REVIVAL.introMediaWaiting){window.I_REMEMBER_REVIVAL.introMediaWaiting=true;window.addEventListener("songqi-markdown-ready",function(){window.I_REMEMBER_REVIVAL.introMediaWaiting=false;m()},{once:true})}return}window.I_REMEMBER_REVIVAL.introAppInitialized=true;e.uiAsset=u.getLoadedItemByURL(e.uiAssetPath).content,'
     );
     // The portrait footer row's map center is viewport height minus 74px. Mirror
     // that coordinate in the WebGL overlay so its pixels and hit target agree.
@@ -2105,7 +2107,8 @@
     var limits = window.SONGQI_UPLOAD_LIMITS || { maxBytes: 8388608, maxVideoBytes: 524288000 };
     var video = /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
     var audio = /^audio\//.test(file.type) || /\.(mp3|m4a|wav|ogg|flac)$/i.test(file.name);
-    var maxBytes = audio ? (limits.maxAudioBytes || 104857600) : video ? (limits.maxVideoBytes || 524288000) : limits.maxBytes;
+    var live = file.type === "application/x-songqi-live-photo" || /\.(livp|zip)$/i.test(file.name);
+    var maxBytes = live ? 104857600 : audio ? (limits.maxAudioBytes || 104857600) : video ? (limits.maxVideoBytes || 524288000) : limits.maxBytes;
     if (file.size <= maxBytes) return "";
     var mb = Math.round(maxBytes / 1048576);
     var language = siteLanguage();
@@ -2186,6 +2189,12 @@
 
     var uploadInput = document.querySelector("#local-upload");
     if (uploadInput) { uploadInput.setAttribute("aria-label", siteLanguage() === "fr" ? "Choisir des photos, vidéos ou fichiers audio" : siteLanguage() === "zh" ? "选择照片、视频或音频" : "Choose photos, videos or audio from this device"); uploadInput.accept = window.songqiMedia.accept; }
+    var selection = document.querySelector(".add-steps-upload-methods-selection-container");
+    if (selection && !selection.querySelector(".live-photo-upload-hint")) {
+      var liveHint = document.createElement("p"); liveHint.className = "live-photo-upload-hint";
+      liveHint.textContent = siteLanguage() === "zh" ? "实况照片：同时选择原始照片和同名 MOV，或上传 .livp。保留声音，清除位置与设备信息。" : siteLanguage() === "fr" ? "Live Photo : choisissez la photo originale et le MOV associé, ou un .livp. Son conservé ; localisation et données de l’appareil supprimées." : "Live Photo: choose the original photo + matching MOV, or a .livp. Sound stays; location and device metadata are removed.";
+      selection.appendChild(liveHint);
+    }
 
     var intro = document.querySelector(".preloader");
     if (intro) intro.setAttribute("aria-live", "polite");

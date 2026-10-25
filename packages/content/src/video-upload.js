@@ -1,5 +1,6 @@
 import { uploadRequest } from "./upload-request.js";
 import { videoLimits, audioLimits, isAudioFile } from "../../config/src/media-limits.js";
+import { isLivePhotoFile } from "./live-photo-upload.js";
 
 function pause(ms, signal) {
   return new Promise((resolve, reject) => {
@@ -19,9 +20,10 @@ function pause(ms, signal) {
 
 export async function uploadVideoFile(file, { signal, onProgress = () => {} } = {}) {
   const audio = isAudioFile(file);
-  const endpoint = audio ? "/api/audio-uploads" : "/api/video-uploads";
-  if (file.size > (audio ? audioLimits.maxAudioBytes : videoLimits.maxVideoBytes) || file.size <= 0)
-    throw new Error(audio ? "Choose audio of 100 MB or less." : "Choose a video of 500 MB or less.");
+  const live = isLivePhotoFile(file);
+  const endpoint = live ? "/api/live-photo-uploads" : audio ? "/api/audio-uploads" : "/api/video-uploads";
+  if (file.size > (live ? 100 * 1024 * 1024 : audio ? audioLimits.maxAudioBytes : videoLimits.maxVideoBytes) || file.size <= 0)
+    throw new Error(live ? "Choose a Live Photo of 100 MB or less." : audio ? "Choose audio of 100 MB or less." : "Choose a video of 500 MB or less.");
   async function request(path, options = {}) {
     const response = await fetch(path, { credentials: "same-origin", signal, ...options });
     const payload = await response.json().catch(() => null);

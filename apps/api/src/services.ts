@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import sharp from "sharp";
 import { createLocalStorage, type StorageAdapter } from "@i-remember/storage";
 import type {
   AgentAnswer,
@@ -703,9 +704,22 @@ export class AssetService {
 
   async upload(principal: Principal, input: AssetUploadInput) {
     requireRole(principal, ["ADMIN"]);
-    const data = Buffer.from(input.contentBase64, "base64");
+    let data: Buffer = Buffer.from(input.contentBase64, "base64");
     if (!data.length) {
       throw new ApiError(400, "Invalid asset content", "invalid_asset_content");
+    }
+    if (input.contentType?.startsWith("image/")) {
+      try {
+        const metadata = await sharp(data, { limitInputPixels: 64000000 }).metadata();
+        if (!["jpeg", "png", "webp", "gif"].includes(metadata.format || "")) throw new Error("Unsupported image");
+        const pages = metadata.pages || 1;
+        if (pages > 300 || (metadata.width || 0) * (metadata.height || 0) * pages > 64000000) throw new Error("Image exceeds decoding limit");
+        const image = sharp(data, { animated: pages > 1, limitInputPixels: 64000000 }).rotate();
+        data = await (metadata.format === "jpeg" ? image.jpeg({ quality: 95 }) : metadata.format === "webp" ? image.webp({ quality: 95 }) : image).toBuffer();
+        input.contentType = `image/${metadata.format}`;
+      } catch {
+        throw new ApiError(400, "Choose a valid JPEG, PNG, WebP or GIF. Upload Live Photos as a photo and MOV pair.", "invalid_asset_image");
+      }
     }
     const url = await this.storage.upload(input.key, data, { contentType: input.contentType });
     let record = null;

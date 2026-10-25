@@ -1,6 +1,7 @@
 import { isAudioFile, mediaAccept } from "../../../packages/config/src/media-limits.js";
 import { uploadRequest } from "../../../packages/content/src/upload-request.js";
 import { uploadVideoFile } from "../../../packages/content/src/video-upload.js";
+import { groupLivePhotos, isLivePhotoFile } from "../../../packages/content/src/live-photo-upload.js";
 import { MemoryCard } from "../../../packages/content/src/MemoryCard.jsx";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
@@ -923,7 +924,7 @@ export function AdminApp() {
   }
 
   async function uploadEditorFile(file, signal, onProgress = () => {}) {
-    if (isAudioFile(file) || /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
+    if (isLivePhotoFile(file) || isAudioFile(file) || /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
       return (await uploadVideoFile(file, { signal, onProgress })).attachment;
     }
     onProgress({ phase: "uploading", percent: 0 });
@@ -962,20 +963,17 @@ export function AdminApp() {
     }
   }
 
-  async function uploadAttachment(file, memoryId) {
+  async function uploadAttachment(files, memoryId) {
     const memory = data?.memories?.find((item) => String(item.id) === String(memoryId));
-    if (!file || !memory) return;
+    if (!files?.length || !memory) return;
     await runAction("Attachment uploaded", async () => {
-      if (isAudioFile(file) || /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
+      for (const file of groupLivePhotos(files)) {
         const attachment = await uploadEditorFile(file);
         const path = `/api/v1/memories/${encodeURIComponent(memory.publicId)}`;
         const current = await v1Api(path);
         await v1Api(path, {
           method: "PATCH", body: JSON.stringify({ attachments: appendV1Attachment(current.attachments, attachment) }),
         });
-      } else {
-        const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
-        await v1Api("/api/v1/assets", { method: "POST", body: JSON.stringify(v1AssetUploadPayload(file, contentBase64, memory.publicId)) });
       }
       await refreshData();
     });
@@ -2501,7 +2499,9 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
               disabled={uploading || saving}
               onChange={async (event) => {
                 const input = event.currentTarget;
-                const files = [...input.files];
+                let files;
+                try { files = groupLivePhotos(input.files); }
+                catch (error) { setUploadError(error.message); input.value = ""; return; }
                 input.value = "";
                 if (!files.length) return;
                 const controller = new AbortController();
@@ -2529,6 +2529,7 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
                 }
               }}
             />
+            <p className="text-xs text-muted-foreground">Live Photo: select its original HEIC/JPEG and matching MOV together, or a .livp/.zip archive. Each pair counts as one attachment. Location and camera metadata are removed; sound is retained.</p>
             {uploading ? <div className="space-y-2 text-sm text-muted-foreground">
               <p role="status">{uploadProgress?.phase === "uploading" ? "Uploading" : uploadProgress?.stage === "transcoding" ? "Processing media" : uploadProgress?.stage === "finishing" ? "Finishing…" : "Preparing…"}
                 {uploadProgress ? ` · ${uploadProgress.index} / ${uploadProgress.total}` : ""}
@@ -2539,10 +2540,10 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
             <ul className="admin-editor-attachments">
               {(draft.attachments || []).map((attachment, index) => (
                 <li key={`${attachment.url}-${index}`}>
-                  <a href={attachment.url} target="_blank" rel="noreferrer">
-                    {attachment.url.split("/").pop()}
+                  <a href={attachment.metadata?.livePhoto && /^\/uploads\/posts\/revival-[a-z0-9-]+\/live-photo\.zip$/i.test(attachment.metadata.downloadUrl || "") ? attachment.metadata.downloadUrl : attachment.url} target="_blank" rel="noreferrer">
+                    {attachment.metadata?.livePhoto ? "Download Live Photo" : attachment.url.split("/").pop()}
                   </a>
-                  <span>{attachment.type}</span>
+                  <span>{attachment.metadata?.livePhoto ? `Live Photo${attachment.metadata.hasAudio ? " · Sound" : ""}` : attachment.type}</span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -3000,15 +3001,16 @@ function AttachmentsView({ data, search, selectedMemoryId, uploadAttachment, del
           <Button asChild disabled={!memoryId}>
             <label>
               <Upload data-icon="inline-start" />
-              Upload image
+              Upload media
               <input
                 className="sr-only"
                 type="file"
+                multiple
                 disabled={!memoryId}
                 accept={mediaAccept}
                 onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file && memoryId) uploadAttachment(file, memoryId);
+                  const files = Array.from(event.target.files || []);
+                  if (files.length && memoryId) uploadAttachment(files, memoryId);
                   event.target.value = "";
                 }}
               />

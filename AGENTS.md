@@ -352,3 +352,12 @@ Current backend/product decisions:
   and sitemap discovery decisions. Apply noindex to media responses and memory
   pages, noimageindex to public pages, and keep only the homepage in the sitemap.
   Preserve normal visitor access and the galaxy experience.
+
+- Owner request on 2026-10-25: preserve Apple Live Photos as one attachment,
+  including their recorded sound. Opening a memory plays the Live Photo once
+  with sound, then returns to its actual key picture. If browser autoplay is
+  blocked, expose an explicit play action. Downloads must remain a valid photo
+  and MOV pair for Apple Photos import. Strip location, capture dates, device
+  information and other source metadata from both components; generate fresh
+  pairing identifiers and retain only required playback/pairing information.
+  Never retain unsanitized Live Photo source files after processing.

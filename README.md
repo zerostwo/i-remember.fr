@@ -71,6 +71,44 @@ PostgreSQL database and authored demo memories. Demo data is not bundled into a 
 installation. The upload screenshot was captured locally on 2026-10-18 using a
 synthetic file. [Screenshot notes](docs/images/README.md).
 
+## Live Photos
+
+Upload an Apple Live Photo by selecting its **unmodified HEIC/JPEG and same-name
+MOV together**, or select a `.livp` / ZIP containing one pair. Export unmodified
+originals from Photos on Mac to obtain both files. A browser photo picker may
+provide only a still image; the website cannot reconstruct missing motion or sound.
+One pair occupies one attachment slot. Limits: 100 MB combined, a 32 MB / 64 MP
+still, and 30 seconds / 4K motion. The embedded Apple identifiers must match.
+
+Opening the memory plays the Live Photo once, with its recorded sound, then shows
+the actual key picture. **LIVE** replays it; if browser autoplay is blocked, tap
+LIVE to start with sound. Playback stops when the memory closes or the tab hides,
+and temporarily mutes the galaxy soundtrack. Card composition applies to motion
+as well as the still; full-photo viewing and downloads keep the complete picture.
+
+The download arrow saves a ZIP with `Memory.JPG` and `Memory.MOV`. Extract it and
+import **both files together** using File → Import in Photos on a Mac. The files
+share a fresh Apple pairing identifier and a key-picture time track, so they remain
+a Live Photo. Safari on iPhone cannot import this ZIP directly into Photos; import
+on Mac and sync through iCloud Photos. Export is JPEG plus H.264/AAC MOV (motion up
+to 1920 pixels / 30 fps), not a byte-for-byte copy of the HEIC/HEVC source.
+
+Both components are rebuilt from decoded media. GPS, capture dates, camera/device
+fields, XMP/IPTC, source thumbnails, sensor tracks and original identifiers are
+discarded. Only fresh Live Photo pairing/playback metadata is added. Temporary
+source files stay outside public storage and are removed on success or failure.
+New ordinary public/admin photo uploads also discard embedded metadata; existing
+stored uploads are not retroactively rewritten. Visible text, faces and spoken
+content are retained, as is the explicitly requested recorded sound.
+
+The single Docker image includes FFmpeg, ExifTool and `heif-convert`. Local
+development needs all three on PATH. `/api/live-photo-uploads` uses the same
+chunk/status protocol as video uploads. No database migration is needed. Run
+`node scripts/check-live-photo.mjs` for pairing, privacy, audio, key-picture,
+archive and cleanup checks. On macOS, the test also generates an Apple-authored
+HEIC/JPEG fixture and validates the download with `PHLivePhoto` without changing
+the user's Photos library. Physical iPhone import and playback need device QA.
+
 ## Audio memories
 
 Public and admin uploads accept MP3, M4A, WAV, OGG and FLAC (100 MB / 10 minutes
@@ -243,7 +281,8 @@ and appearing for a particular name are not guaranteed or immediate**. See the
 
 Use Node.js 22 (CI: 22.23.1), pnpm 10.17.1, and a running PostgreSQL database. Native
 local development requires its own database; embedded PostgreSQL is a Docker feature.
-Install FFmpeg and ffprobe on PATH to upload or test videos.
+Install FFmpeg and ffprobe on PATH to upload or test videos. Live Photos also need
+ExifTool and `heif-convert` (libheif tools); macOS native compatibility tests need Swift.
 
 ```bash
 corepack enable

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Wait for shared media modules before direct-memory initialization, and preserve
+  playback promise failures so blocked autoplay can offer a working play action.
+
 - Limit search indexing to the homepage: exclude memories and uploaded media with
   noindex headers, prevent public-page image indexing, remove memory sitemap
   entries and stop promoting uploaded photos or stories in SEO metadata.
@@ -30,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Direct memory links skip the homepage introduction and artificial startup delay.
 
 ### Added
+
+- Apple Live Photo uploads as one HEIC/JPEG + MOV pair or `.livp`/ZIP, in public
+  submissions and admin editing. Inline playback keeps recorded sound, plays once
+  on opening and returns to the key picture; replay and Apple Photos pair downloads
+  are available on the card. Blocked autoplay exposes an explicit play action.
+- Rebuild Live Photo photo/video metadata with fresh pairing identifiers and key
+  time tracks, removing location, capture dates, camera details and sensor data.
+  New ordinary public/admin image uploads also strip embedded metadata, including
+  the public crop source. Existing uploaded files are unchanged.
 
 - Site setting for cross-memory arrows, swipes and keyboard shortcuts, disabled
   by default to encourage galaxy exploration; in-memory photo navigation remains available.

@@ -1,6 +1,7 @@
 import { uploadAudio } from "./audio.js";
 import { audioLimits } from "../../packages/config/src/media-limits.js";
 import { createVideoUploads, videoChunkBytes } from "./video-uploads.js";
+import { uploadLivePhoto, livePhotoMaxBytes } from "./live-photo.js";
 import { uploadVideo, videoLimits } from "./video.js";
 import { serveAsset } from "./static-assets.js";
 import { renderSeo, sitemapXml, siteOrigin, publicPosts } from "./seo.js";
@@ -731,6 +732,12 @@ function v1MemoryPhotos(memory) {
   return (memory?.attachments || []).filter(a => /^(image|video|audio)\//.test(String(a.type)))
     .map((a, index) => {
       const key = safeUploadedFileId(a.metadata?.imageKey || a.url?.match(/\/posts\/(revival-[a-z0-9-]+)\//i)?.[1]);
+      if (a.metadata?.livePhoto && key) return {
+        type: a.type, live_photo_url: `/uploads/posts/${key}/video.mp4`,
+        live_download_url: `/uploads/posts/${key}/live-photo.zip`,
+        live_crop: a.metadata.crop || { x: .5, y: .5, zoom: 1 },
+        image_url: a.url, full_image_url: legacyImagePath(key, "full"),
+        order: Number.isFinite(a.metadata.order) ? a.metadata.order : index };
       if (/^(video|audio)\//.test(String(a.type))) return {
         type: a.type, ...(a.type.startsWith("audio/") ? { audio_url: a.url } : { video_url: a.url }), image_url: a.metadata?.posterUrl || legacyImagePath(key),
         full_image_url: key ? legacyImagePath(key, "full") : a.metadata?.posterUrl,
@@ -1167,7 +1174,6 @@ class RevivalBackend {
     }
 
     const fileId = `revival-${randomUUID().slice(0, 12)}`;
-    const original = file.data;
     const input = sharp(file.data, { limitInputPixels: maxImagePixels, animated: false });
     let metadata;
     try {
@@ -1191,6 +1197,7 @@ class RevivalBackend {
     }
     const encode = (pipeline, quality) => animated ? pipeline.gif() : pipeline.jpeg({ quality });
     const source = () => sharp(file.data, { limitInputPixels: maxImagePixels, animated }).rotate();
+    const original = await encode(source(), 95).toBuffer();
     const resized = await encode(source().resize(600, 600, { fit: "contain", background: "#000" }), 88).toBuffer();
     const full = await encode(source().resize(2400, 2400, { fit: "inside", withoutEnlargement: true }), 90).toBuffer();
     const thumb = await sharp(file.data, { limitInputPixels: maxImagePixels })
@@ -1240,6 +1247,11 @@ class RevivalBackend {
       writeFileSync(path, data, { mode: 0o660 });
     }
     const videoPath = join(folder, "video.json");
+    const livePath = join(folder, "live-photo.json");
+    if (existsSync(livePath)) return { url: `/uploads/posts/${photo.fileId}/${filename}`, type: "image/jpeg",
+      metadata: { ...JSON.parse(readFileSync(livePath, "utf8")), imageKey: photo.fileId,
+        videoUrl: `/uploads/posts/${photo.fileId}/video.mp4`, downloadUrl: `/uploads/posts/${photo.fileId}/live-photo.zip`,
+        crop: photo.crop, order } };
     if (existsSync(videoPath)) return { url: `/uploads/posts/${photo.fileId}/video.mp4`, type: "video/mp4",
       metadata: { ...JSON.parse(readFileSync(videoPath, "utf8")), imageKey: photo.fileId,
         posterUrl: `/uploads/posts/${photo.fileId}/${filename}`, crop: photo.crop, order } };
@@ -1669,6 +1681,10 @@ function localizeChineseHtml(html) {
 
 export function createRevivalMiddleware(options = {}) {
   const backend = new RevivalBackend(options);
+  backend.livePhotoUploads = createVideoUploads(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), async (result) => {
+    const attachment = await backend.cropPhoto({ fileId: result.fileId, crop: { x: .5, y: .5, zoom: 1 } }, 0);
+    return { ...result, attachment };
+  }, { kind: "live-photo", processVideo: uploadLivePhoto, maxBytes: livePhotoMaxBytes, limitMessage: "Choose a Live Photo of 100 MB or less." });
   backend.videoUploads = createVideoUploads(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), async (result) => {
     const attachment = await backend.cropPhoto({ fileId: result.fileId, crop: { x: .5, y: .5, zoom: 1 } }, 0);
     return { ...result, attachment };
@@ -1800,6 +1816,15 @@ async function handleRequest(backend, req, res, next, options = {}) {
     return;
   }
 
+  const liveDownload = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/live-photo\.zip$/i);
+  if (liveDownload && (req.method === "GET" || req.method === "HEAD")) {
+    const path = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", liveDownload[1], "live-photo.zip");
+    if (!existsSync(path)) { sendStatus(res, 404, "Not found"); return; }
+    res.setHeader("Content-Disposition", 'attachment; filename="Live Photo.zip"');
+    res.setHeader("X-Robots-Tag", "noindex, noimageindex");
+    serveAsset(req, res, path, statSync(path), "application/zip");
+    return;
+  }
   const audioMatch = pathname.match(/^\/uploads\/posts\/(revival-[a-z0-9-]+)\/audio\.mp3$/i);
   if (audioMatch && (req.method === "GET" || req.method === "HEAD")) {
     const path = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", audioMatch[1], "audio.mp3");
@@ -1938,13 +1963,14 @@ async function handleRequest(backend, req, res, next, options = {}) {
     return;
   }
 
-  if (/^\/api\/(video|audio)-uploads(?:\/|$)/.test(pathname)) {
+  if (/^\/api\/(video|audio|live-photo)-uploads(?:\/|$)/.test(pathname)) {
     const audio = pathname.startsWith("/api/audio-");
-    const uploads = audio ? backend.audioUploads : backend.videoUploads;
-    const endpoint = audio ? "/api/audio-uploads" : "/api/video-uploads";
+    const live = pathname.startsWith("/api/live-photo-");
+    const uploads = live ? backend.livePhotoUploads : audio ? backend.audioUploads : backend.videoUploads;
+    const endpoint = live ? "/api/live-photo-uploads" : audio ? "/api/audio-uploads" : "/api/video-uploads";
     try {
       if (req.method !== "GET") assertSameOrigin(req);
-      const match = pathname.match(/^\/api\/(?:video|audio)-uploads\/([a-f0-9]{48})(?:\/(complete|chunks\/(\d+)))?$/);
+      const match = pathname.match(/^\/api\/(?:video|audio|live-photo)-uploads\/([a-f0-9]{48})(?:\/(complete|chunks\/(\d+)))?$/);
       let result;
       if (pathname === endpoint && req.method === "POST") {
         assertRateLimit(req, "upload-media", 6, 10 * 60 * 1000);

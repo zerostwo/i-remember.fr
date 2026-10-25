@@ -7,6 +7,7 @@
   var memoryIndex = 0;
   var viewer;
   var card;
+  var memoryClosed = true;
   var clamp = function (value, low, high) { return Math.max(low, Math.min(high, value)); };
   function label(en, fr, zh) {
     var language = window.LANG || "en";
@@ -43,7 +44,9 @@
     state.steps.data.fileId = state.photos[0] && state.photos[0].fileId;
   }
   async function uploadFiles(files, append) {
-    var list = Array.from(files || []);
+    var list;
+    try { list = window.songqiMedia.groupLivePhotos(files); }
+    catch (err) { return error(err.message); }
     if (!list.length || state.busy || !state.steps) return;
     var existing = append ? state.photos.slice() : [];
     var previousCount = existing.length;
@@ -100,7 +103,7 @@
         form.set("local", file);
         var isVideo = /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name);
         var payload;
-        if (isVideo || window.songqiMedia.isAudioFile(file)) {
+        if (isVideo || window.songqiMedia.isAudioFile(file) || window.songqiMedia.isLivePhotoFile(file)) {
           payload = { data: await window.songqiVideoUpload(file, { onProgress: showProgress }) };
         } else {
           payload = await window.songqiUploadRequest("/api/upload-image", {
@@ -562,12 +565,19 @@
     audioPlayer.element.classList.add("memory-audio-player");
     var visualizer = window.songqiAudioVisualizer(audio, audioPlayer.element);
     card.appendChild(audioPlayer.element);
+    var live = window.songqiLivePhotoPlayer({ labels: {
+      play: label("Play Live Photo with sound", "Lire la Live Photo avec le son", "播放实况照片和声音"),
+      pause: label("Pause Live Photo", "Mettre en pause", "暂停实况照片"),
+      download: label("Download Live Photo for Apple Photos", "Télécharger pour Photos Apple", "下载可导入苹果相册的实况照片"),
+      tap: label("Tap LIVE to play with sound", "Touchez LIVE pour écouter", "点击 LIVE 有声播放")
+    } });
+    card.appendChild(live.element);
 
     var play = document.createElement("span"); play.className = "memory-video-play"; play.textContent = "▶"; play.setAttribute("aria-hidden", "true"); card.appendChild(play);
     var mediaError = document.createElement("p"); mediaError.className = "media-playback-error"; mediaError.hidden = true;
     var resumeSound = false;
     function restoreSound() { var sound = window.SongqiPhotos.sound; if (resumeSound && sound) sound.unmute(); resumeSound = false; }
-    [video, audio].forEach(function (media) {
+    [video, audio, live.video].forEach(function (media) {
     media.addEventListener("play", function () { var sound = window.SongqiPhotos.sound; if (sound && !sound.isMute) { resumeSound = true; sound.mute(0); } });
     media.addEventListener("pause", restoreSound);
     media.addEventListener("ended", restoreSound);
@@ -590,13 +600,16 @@
       fullPrevious.hidden = fullNext.hidden = currentMemory.length < 2;
       player.reset(); video.pause(); video.removeAttribute("src"); video.load();
       audioPlayer.reset(); audio.pause(); audio.removeAttribute("src"); audio.load(); visualizer.reset();
+      live.stop();
       mediaError.hidden = true;
       if (!photo) return;
+      memoryClosed = false;
       var isVideo = !!photo.video_url;
       var isAudio = !!photo.audio_url;
+      var isLive = !!photo.live_photo_url;
       play.hidden = !isVideo || isAudio;
       card.classList.toggle("has-inline-audio", isAudio);
-      card.setAttribute("role", isAudio ? "group" : "button"); card.tabIndex = isAudio ? -1 : 0;
+      card.setAttribute("role", isAudio || isLive ? "group" : "button"); card.tabIndex = isAudio ? -1 : 0;
       card.setAttribute("aria-label", isAudio ? label("Audio memory", "Souvenir audio", "音频回忆") : isVideo ? label("Play video", "Lire la vidéo", "播放视频") : label("Open photo", "Ouvrir la photo", "打开照片"));
       image.hidden = isVideo || isAudio; video.hidden = !isVideo; player.element.hidden = !isVideo; audioPlayer.element.hidden = !isAudio;
       card.style.backgroundImage = 'url("' + photo.image_url.replace(/"/g, "%22") + '")';
@@ -613,19 +626,22 @@
       updateContrast(photo.image_url);
       if (viewer.open && isVideo) { image.removeAttribute("src"); video.poster = photo.full_image_url; video.src = photo.video_url; }
       if (isAudio) { if (viewer.open) viewer.close(); image.removeAttribute("src"); audio.src = photo.audio_url; visualizer.reset(); }
+      if (isLive && !viewer.open) live.show(photo);
       if (viewer.open && !isVideo && !isAudio) { image.src = photo.full_image_url; image.alt = label("Memory photo", "Photo du souvenir", "回忆照片") + " " + (memoryIndex + 1); }
     }
     function move(delta) { if (currentMemory.length < 2) return; memoryIndex = (memoryIndex + delta + currentMemory.length) % currentMemory.length; render(); }
     function open(event) {
       if (event.type === "keydown" && event.key !== "Enter" && event.key !== " ") return;
       if (!currentMemory.length || currentMemory[memoryIndex].audio_url) return;
+      if (event.target.closest(".memory-live-controls")) return;
+      live.pause();
       event.preventDefault(); event.stopPropagation(); viewer.showModal(); render(); if (currentMemory[memoryIndex].video_url) video.play().catch(function () {}); if (currentMemory[memoryIndex].video_url) player.focus(); else if (!currentMemory[memoryIndex].audio_url) viewer.focus({ preventScroll: true });
     }
     card.addEventListener("click", open); card.addEventListener("keydown", open);
     viewer.addEventListener("keydown", function (event) { if (!player.element.contains(event.target) && !audioPlayer.element.contains(event.target) && (event.key === "ArrowLeft" || event.key === "ArrowRight")) { event.preventDefault(); move(event.key === "ArrowLeft" ? -1 : 1); } event.stopPropagation(); });
-    viewer.addEventListener("close", function () { player.reset(); video.pause(); video.removeAttribute("src"); video.load(); image.removeAttribute("src"); card.focus({ preventScroll: true }); });
+    viewer.addEventListener("close", function () { player.reset(); video.pause(); video.removeAttribute("src"); video.load(); image.removeAttribute("src"); if (!memoryClosed && currentMemory[memoryIndex]?.live_photo_url) live.show(currentMemory[memoryIndex], false); card.focus({ preventScroll: true }); });
     viewer.addEventListener("click", function (event) { if (event.target === viewer) viewer.close(); });
-    window.addEventListener("popstate", function () { audio.pause(); if (viewer.open) viewer.close(); });
+    window.addEventListener("popstate", function () { live.stop(); audio.pause(); if (viewer.open) viewer.close(); });
     window.addEventListener("pagehide", function () { audio.pause(); video.pause(); });
     function swipe(element) {
       var start;
@@ -634,6 +650,8 @@
     }
     swipe(card); swipe(image);
     window.SongqiPhotos.closeMemory = function () {
+      memoryClosed = true;
+      live.stop();
       audio.pause(); audio.removeAttribute("src"); audio.load(); visualizer.reset();
       if (viewer.open) viewer.close();
     };
@@ -642,7 +660,7 @@
   function showMemory(post) {
     installViewer();
     var photos = post.photos && post.photos.length ? post.photos : [{ image_url: post.image_url, full_image_url: post.full_image_url || post.image_url }];
-    currentMemory = photos.slice(0, MAX_VIEW_PHOTOS).map(function (photo) { return { audio_url: photo.audio_url ? safeImageUrl(photo.audio_url) : "", video_url: photo.video_url ? safeImageUrl(photo.video_url) : "", image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
+    currentMemory = photos.slice(0, MAX_VIEW_PHOTOS).map(function (photo) { return { live_photo_url: photo.live_photo_url ? safeImageUrl(photo.live_photo_url) : "", live_download_url: photo.live_download_url ? safeImageUrl(photo.live_download_url) : "", live_crop: photo.live_crop, audio_url: photo.audio_url ? safeImageUrl(photo.audio_url) : "", video_url: photo.video_url ? safeImageUrl(photo.video_url) : "", image_url: safeImageUrl(photo.image_url), full_image_url: safeImageUrl(photo.full_image_url || photo.image_url) }; }).filter(function (photo) { return photo.image_url && photo.full_image_url; });
     memoryIndex = 0;
     if (window.SongqiPhotos.renderMemory) window.SongqiPhotos.renderMemory();
   }
