@@ -35,6 +35,7 @@ import { markdownToHtml } from "../../../packages/content/src/markdown.js";
 import { mediaAccept } from "../../../packages/config/src/media-limits.js";
 import { groupLivePhotos } from "../../../packages/content/src/live-photo-upload.js";
 import { appendV1Attachment } from "./v1-memory.js";
+import { v1AssetPreviewUrls } from "./v1-assets.js";
 
 export function mediaKind(asset = {}) {
   if (asset.metadata?.livePhoto) return "live";
@@ -96,7 +97,8 @@ function MediaPlayer({ asset }) {
   const kind = mediaKind(asset),
     [error, setError] = useState(false);
   const [livePlaying, setLivePlaying] = useState(false);
-  const url = mediaUrl(asset);
+  const urls = v1AssetPreviewUrls(asset);
+  const url = urls.preview;
   if (error)
     return (
       <div className="admin-workspace-empty">
@@ -131,7 +133,7 @@ function MediaPlayer({ asset }) {
         {livePlaying ? (
           <video
             className="admin-media-player"
-            src={asset.metadata.videoUrl}
+            src={urls.video}
             controls
             playsInline
             autoPlay
@@ -211,7 +213,7 @@ function MediaDialog({ asset, onClose, memories = [], onDetach, editMemory }) {
       <div className="admin-media-detail">
         <Button asChild variant="outline">
           <a
-            href={asset.metadata?.livePhoto ? asset.metadata.downloadUrl : mediaUrl(asset)}
+            href={v1AssetPreviewUrls(asset).download}
             download
             target="_blank"
             rel="noreferrer"

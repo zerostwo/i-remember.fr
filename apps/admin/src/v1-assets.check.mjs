@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload } from "./v1-assets.js";
+import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload, v1AssetPreviewUrls } from "./v1-assets.js";
 
 const merged = mergeV1Assets(
   {
@@ -56,3 +56,14 @@ assert.equal(shared.attachments.length, 1);
 assert.deepEqual(shared.attachments[0].memoryIds, ["one", "two"]);
 assert.equal(shared.attachments[0].metadata.duration, 3);
 assert.equal(shared.attachments[0].type, "video/mp4");
+
+const photo = { url: "/uploads/posts/revival-abc-123/crop-123.gif", type: "image/gif" };
+assert.equal(v1AssetPreviewUrls(photo).preview, "/uploads/posts/revival-abc-123/full.jpg");
+assert.equal(v1AssetPreviewUrls(photo).download, "/uploads/posts/revival-abc-123/full.jpg");
+assert.deepEqual(v1AssetPreviewUrls({ ...photo, metadata: { livePhoto: true } }), {
+  preview: "/uploads/posts/revival-abc-123/full.jpg",
+  video: "/uploads/posts/revival-abc-123/video.mp4",
+  download: "/uploads/posts/revival-abc-123/live-photo.zip",
+});
+assert.equal(v1AssetPreviewUrls({ url: "/uploads/admin/photo.png", type: "image/png" }).preview, "/uploads/admin/photo.png");
+assert.equal(v1AssetPreviewUrls({ url: "/uploads/posts/revival-abc/video.mp4", type: "video/mp4" }).preview, "/uploads/posts/revival-abc/video.mp4");

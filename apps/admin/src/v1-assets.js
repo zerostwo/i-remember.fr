@@ -7,6 +7,21 @@ function assetKey(asset = {}) {
   return pathname.split("/").filter(Boolean).pop() || fallback;
 }
 
+// Public uploads keep their card crop in `url`; full-size and paired media
+// are stored beside it. Direct admin uploads already point at the full file.
+export function v1AssetPreviewUrls(asset = {}) {
+  const url = asset.url || asset.resizedUrl || "";
+  const folder = url.match(/^(.*\/posts\/revival-[a-z0-9-]+)\/[^/?#]+(?:\?[^#]*)?$/i)?.[1];
+  const image = /^(image\/)/.test(asset.type || asset.mimeType || "");
+  return {
+    preview: image && folder ? `${folder}/full.jpg` : url,
+    video: asset.metadata?.videoUrl || (asset.metadata?.livePhoto && folder ? `${folder}/video.mp4` : ""),
+    download: asset.metadata?.livePhoto
+      ? asset.metadata.downloadUrl || (folder ? `${folder}/live-photo.zip` : url)
+      : image && folder ? `${folder}/full.jpg` : url,
+  };
+}
+
 function adminAttachment(asset = {}) {
   const url = String(asset.url || "");
   return {

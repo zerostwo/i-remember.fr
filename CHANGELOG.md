@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Resolve full-photo previews and Live Photo playback/downloads for existing
+  public uploads in the admin library while retaining their card crops.
 - Make admin media usable with image/video/audio previews, ownership-aware
   attachment removal, explicit upload destinations and progress, reusable media,
   cover ordering, and preserved filenames.
