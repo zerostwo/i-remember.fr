@@ -1415,7 +1415,7 @@ function adminPageRequested(pathname) {
     normalized === "/admin" ||
     normalized === "/admin/index.html" ||
     normalized === "/admin/setup" ||
-    /^\/admin\/(?:dashboard|memory(?:\/editor)?|pages|comments|attachments|theme|menus|settings|backups)$/.test(normalized)
+    /^\/admin\/(?:dashboard|memory(?:\/editor)?|pages(?:\/editor)?|comments|attachments|theme|menus|settings|backups)$/.test(normalized)
   );
 }
 

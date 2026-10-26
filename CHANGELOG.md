@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Make admin media usable with image/video/audio previews, ownership-aware
+  attachment removal, explicit upload destinations and progress, reusable media,
+  cover ordering, and preserved filenames.
+- Give Pages a dedicated draft editor, Markdown preview and media insertion;
+  preserve unsaved work across admin navigation. Save Page content, its public
+  memory and renamed footer targets atomically, without duplicate creation on
+  failed edits. Clear optional summaries correctly.
+- Put writing before publishing settings, open memories/pages directly from
+  lists and search, and replace the placeholder backup metric with real counts.
+
 - Version the production media module by its content so CDN caches cannot mix
   old media factories with new memory-gallery code after an upgrade.
 

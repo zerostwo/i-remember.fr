@@ -400,7 +400,7 @@ export function pagePatchInput(value: Record<string, unknown>): PageUpdateInput 
     if (!input.title) throw new ApiError(400, "Page title is required", "missing_page_title");
   }
   if (has(value, "excerpt"))
-    input.excerpt = value.excerpt ? text(value.excerpt, "", 600) : undefined;
+    input.excerpt = value.excerpt ? text(value.excerpt, "", 600) : "";
   if (has(value, "bodyMarkdown") || has(value, "body_markdown") || has(value, "content")) {
     input.bodyMarkdown = bodyText(
       value.bodyMarkdown ?? value.body_markdown ?? value.content,

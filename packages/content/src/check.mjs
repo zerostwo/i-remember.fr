@@ -66,3 +66,6 @@ assert.equal(memoryReaderTitle({ title: "About", content: "# About\n\nA place fo
 const longCard = publicCardDocument({ content: "A memory worth keeping. ".repeat(30) });
 assert.match(longCard, /…<\/div><span class="revival-memory-explore">Read more<\/span>/);
 assert.doesNotMatch(longCard, /Explore this memory/);
+
+assert.equal(memoryPreview({ content: "A short About page.", metadata: { source: "page" } }).longForm, true);
+assert.equal(memoryPreview({ content: "A short memory." }).longForm, false);

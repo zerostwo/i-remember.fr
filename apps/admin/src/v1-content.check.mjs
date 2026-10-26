@@ -72,7 +72,9 @@ const settingsPayload = v1SettingsPayload({
   memoryNavigation: true,
   siteName: "I remember,",
   siteTitle: "Songqi",
-  ownerName: "Someone Else", ownerAlternateName: "", siteDescription: "Another archive",
+  ownerName: "Someone Else",
+  ownerAlternateName: "",
+  siteDescription: "Another archive",
   canonicalUrl: "https://songqi.org",
   timezone: "Asia/Shanghai",
   defaultLanguage: "zh",
@@ -101,7 +103,7 @@ async function v1Api(path, options = {}) {
   return { id: "ok" };
 }
 
-await syncV1Page(v1Api, { id: 7, slug: "about", title: "About" });
+await syncV1Page(v1Api, { slug: "about", title: "About" });
 assert.equal(calls.at(-1).path, "/api/v1/pages");
 assert.equal(JSON.parse(calls.at(-1).options.body).language, "zh");
 
@@ -117,3 +119,31 @@ await syncV1Settings(v1Api, { defaultLanguage: "en", anonymousSubmissions: true 
 assert.equal(calls.at(-1).path, "/api/v1/settings");
 
 console.log("admin v1 content sync ok");
+
+const failedEdits = [];
+await assert.rejects(
+  syncV1Page(
+    async (path, options) => {
+      failedEdits.push({ path, options });
+      throw new Error("Conflict");
+    },
+    { id: "existing", originalSlug: "about", slug: "taken", language: "en", title: "About" },
+  ),
+  /Conflict/,
+);
+assert.equal(failedEdits.length, 1, "Failed edits must not POST duplicate pages");
+assert.equal(failedEdits[0].options.method, "PATCH");
+
+const failedMenuWrites = [];
+await assert.rejects(
+  syncV1MenuItem(
+    async (path, options) => {
+      failedMenuWrites.push({ path, options });
+      throw new Error("Network unavailable");
+    },
+    { uid: "existing", label: "About", language: "en" },
+  ),
+  /Network unavailable/,
+);
+assert.equal(failedMenuWrites.length, 1);
+assert.equal(failedMenuWrites[0].options, undefined);

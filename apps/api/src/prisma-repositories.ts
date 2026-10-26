@@ -595,41 +595,69 @@ export class PrismaPageRepository implements PageRepository {
     return row ? page(row) : null;
   }
 
+  private async save(input: PageInput | PageUpdateInput, slug?: string, language = "en") {
+    // Page, mirrored memory and menu targets are one publication operation.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        return await this.db.$transaction(async (tx) => {
+          if (slug) {
+            await tx.$queryRaw`SELECT id FROM pages WHERE slug = ${slug} AND language_code = ${language} FOR UPDATE`;
+          }
+          const existing = slug ? await tx.page.findUnique({ where: { language_slug: { language, slug } } }) : null;
+          if (slug && !existing) throw new ApiError(404, "Page not found", "not_found");
+          const values = {
+            slug: input.slug, language: input.language, title: input.title,
+            excerpt: input.excerpt, bodyMarkdown: input.bodyMarkdown, status: input.status,
+            linkedMemoryId: input.linkedMemoryId, metadata: input.metadata as any,
+          };
+          let saved = existing
+            ? await tx.page.update({ where: { id: existing.id }, data: values })
+            : await tx.page.create({ data: { ...values, slug: input.slug!, title: input.title! } });
+          if (saved.status === "PUBLISHED" && !saved.bodyMarkdown.trim()) {
+            throw new ApiError(400, "Write some content before publishing this page.", "empty_page_content");
+          }
+          const linked = saved.linkedMemoryId ? await tx.memory.findFirst({
+            where: { OR: [{ id: saved.linkedMemoryId }, { publicId: saved.linkedMemoryId }, { links: { some: { publicId: saved.linkedMemoryId } } }] },
+          }) : null;
+          const status = saved.status === "PUBLISHED" ? "NORMAL" : saved.status === "ARCHIVED" ? "ARCHIVED" : "PENDING";
+          const metadata = {
+            ...(linked?.metadata && typeof linked.metadata === "object" ? linked.metadata : {}),
+            ...(saved.metadata && typeof saved.metadata === "object" ? saved.metadata : {}),
+            pageSlug: saved.slug, source: "page", isLongForm: true, language: saved.language,
+          };
+          if (linked) {
+            await tx.memory.update({ where: { id: linked.id }, data: {
+              title: saved.title, content: saved.bodyMarkdown, excerpt: saved.excerpt || saved.bodyMarkdown.slice(0, 220), status, metadata,
+            } });
+          } else if (saved.status === "PUBLISHED") {
+            const publicId = createPublicMemoryId();
+            const mirror = await tx.memory.create({ data: {
+              publicId, mapKey: publicId, links: { create: { publicId } },
+              title: saved.title, content: saved.bodyMarkdown, excerpt: saved.excerpt || saved.bodyMarkdown.slice(0, 220),
+              status, visibility: "PUBLIC", authorName: "Songqi", metadata,
+            } });
+            saved = await tx.page.update({ where: { id: saved.id }, data: { linkedMemoryId: mirror.publicId } });
+          }
+          if (existing && existing.slug !== saved.slug) {
+            await tx.menuItem.updateMany({ where: { type: "PAGE", language: existing.language, targetValue: existing.slug }, data: { targetValue: saved.slug } });
+          }
+          return page(saved);
+        });
+      } catch (error: any) {
+        if (publicIdConflict(error)) continue;
+        if (error.code === "P2002") throw new ApiError(409, "A page already uses this navigation key. Choose another.", "page_slug_taken");
+        throw error;
+      }
+    }
+    throw new ApiError(503, "Unable to publish this page. Please try again.", "public_id_unavailable");
+  }
+
   async create(input: PageInput) {
-    return page(
-      await this.db.page.create({
-        data: {
-          slug: input.slug,
-          language: input.language || "en",
-          title: input.title,
-          excerpt: input.excerpt,
-          bodyMarkdown: input.bodyMarkdown || "",
-          status: input.status || "DRAFT",
-          linkedMemoryId: input.linkedMemoryId,
-          metadata: input.metadata as any,
-        },
-      }),
-    );
+    return this.save(input);
   }
 
   async update(slug: string, input: PageUpdateInput, language = "en") {
-    const existing = await this.get(slug, language);
-    if (!existing) throw new ApiError(404, "Page not found", "not_found");
-    return page(
-      await this.db.page.update({
-        where: { id: existing.id },
-        data: {
-          slug: input.slug,
-          language: input.language,
-          title: input.title,
-          excerpt: input.excerpt,
-          bodyMarkdown: input.bodyMarkdown,
-          status: input.status,
-          linkedMemoryId: input.linkedMemoryId,
-          metadata: input.metadata as any,
-        },
-      }),
-    );
+    return this.save(input, slug, language);
   }
 
   async archive(slug: string, language = "en") {

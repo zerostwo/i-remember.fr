@@ -361,3 +361,10 @@ Current backend/product decisions:
   information and other source metadata from both components; generate fresh
   pairing identifiers and retain only required playback/pairing information.
   Never retain unsanitized Live Photo source files after processing.
+
+- Owner feedback on 2026-10-25: the admin's layout, operation flow, media
+  previews, attachment management and Page authoring do not yet feel usable.
+  Audit them through actual browser operation and fix the observed problems.
+  Prioritize a coherent writing/publishing hierarchy, working photo/audio/video
+  previews, reusable media with clear ownership, and complete Page creation,
+  editing and save flows. Keep the established public galaxy unchanged.

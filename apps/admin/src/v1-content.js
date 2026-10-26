@@ -121,17 +121,11 @@ export async function syncV1Page(v1Api, page) {
   const defaultLanguage = await contentLanguage(v1Api, page);
   const payload = v1PagePayload(page, defaultLanguage);
   const path = `/api/v1/pages/${encodeURIComponent(page?.originalSlug || page?.slug || payload.slug)}?language=${encodeURIComponent(payload.language)}`;
-  try {
-    return await v1Api(path, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    return v1Api("/api/v1/pages", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+  // An edit failure must never create a second page. Creation is an explicit intent.
+  if (!page.originalSlug && !page.id) {
+    return v1Api("/api/v1/pages", { method: "POST", body: JSON.stringify(payload) });
   }
+  return v1Api(path, { method: "PATCH", body: JSON.stringify(payload) });
 }
 
 export function v1MenuItemPayload(
@@ -174,7 +168,7 @@ export async function findV1MenuItem(v1Api, item = {}, defaultLanguage) {
 export async function syncV1MenuItem(v1Api, item) {
   const defaultLanguage = await contentLanguage(v1Api, item);
   const payload = v1MenuItemPayload(item, defaultLanguage);
-  const existing = await findV1MenuItem(v1Api, item, defaultLanguage).catch(() => null);
+  const existing = await findV1MenuItem(v1Api, item, defaultLanguage);
   if (existing) {
     return v1Api(`/api/v1/menu-items/${encodeURIComponent(existing.id)}`, {
       method: "PATCH",
@@ -188,7 +182,7 @@ export async function syncV1MenuItem(v1Api, item) {
 }
 
 export async function deleteV1MenuItem(v1Api, item) {
-  const existing = await findV1MenuItem(v1Api, item).catch(() => null);
+  const existing = await findV1MenuItem(v1Api, item);
   if (!existing) return null;
   return v1Api(`/api/v1/menu-items/${encodeURIComponent(existing.id)}`, {
     method: "DELETE",

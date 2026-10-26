@@ -19,3 +19,15 @@ Comments and Theme remain absent until they have end-to-end product behavior.
 - Dev: `pnpm --filter @i-remember/admin dev`
 - Build: `pnpm --filter @i-remember/admin build`
 - Test: `pnpm --filter @i-remember/admin test`
+
+The writing workspace separates content from publishing settings. Pages use
+`/admin/pages/editor?slug=<key>` and new pages remain unsaved drafts until saved.
+The media library previews photos, videos, audio and Live Photos, shows where a
+file is used, and removes individual memory references without deleting shared
+storage. Editors can reuse media and change cover order; Page Markdown can insert
+library photos or file links. Page publication and footer-key changes use a single
+PostgreSQL transaction.
+
+See `docs/admin-workspace-review-2026-10-25.md` for audit findings and validation.
+Run `pnpm test:admin-workspace` with `I_REMEMBER_TEST_DATABASE_URL` pointing to a
+migrated disposable test/review database for publication and shared-media checks.

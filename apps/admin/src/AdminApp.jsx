@@ -3,6 +3,7 @@ import { uploadRequest } from "../../../packages/content/src/upload-request.js";
 import { uploadVideoFile } from "../../../packages/content/src/video-upload.js";
 import { groupLivePhotos, isLivePhotoFile } from "../../../packages/content/src/live-photo-upload.js";
 import { MemoryCard } from "../../../packages/content/src/MemoryCard.jsx";
+import { MediaLibrary, EditorAttachments, WritingField, PagesWorkspace, LeaveDraftDialog } from "./workspace.jsx";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Download,
@@ -58,17 +59,15 @@ import {
 } from "@i-remember/ui";
 import { cn } from "@/lib/utils";
 import { v1AuthPayload } from "./v1-auth.js";
-import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload } from "./v1-assets.js";
+import { mergeV1Assets, v1AssetUploadPayload } from "./v1-assets.js";
 import {
   deleteV1MenuItem,
   syncV1MenuItem,
   syncV1Page,
   syncV1Settings,
-  v1PageMemory,
 } from "./v1-content.js";
 import { appendV1Attachment, archiveV1Memory, syncV1Memory } from "./v1-memory.js";
 import { collectPages } from "./pagination.js";
-import { markdownToHtml, memoryBody } from "../../../packages/content/src/markdown.js";
 
 const routes = [
   {
@@ -104,11 +103,12 @@ const routes = [
     group: "Workspace",
     icon: FileText,
   },
+  { id: "page-editor", label: "Page editor", title: "Page editor", description: "Write and publish a page.", group: "Workspace", icon: FileText, hidden: true },
   {
     id: "attachments",
     label: "Attachments",
     title: "Attachments",
-    description: "Images and files attached to your memories.",
+    description: "Photos, sound and video, with their stories.",
     group: "Workspace",
     icon: Paperclip,
   },
@@ -150,7 +150,6 @@ const menuTypes = [
   "SHARE",
   "LOGO",
 ];
-const pageStatuses = ["PUBLISHED", "DRAFT", "ARCHIVED"];
 const memoryStatuses = ["published", "pending", "archived"];
 const v1TokenKey = "i-remember:v1-admin-token";
 
@@ -164,6 +163,7 @@ function normalizeRouteId(value = "") {
 function routeFromPathname(pathname = window.location.pathname) {
   const normalized = pathname.replace(/\/+$/g, "") || "/admin";
   if (normalized === "/admin" || normalized === "/admin/index.html") return "dashboard";
+  if (normalized === "/admin/pages/editor") return "page-editor";
   if (normalized === "/admin/memory/editor") return "memory-editor";
   if (!normalized.startsWith("/admin/")) return "dashboard";
   return normalizeRouteId(normalized.slice("/admin/".length));
@@ -188,12 +188,14 @@ async function api(path, options = {}) {
   const response = await fetch(path, { ...requestOptions, headers });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.success !== true) {
-    throw new Error(
+    const error = new Error(
       payload.error?.message ||
         payload.message ||
         payload.errorMsg ||
         `Request failed: ${response.status}`,
     );
+    error.status = response.status;
+    throw error;
   }
   return envelope ? payload : payload.data;
 }
@@ -247,7 +249,8 @@ function metadataJson(value) {
 function v1MemoryAdmin(memory = {}) {
   const metadata = memory.metadata || {};
   const imageKey = metadata.imageKey || "revival-upload";
-  const previewAsset = memory.attachments?.find((asset) => /^(image|video|audio)\//.test(asset.type));
+  const attachments = [...(memory.attachments || [])].sort((a, b) => (a.metadata?.order ?? 0) - (b.metadata?.order ?? 0));
+  const previewAsset = attachments.find((asset) => /^(image|video|audio)\//.test(asset.type));
   const imageUrl =
     (/^(video|audio)\//.test(previewAsset?.type || "") ? previewAsset.metadata?.posterUrl : previewAsset?.url) ||
     `/uploads/posts/${imageKey}/resized.jpg`;
@@ -264,12 +267,12 @@ function v1MemoryAdmin(memory = {}) {
     status: v1Status(memory.status),
     dbStatus: memory.status,
     visibility: memory.visibility,
-    attachments: memory.attachments || [],
+    attachments,
     tags: memory.tags || [],
     source: metadata.source || "v1",
     imageKey,
     imageUrl,
-    isLongForm: String(memory.content || "").length > 220,
+    isLongForm: metadata.isLongForm === true || String(memory.content || "").length > 220,
     metadata: metadata,
     metadataJson: metadataJson(metadata),
     publicUrl: `/memory/${memory.id}`,
@@ -501,15 +504,6 @@ function TotpQrCode({ value }) {
   );
 }
 
-function MarkdownPreview({ value }) {
-  return (
-    <div
-      className="markdown-preview rounded-lg border bg-background/50 p-4 text-sm"
-      dangerouslySetInnerHTML={{ __html: markdownToHtml(value) }}
-    />
-  );
-}
-
 function useVisualViewportVariables() {
   useEffect(() => {
     const root = document.documentElement;
@@ -633,7 +627,7 @@ export function AdminApp() {
   const [search, setSearch] = useState("");
   const [memoryFilter, setMemoryFilter] = useState("all");
   const [selectedMemoryId, setSelectedMemoryId] = useState(memoryIdFromLocation);
-  const [selectedPageSlug, setSelectedPageSlug] = useState("");
+  const [selectedPageSlug, setSelectedPageSlug] = useState(() => new URLSearchParams(window.location.search).get("slug") || "");
   const [selectedMenuId, setSelectedMenuId] = useState(null);
   const [settingsTab, setSettingsTab] = useState("site");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
@@ -647,21 +641,30 @@ export function AdminApp() {
   const [spotlightOpen, setSpotlightOpen] = useState(false);
   const searchTriggerRef = useRef(null);
   const [editorDirty, setEditorDirty] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(null);
   const [newDraftVersion, setNewDraftVersion] = useState(0);
   const [savingMemory, setSavingMemory] = useState(false);
+  const [uploadingMemory, setUploadingMemory] = useState(false);
+  const [savingPage, setSavingPage] = useState(false);
+  const [savingOther, setSavingOther] = useState(false);
   const dirtyRef = useRef(false);
   const actionRef = useRef(false);
   const locationRef = useRef(window.location.href);
   const reportDirty = useCallback((dirty) => {
     dirtyRef.current = dirty;
     setEditorDirty(dirty);
+    if (dirty) setNotice("");
   }, []);
-  function canLeaveEditor() {
+  function canLeaveEditor(retry) {
     if (actionRef.current) {
-      setNotice("Please wait for the memory operation to finish.");
+      setNotice("Please wait for the current operation to finish.");
       return false;
     }
-    return !dirtyRef.current || window.confirm("Discard unsaved changes?");
+    if (!dirtyRef.current) return true;
+    setMobileNavOpen(false);
+    setSpotlightOpen(false);
+    setPendingNavigation(() => retry);
+    return false;
   }
   useEffect(() => {
     const preventUnload = (event) => {
@@ -717,11 +720,6 @@ export function AdminApp() {
         setData({ ...payload });
       }
       if (requested) setSelectedMemoryId(requested);
-      setSelectedPageSlug((current) =>
-        payload.pages.some((page) => page.slug === current)
-          ? current
-          : payload.pages[0]?.slug || "",
-      );
       setSelectedMenuId((current) =>
         payload.menu.some((item) => item.id === current) ? current : payload.menu[0]?.id || null,
       );
@@ -734,7 +732,8 @@ export function AdminApp() {
 
   useEffect(() => {
     const handleLocation = () => {
-      if (!canLeaveEditor()) {
+      const targetUrl = window.location.href;
+      if (!canLeaveEditor(() => { window.history.pushState({}, "", targetUrl); handleLocation(); })) {
         window.history.pushState({}, "", locationRef.current);
         return;
       }
@@ -743,6 +742,7 @@ export function AdminApp() {
       locationRef.current = window.location.href;
       setRoute(routeFromLocation());
       setSelectedMemoryId(memoryIdFromLocation());
+      setSelectedPageSlug(new URLSearchParams(window.location.search).get("slug") || "");
     };
     window.addEventListener("popstate", handleLocation);
     window.addEventListener("hashchange", handleLocation);
@@ -778,8 +778,11 @@ export function AdminApp() {
   }, [route, selectedMemoryId]);
 
   function navigate(nextRoute, nextSettingsTab = "site") {
-    if (!canLeaveEditor()) return;
+    if (nextRoute === route && (nextRoute !== "settings" || nextSettingsTab === settingsTab)) return;
+    if (!canLeaveEditor(() => navigate(nextRoute, nextSettingsTab))) return;
     reportDirty(false);
+    setSearch("");
+    setNewDraftVersion(value => value + 1);
     const target = routeMap.has(nextRoute) ? nextRoute : "dashboard";
     const targetPath = pathForRoute(target);
     if (window.location.pathname !== targetPath) {
@@ -791,6 +794,19 @@ export function AdminApp() {
     setNotice("");
     setError("");
     setMobileNavOpen(false);
+  }
+
+  function selectMenu(id) {
+    if (id === selectedMenuId) return;
+    if (!canLeaveEditor(() => selectMenu(id))) return;
+    reportDirty(false);
+    setSelectedMenuId(id);
+  }
+
+  function selectSettingsTab(tab) {
+    if (!canLeaveEditor(() => selectSettingsTab(tab))) return;
+    reportDirty(false);
+    setSettingsTab(tab);
   }
 
   function toggleSidebar() {
@@ -852,7 +868,7 @@ export function AdminApp() {
   }
 
   async function handleLogout() {
-    if (!canLeaveEditor()) return;
+    if (!canLeaveEditor(handleLogout)) return;
     reportDirty(false);
     adminToken("");
     setAuthenticated(false);
@@ -874,6 +890,19 @@ export function AdminApp() {
     }
   }
 
+  async function runEditorAction(label, action) {
+    if (actionRef.current) return null;
+    actionRef.current = true;
+    setSavingOther(true);
+    try {
+      return await runAction(label, async () => {
+        const result = await action();
+        reportDirty(false);
+        return result;
+      });
+    } finally { actionRef.current = false; setSavingOther(false); }
+  }
+
   async function saveMemory(id, payload) {
     if (actionRef.current) return null;
     actionRef.current = true;
@@ -881,6 +910,7 @@ export function AdminApp() {
     try {
       return await runAction("Memory saved", async () => {
         const saved = await syncV1Memory(v1Api, payload);
+        setData(current => ({ ...current, memories: [v1MemoryAdmin(saved), ...current.memories.filter(item => item.id !== saved.id && item.id !== id)] }));
         reportDirty(false);
         setSelectedMemoryId(saved.id);
         window.history.replaceState(
@@ -900,7 +930,7 @@ export function AdminApp() {
   }
 
   function createMemory() {
-    if (!canLeaveEditor()) return;
+    if (!canLeaveEditor(createMemory)) return;
     setNewDraftVersion((value) => value + 1);
     reportDirty(false);
     setSelectedMemoryId(null);
@@ -910,7 +940,7 @@ export function AdminApp() {
   }
 
   function editMemory(id, section = "content") {
-    if (!canLeaveEditor()) return;
+    if (!canLeaveEditor(() => editMemory(id, section))) return;
     reportDirty(false);
     setNewDraftVersion((value) => value + 1);
     setSelectedMemoryId(id);
@@ -925,7 +955,8 @@ export function AdminApp() {
 
   async function uploadEditorFile(file, signal, onProgress = () => {}) {
     if (isLivePhotoFile(file) || isAudioFile(file) || /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
-      return (await uploadVideoFile(file, { signal, onProgress })).attachment;
+      const asset = (await uploadVideoFile(file, { signal, onProgress })).attachment;
+      return { ...asset, metadata: { ...asset.metadata, filename: file.name || asset.metadata?.filename } };
     }
     onProgress({ phase: "uploading", percent: 0 });
     const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
@@ -936,7 +967,7 @@ export function AdminApp() {
       onProgress: (fraction) => onProgress({ phase: "uploading", percent: Math.floor(fraction * 100) }),
       onUploaded: () => onProgress({ phase: "processing", percent: null }),
     });
-    return payload.data;
+    return { ...payload.data, metadata: { ...payload.data?.metadata, filename: file.name || payload.data?.metadata?.filename } };
   }
 
   async function deleteMemory(id) {
@@ -963,85 +994,79 @@ export function AdminApp() {
     }
   }
 
-  async function uploadAttachment(files, memoryId) {
-    const memory = data?.memories?.find((item) => String(item.id) === String(memoryId));
-    if (!files?.length || !memory) return;
-    await runAction("Attachment uploaded", async () => {
-      for (const file of groupLivePhotos(files)) {
-        const attachment = await uploadEditorFile(file);
-        const path = `/api/v1/memories/${encodeURIComponent(memory.publicId)}`;
+  async function uploadAttachment(files, memoryId, signal, onProgress) {
+    if (!files?.length || !memoryId || actionRef.current) return;
+    actionRef.current = true;
+    try {
+      for (const [index, file] of groupLivePhotos(files).entries()) {
+        const attachment = await uploadEditorFile(file, signal, progress => onProgress?.({ ...progress, index: index + 1 }));
+        const path = `/api/v1/memories/${encodeURIComponent(memoryId)}`;
         const current = await v1Api(path);
-        await v1Api(path, {
-          method: "PATCH", body: JSON.stringify({ attachments: appendV1Attachment(current.attachments, attachment) }),
-        });
+        await v1Api(path, { method: "PATCH", body: JSON.stringify({ attachments: appendV1Attachment(current.attachments, attachment) }) });
       }
-      await refreshData();
-    });
+    } finally {
+      try { await refreshData(); } finally { actionRef.current = false; }
+    }
   }
 
-  async function deleteAttachment(attachment) {
-    if (!attachment || attachment.storageType !== "v1") return;
-    if (!window.confirm(`Delete "${attachment.imageKey || "this attachment"}"?`)) return;
-    await runAction("Attachment deleted", async () => {
-      await v1Api(v1AssetDeletePath(attachment), { method: "DELETE" });
+  async function detachAttachment(attachment, memoryId) {
+    const result = await runAction("Attachment removed from memory", async () => {
+      const path = `/api/v1/memories/${encodeURIComponent(memoryId)}`;
+      const current = await v1Api(path);
+      await v1Api(path, { method: "PATCH", body: JSON.stringify({ attachments: current.attachments.filter(item => item.url !== attachment.url) }) });
       await refreshData();
+      return true;
     });
+    return result;
   }
 
   async function savePage(slug, payload) {
-    await runAction("Page saved", async () => {
-      let saved = await syncV1Page(v1Api, { ...payload, originalSlug: slug });
-      let pageMemory = v1PageMemory(saved);
-      if (!pageMemory && saved.status === "PUBLISHED") {
-        const memory = await syncV1Memory(v1Api, {
-          language: saved.language,
-          source: "page",
-          title: saved.title,
-          author: "Songqi",
-          excerpt: saved.excerpt,
-          bodyMarkdown: saved.bodyMarkdown,
-          status: "published",
-          tags: [saved.slug, "page", "memory"],
-        });
-        saved = await syncV1Page(v1Api, {
-          ...saved,
-          originalSlug: saved.slug,
-          linkedMemoryId: memory.id,
-        });
-        pageMemory = v1PageMemory(saved);
-      }
-      if (pageMemory) await syncV1Memory(v1Api, pageMemory);
-      setSelectedPageSlug(saved.slug);
-      await refreshData();
-    });
+    if (actionRef.current) return null;
+    actionRef.current = true;
+    setSavingPage(true);
+    try {
+      return await runAction("Page saved", async () => {
+        const saved = await syncV1Page(v1Api, { ...payload, originalSlug: slug || undefined });
+        setData(current => ({ ...current, pages: [v1PageAdmin(saved), ...current.pages.filter(item => item.id !== saved.id)] }));
+        reportDirty(false);
+        setSelectedPageSlug(saved.slug);
+        window.history.replaceState({}, "", `/admin/pages/editor?slug=${encodeURIComponent(saved.slug)}`);
+        locationRef.current = window.location.href;
+        await refreshData();
+        return saved;
+      });
+    } finally {
+      actionRef.current = false;
+      setSavingPage(false);
+    }
   }
 
-  async function createPage() {
-    await runAction("Page created", async () => {
-      const slug = `page-${Date.now().toString(36)}`;
-      const saved = await syncV1Page(v1Api, {
-        slug,
-        title: "Untitled page",
-        excerpt: "A new footer page.",
-        status: "DRAFT",
-        bodyMarkdown: "# Untitled page\n\nWrite this page in Markdown.",
-      });
-      const pageMemory = v1PageMemory(saved);
-      if (pageMemory) await syncV1Memory(v1Api, pageMemory).catch(() => null);
-      setSelectedPageSlug(saved.slug);
-      await refreshData();
-    });
+  function editPage(slug = "") {
+    if (!canLeaveEditor(() => editPage(slug))) return;
+    reportDirty(false);
+    setNotice("");
+    setError("");
+    setNewDraftVersion(value => value + 1);
+    setSelectedPageSlug(slug);
+    window.history.pushState({}, "", `/admin/pages/editor${slug ? `?slug=${encodeURIComponent(slug)}` : "?new=1"}`);
+    locationRef.current = window.location.href;
+    setRoute("page-editor");
   }
+
+  function createPage() { editPage(); }
 
   async function saveMenuItem(id, payload) {
-    await runAction("Menu item saved", async () => {
+    return runEditorAction("Menu item saved", async () => {
       const saved = await syncV1MenuItem(v1Api, payload);
       setSelectedMenuId(saved.id);
       await refreshData();
+      return saved;
     });
   }
 
   async function createMenuItem() {
+    if (!canLeaveEditor(createMenuItem)) return;
+    reportDirty(false);
     await runAction("Menu item created", async () => {
       const saved = await syncV1MenuItem(v1Api, {
         uid: `menu-${Date.now().toString(36)}`,
@@ -1049,7 +1074,7 @@ export function AdminApp() {
         type: "PAGE",
         targetValue: data?.pages?.[0]?.slug || "about",
         position: (data?.menu?.at(-1)?.position || 0) + 10,
-        isVisible: true,
+        isVisible: false,
       });
       setSelectedMenuId(saved.id);
       await refreshData();
@@ -1057,25 +1082,28 @@ export function AdminApp() {
   }
 
   async function deleteMenuItem(id) {
+    if (!canLeaveEditor(() => deleteMenuItem(id)) || !window.confirm("Delete this navigation item? The page or memory it points to is kept.")) return;
     const item = data?.menu?.find((candidate) => candidate.id === id);
     await runAction("Menu item deleted", async () => {
       if (item) await deleteV1MenuItem(v1Api, item);
+      reportDirty(false);
       setSelectedMenuId(null);
       await refreshData();
     });
   }
 
   async function saveSettings(payload) {
-    await runAction("Settings saved", async () => {
+    return runEditorAction("Settings saved", async () => {
       const settings = await syncV1Settings(v1Api, payload);
       setData((current) =>
         current ? { ...current, settings: { ...current.settings, ...settings } } : current,
       );
+      return settings;
     });
   }
 
   async function saveAccount(payload) {
-    return runAction("Account updated", async () => {
+    return runEditorAction("Account updated", async () => {
       const result = await v1Api("/api/v1/auth/account", {
         method: "PATCH",
         body: JSON.stringify(payload),
@@ -1169,7 +1197,7 @@ export function AdminApp() {
   }
 
   const currentRoute = routeMap.get(route) || routeMap.get("dashboard");
-  const activeRoute = route === "memory-editor" ? "memory" : route;
+  const activeRoute = route === "memory-editor" ? "memory" : route === "page-editor" ? "pages" : route;
 
   if (checkingSession) {
     return (
@@ -1213,23 +1241,25 @@ export function AdminApp() {
                   ? selectedMemoryId
                     ? "Edit memory"
                     : "New memory"
-                  : currentRoute.title}
+                  : route === "page-editor" ? (selectedPageSlug ? "Edit page" : "New page") : currentRoute.title}
               </h1>
               <p>
-                {route === "memory-editor"
-                  ? savingMemory
+                {route === "memory-editor" || route === "page-editor"
+                  ? savingMemory || savingPage
                     ? "Saving…"
                     : editorDirty
                       ? "Unsaved changes"
-                      : selectedMemoryId
+                      : (route === "page-editor" ? selectedPageSlug : selectedMemoryId)
                         ? "Changes saved"
                         : "Ready to write"
-                  : currentRoute.description}
+                  : editorDirty ? "Unsaved changes" : currentRoute.description}
               </p>
             </div>
             <TopBarAction
+              key={route}
               selectedMemoryId={selectedMemoryId}
-              saving={savingMemory}
+              saving={savingMemory || savingPage || savingOther || uploadingMemory}
+              uploading={uploadingMemory}
               route={route}
               settingsTab={settingsTab}
               createMemory={createMemory}
@@ -1249,6 +1279,10 @@ export function AdminApp() {
                 reportDirty={reportDirty}
                 uploadEditorFile={uploadEditorFile}
                 savingMemory={savingMemory}
+                onUploadingChange={setUploadingMemory}
+                savingPage={savingPage}
+                savingOther={savingOther}
+                editPage={editPage}
                 newDraftVersion={newDraftVersion}
                 route={route}
                 data={data}
@@ -1261,15 +1295,15 @@ export function AdminApp() {
                 selectedPageSlug={selectedPageSlug}
                 setSelectedPageSlug={setSelectedPageSlug}
                 selectedMenuId={selectedMenuId}
-                setSelectedMenuId={setSelectedMenuId}
+                setSelectedMenuId={selectMenu}
                 settingsTab={settingsTab}
-                setSettingsTab={setSettingsTab}
+                setSettingsTab={selectSettingsTab}
                 createMemory={createMemory}
                 editMemory={editMemory}
                 saveMemory={saveMemory}
                 deleteMemory={deleteMemory}
                 uploadAttachment={uploadAttachment}
-                deleteAttachment={deleteAttachment}
+                detachAttachment={detachAttachment}
                 createPage={createPage}
                 savePage={savePage}
                 createMenuItem={createMenuItem}
@@ -1287,6 +1321,12 @@ export function AdminApp() {
           </div>
         </section>
       </div>
+      <LeaveDraftDialog open={Boolean(pendingNavigation)} onCancel={() => setPendingNavigation(null)} onDiscard={() => {
+        const action = pendingNavigation;
+        setPendingNavigation(null);
+        reportDirty(false);
+        action?.();
+      }} />
       <MobileNavigationSheet
         open={mobileNavOpen}
         route={activeRoute}
@@ -1303,6 +1343,7 @@ export function AdminApp() {
         createMemory={createMemory}
         createPage={createPage}
         editMemory={editMemory}
+        editPage={editPage}
       />
     </main>
   );
@@ -1485,6 +1526,7 @@ function SetupScreen({ loading, onSetup }) {
 function TopBarAction({
   selectedMemoryId,
   saving,
+  uploading,
   route,
   settingsTab,
   createMemory,
@@ -1514,11 +1556,12 @@ function TopBarAction({
           value={selectedMemoryId ? "save" : "publish"}
           type="submit"
         >
-          {saving ? "Saving…" : selectedMemoryId ? "Save changes" : "Publish memory"}
+          {uploading ? "Uploading…" : saving ? "Saving…" : selectedMemoryId ? "Save changes" : "Publish memory"}
         </Button>
       </div>
     );
   }
+  if (route === "page-editor") return <Button disabled={saving} form="page-editor-form" type="submit">{saving ? "Saving…" : "Save page"}</Button>;
   if (route === "pages") {
     return (
       <Button onClick={createPage}>
@@ -1547,7 +1590,7 @@ function TopBarAction({
     }
     if (settingsTab === "security") return null;
     return (
-      <Button variant="outline" form={`settings-${settingsTab}-form`} type="submit">
+      <Button disabled={saving} variant="outline" form={`settings-${settingsTab}-form`} type="submit">
         <Save data-icon="inline-start" />
         {settingsTab === "account" ? "Save account" : "Save changes"}
       </Button>
@@ -1732,7 +1775,7 @@ function NavButton({ item, active, collapsed = false, onClick }) {
   );
 }
 
-function Spotlight({ open, data, close, navigate, createMemory, createPage, editMemory }) {
+function Spotlight({ open, data, close, navigate, createMemory, createPage, editMemory, editPage }) {
   const dialogRef = useRef(null);
   const inputRef = useRef(null);
   const [query, setQuery] = useState("");
@@ -1769,7 +1812,7 @@ function Spotlight({ open, data, close, navigate, createMemory, createPage, edit
         group: "Pages",
         label: page.title,
         meta: page.slug,
-        action: () => navigate("pages"),
+        action: () => editPage(page.slug),
       })),
     { group: "Navigation", label: "Open Settings", meta: "S", action: () => navigate("settings") },
     {
@@ -1913,22 +1956,18 @@ function AdminRoute(props) {
     case "memory-editor":
       return <MemoryEditorView {...props} />;
     case "pages":
-      return <PagesView {...props} />;
+    case "page-editor":
+      return <PagesWorkspace key={`${props.route}-${props.selectedPageSlug}-${props.newDraftVersion}`} {...props} />;
     case "attachments":
-      return (
-        <AttachmentsView
-          data={props.data}
-          search={props.search}
-          selectedMemoryId={props.selectedMemoryId}
-          uploadAttachment={props.uploadAttachment}
-          deleteAttachment={props.deleteAttachment}
-        />
-      );
+      return <MediaLibrary assets={props.data.attachments} memories={props.data.memories} onUpload={props.uploadAttachment} onDetach={props.detachAttachment} editMemory={props.editMemory} />;
     case "menus":
       return <MenusView {...props} />;
     case "settings":
       return (
         <SettingsView
+          key={props.settingsTab}
+          reportDirty={props.reportDirty}
+          saving={props.savingOther}
           data={props.data}
           saveSettings={props.saveSettings}
           saveAccount={props.saveAccount}
@@ -1980,9 +2019,9 @@ function DashboardView({ data, navigate, createMemory, createPage, editMemory })
           tone="blue"
         />
         <MetricCard
-          label="Backup snapshot"
-          value="Manual"
-          detail="Export from Settings → Backup"
+          label="Media library"
+          value={counts.attachments || 0}
+          detail={`${counts.pages || 0} pages in your archive`}
           tone="amber"
         />
       </div>
@@ -1991,7 +2030,7 @@ function DashboardView({ data, navigate, createMemory, createPage, editMemory })
           <CardHeader>
             <CardTitle>Recent memories</CardTitle>
             <CardDescription>
-              Open an entry to edit. Long-form behavior is automatic.
+              Pick up where you left off.
             </CardDescription>
             <CardAction>
               <Button variant="outline" onClick={() => navigate("memory")}>
@@ -2016,7 +2055,7 @@ function DashboardView({ data, navigate, createMemory, createPage, editMemory })
                   >
                     <span>
                       <strong>{memory.title || memory.excerpt}</strong>
-                      <small>Edited by {memory.author || "Songqi"}</small>
+                      <small>{memory.author || "Songqi"}</small>
                     </span>
                     <StatusBadge value={memory.status} />
                     <time>
@@ -2057,7 +2096,7 @@ function DashboardView({ data, navigate, createMemory, createPage, editMemory })
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Needs attention</CardTitle>
+              <CardTitle>Site tools</CardTitle>
             </CardHeader>
             <CardContent className="admin-attention">
               {!settings.tracking?.enabled ? (
@@ -2066,7 +2105,7 @@ function DashboardView({ data, navigate, createMemory, createPage, editMemory })
                   <span>Open Site settings →</span>
                 </button>
               ) : (
-                <p className="admin-ok">Umami analytics is connected.</p>
+                <p className="admin-ok">Umami tracking is enabled.</p>
               )}
               <button type="button" onClick={() => navigate("settings", "backup")}>
                 <strong>Review full backup options</strong>
@@ -2237,7 +2276,7 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
               {pageItems.map((memory) => (
                 <TableRow key={memory.id}>
                   <TableCell className="min-w-72">
-                    <MemoryListItem memory={memory} compact />
+                    <button type="button" className="admin-memory-title-button" onClick={() => editMemory(memory.id)}><MemoryListItem memory={memory} compact /></button>
                   </TableCell>
                   <TableCell data-label="Author">{memory.author}</TableCell>
                   <TableCell data-label="Views">{memory.viewCount || 0}</TableCell>
@@ -2301,6 +2340,7 @@ function MemoryEditorView({
   reportDirty,
   uploadEditorFile,
   savingMemory,
+  onUploadingChange,
   newDraftVersion,
 }) {
   const memory = (data.memories || []).find((item) => item.id === selectedMemoryId);
@@ -2332,8 +2372,10 @@ function MemoryEditorView({
       key={`${selectedMemoryId || "new"}-${newDraftVersion}`}
       reportDirty={reportDirty}
       siteSettings={data.settings}
+      assets={data.attachments}
       onUpload={uploadEditorFile}
       saving={savingMemory}
+      onUploadingChange={onUploadingChange}
       memory={draft}
       isNew={isNew}
       onSave={saveMemory}
@@ -2362,14 +2404,16 @@ function MemoryListItem({ memory, compact = false }) {
   );
 }
 
-function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, reportDirty, onUpload, saving }) {
+function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, reportDirty, onUpload, saving, assets, onUploadingChange }) {
   const [draft, setDraft] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(null);
-  const [uploadError, setUploadError] = useState("");
-  const uploadController = useRef(null);
-
-  useEffect(() => () => uploadController.current?.abort(), []);
+  useEffect(() => () => onUploadingChange(false), [onUploadingChange]);
+  const scrolledToSection = useRef(false);
+  useEffect(() => {
+    if (!draft || scrolledToSection.current) return;
+    scrolledToSection.current = true;
+    if (new URLSearchParams(window.location.search).get("section") === "settings") document.getElementById("memory-publishing")?.scrollIntoView({ block: "start" });
+  }, [draft]);
 
   useEffect(() => {
     setDraft(memory ? { ...memory } : null);
@@ -2421,6 +2465,33 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
               value={draft.title}
               onChange={(value) => update("title", value)}
             />
+            <WritingField label="Body" value={draft.bodyMarkdown} onChange={value => update("bodyMarkdown", value)} />
+          </FieldGroup>
+          <EditorAttachments attachments={draft.attachments || []} assets={assets} onUpload={onUpload}
+            disabled={saving} onBusy={value => { setUploading(value); onUploadingChange(value); }} onDirty={() => reportDirty(true)}
+            onChange={attachments => { reportDirty(true); setDraft(current => ({ ...current, attachments, attachmentsDirty: true })); }} />
+          <div className="admin-editor-actions">
+            {!isNew ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  memory.status === "archived"
+                    ? onSave(memory.id, { ...draft, status: "published" })
+                    : onDelete(memory.id)
+                }
+                disabled={saving || uploading}
+              >
+                <Trash2 data-icon="inline-start" />
+                {memory.status === "archived" ? "Restore memory" : "Archive memory"}
+              </Button>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+      <aside className="admin-editor-rail">
+        <Card id="memory-publishing"><CardHeader><CardTitle>Publishing</CardTitle></CardHeader>
+          <CardContent className="grid gap-5" inert={saving}>
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 label="Author display name"
@@ -2481,269 +2552,23 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
               maxLength={160}
               onChange={(value) => update("locationName", value)}
             />
-            <TextareaField
-              className="admin-markdown-textarea"
-              label="Body"
-              value={draft.bodyMarkdown}
-              onChange={(value) => update("bodyMarkdown", value)}
-              rows={16}
-            />
-          </FieldGroup>
-          <Field>
-            <FieldLabel htmlFor="editor-files">Attachments</FieldLabel>
-            <Input
-              id="editor-files"
-              accept={mediaAccept}
-              type="file"
-              multiple
-              disabled={uploading || saving}
-              onChange={async (event) => {
-                const input = event.currentTarget;
-                let files;
-                try { files = groupLivePhotos(input.files); }
-                catch (error) { setUploadError(error.message); input.value = ""; return; }
-                input.value = "";
-                if (!files.length) return;
-                const controller = new AbortController();
-                uploadController.current = controller;
-                // Navigation must protect the draft from the start of an upload.
-                reportDirty(true);
-                setUploading(true);
-                setUploadError("");
-                try {
-                  for (const [index, file] of files.entries()) {
-                    const updateProgress = (progress) => setUploadProgress({ ...progress, index: index + 1, total: files.length });
-                    updateProgress({ phase: "uploading", percent: 0 });
-                    const asset = await onUpload(file, controller.signal, updateProgress);
-                    if (controller.signal.aborted) return;
-                    setDraft((current) => ({
-                      ...current,
-                      attachmentsDirty: true,
-                      attachments: appendV1Attachment(current.attachments, asset),
-                    }));
-                  }
-                } catch (error) {
-                  if (!controller.signal.aborted) setUploadError(error.message);
-                } finally {
-                  if (!controller.signal.aborted) setUploading(false);
-                }
-              }}
-            />
-            <p className="text-xs text-muted-foreground">Live Photo: select its original HEIC/JPEG and matching MOV together, or a .livp/.zip archive. Each pair counts as one attachment. Location and camera metadata are removed; sound is retained.</p>
-            {uploading ? <div className="space-y-2 text-sm text-muted-foreground">
-              <p role="status">{uploadProgress?.phase === "uploading" ? "Uploading" : uploadProgress?.stage === "transcoding" ? "Processing media" : uploadProgress?.stage === "finishing" ? "Finishing…" : "Preparing…"}
-                {uploadProgress ? ` · ${uploadProgress.index} / ${uploadProgress.total}` : ""}
-                {uploadProgress?.percent != null ? ` · ${uploadProgress.percent}%` : ""}</p>
-              <progress className="h-1 w-full accent-foreground" aria-label="Attachment progress" max={100} value={uploadProgress?.percent ?? undefined} />
-            </div> : null}
-            {uploadError ? <p role="alert">{uploadError}</p> : null}
-            <ul className="admin-editor-attachments">
-              {(draft.attachments || []).map((attachment, index) => (
-                <li key={`${attachment.url}-${index}`}>
-                  <a href={attachment.metadata?.livePhoto && /^\/uploads\/posts\/revival-[a-z0-9-]+\/live-photo\.zip$/i.test(attachment.metadata.downloadUrl || "") ? attachment.metadata.downloadUrl : attachment.url} target="_blank" rel="noreferrer">
-                    {attachment.metadata?.livePhoto ? "Download Live Photo" : attachment.url.split("/").pop()}
-                  </a>
-                  <span>{attachment.metadata?.livePhoto ? `Live Photo${attachment.metadata.hasAudio ? " · Sound" : ""}` : attachment.type}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      reportDirty(true);
-                      setDraft((current) => ({
-                        ...current,
-                        attachmentsDirty: true,
-                        attachments: current.attachments.filter((_, i) => i !== index),
-                      }));
-                    }}
-                  >
-                    Remove
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </Field>
-          <div className="admin-editor-actions">
-            {!isNew ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  memory.status === "archived"
-                    ? onSave(memory.id, { ...draft, status: "published" })
-                    : onDelete(memory.id)
-                }
-                disabled={saving || uploading}
-              >
-                <Trash2 data-icon="inline-start" />
-                {memory.status === "archived" ? "Restore memory" : "Archive memory"}
-              </Button>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
-      <Card className="admin-public-preview">
-        <CardHeader>
-          <CardTitle>Public preview</CardTitle>
-          <CardAction>
-            <span className="admin-card-meta">Mobile card</span>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <MemoryCard memory={draft} settings={siteSettings} />
-          <details className="admin-preview-note">
-            <summary>Full content preview</summary>
-            <h3 className="mb-3 text-lg font-medium">{draft.title}</h3>
-            <MarkdownPreview value={memoryBody(draft)} />
-          </details>
-        </CardContent>
-      </Card>
+
+            {memory.publicId && memory.status === "published" && memory.visibility === "PUBLIC" ? <Button asChild variant="outline"><a href={memory.publicUrl} target="_blank" rel="noreferrer">Open on site <ExternalLink size={16} /></a></Button> : null}
+            <Button type="submit" disabled={saving || uploading}>{saving ? "Saving…" : uploading ? "Uploading…" : isNew ? (draft.status === "pending" ? "Save draft" : "Publish memory") : "Save changes"}</Button>
+          </CardContent>
+        </Card>
+        <Card className="admin-public-preview"><CardHeader><CardTitle>Card preview</CardTitle><CardDescription>Text and cover. Play media in Attachments.</CardDescription></CardHeader>
+          <CardContent><MemoryCard memory={draft} settings={siteSettings} /></CardContent>
+        </Card>
+      </aside>
     </form>
-  );
-}
-
-function PagesView({ data, search, selectedPageSlug, setSelectedPageSlug, createPage, savePage }) {
-  const pages = data.pages || [];
-  const filtered = pages.filter((page) =>
-    containsQuery([page.title, page.slug, page.excerpt, page.status], search),
-  );
-  const selected = pages.find((page) => page.slug === selectedPageSlug) || filtered[0];
-
-  return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(340px,0.75fr)_minmax(560px,1.25fr)]">
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Pages</CardTitle>
-          <CardDescription>
-            Published pages are mirrored into long-form Memory entries.
-          </CardDescription>
-          <CardAction>
-            <Button onClick={createPage}>
-              <Plus data-icon="inline-start" />
-              New page
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="grid gap-2">
-          {filtered.map((page) => (
-            <button
-              key={page.slug}
-              className={cn(
-                "rounded-lg border bg-background/40 p-3 text-left transition hover:bg-muted/50",
-                selected?.slug === page.slug && "bg-muted",
-              )}
-              onClick={() => setSelectedPageSlug(page.slug)}
-              type="button"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-medium">{page.title}</p>
-                <StatusBadge value={page.status} />
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                /{page.slug} · {page.excerpt || "No excerpt"}
-              </p>
-            </button>
-          ))}
-        </CardContent>
-      </Card>
-      <PageEditor page={selected} onSave={savePage} />
-    </div>
-  );
-}
-
-function PageEditor({ page, onSave }) {
-  const [draft, setDraft] = useState(null);
-
-  useEffect(() => {
-    setDraft(page ? { ...page } : null);
-  }, [page]);
-
-  if (!page || !draft) {
-    return (
-      <Card className="rounded-lg">
-        <CardContent className="py-10 text-sm text-muted-foreground">No page selected.</CardContent>
-      </Card>
-    );
-  }
-
-  const update = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
-
-  return (
-    <Card className="rounded-lg">
-      <CardHeader>
-        <CardTitle>Edit Page</CardTitle>
-        <CardDescription>Menu page targets search this mirrored long-form Memory.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form
-          className="grid gap-5"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onSave(page.slug, draft);
-          }}
-        >
-          <FieldGroup>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextField
-                label="Slug"
-                value={draft.slug}
-                onChange={(value) => update("slug", value)}
-              />
-              <Field>
-                <FieldLabel>Status</FieldLabel>
-                <AdminSelect
-                  ariaLabel="Status"
-                  value={draft.status}
-                  onValueChange={(value) => update("status", value)}
-                  options={pageStatuses}
-                />
-              </Field>
-            </div>
-            <TextField
-              label="Title"
-              value={draft.title}
-              onChange={(value) => update("title", value)}
-            />
-            <TextareaField
-              label="Excerpt"
-              value={draft.excerpt}
-              onChange={(value) => update("excerpt", value)}
-              rows={3}
-            />
-            <TextareaField
-              label="Metadata JSON"
-              value={draft.metadataJson}
-              onChange={(value) => update("metadataJson", value)}
-              rows={5}
-            />
-            <TextField
-              label="Location"
-              description="Optional saved location. Not currently shown on public memory cards."
-              value={draft.locationName || ""}
-              maxLength={160}
-              onChange={(value) => update("locationName", value)}
-            />
-            <TextareaField
-              className="admin-markdown-textarea"
-              label="Page Markdown"
-              description="Use pages for About, Resume, Terms, and other footer menu articles."
-              value={draft.bodyMarkdown}
-              onChange={(value) => update("bodyMarkdown", value)}
-              rows={16}
-            />
-            <MarkdownPreview value={draft.bodyMarkdown} />
-          </FieldGroup>
-          <Button className="w-fit" type="submit">
-            <Save data-icon="inline-start" />
-            Save page
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
   );
 }
 
 function MenusView({
   data,
+  reportDirty,
+  savingOther,
   search,
   selectedMenuId,
   setSelectedMenuId,
@@ -2764,12 +2589,7 @@ function MenusView({
         <CardHeader>
           <CardTitle>Footer menu</CardTitle>
           <CardDescription>Controls the public home page lower-right navigation.</CardDescription>
-          <CardAction>
-            <Button onClick={createMenuItem}>
-              <Plus data-icon="inline-start" />
-              Add item
-            </Button>
-          </CardAction>
+
         </CardHeader>
         <CardContent className="grid gap-2">
           {filtered.map((item) => (
@@ -2796,6 +2616,8 @@ function MenusView({
         </CardContent>
       </Card>
       <MenuEditor
+        reportDirty={reportDirty}
+        saving={savingOther}
         item={selected}
         pages={data.pages || []}
         menu={menu}
@@ -2806,7 +2628,7 @@ function MenusView({
   );
 }
 
-function MenuEditor({ item, pages, menu, onSave, onDelete }) {
+function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }) {
   const [draft, setDraft] = useState(null);
 
   useEffect(() => {
@@ -2834,7 +2656,7 @@ function MenuEditor({ item, pages, menu, onSave, onDelete }) {
     );
   }
 
-  const update = (key, value) => setDraft((current) => ({ ...current, [key]: value }));
+  const update = (key, value) => { reportDirty(true); setDraft((current) => ({ ...current, [key]: value })); };
   const pageOptions = pages.map((page) => ({
     value: page.slug,
     label: `${page.title || page.slug} /${page.slug}`,
@@ -2852,13 +2674,14 @@ function MenuEditor({ item, pages, menu, onSave, onDelete }) {
   return (
     <Card className="rounded-lg">
       <CardHeader>
-        <CardTitle>Edit Menu Item</CardTitle>
+        <CardTitle>Navigation item</CardTitle>
         <CardDescription>
           Page targets can point to About, Terms, Credits, or custom pages.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form
+          inert={saving}
           className="grid gap-5"
           onSubmit={(event) => {
             event.preventDefault();
@@ -2885,7 +2708,8 @@ function MenuEditor({ item, pages, menu, onSave, onDelete }) {
                 <AdminSelect
                   ariaLabel="Type"
                   value={draft.type}
-                  onValueChange={(value) =>
+                  onValueChange={(value) => {
+                    reportDirty(true);
                     setDraft((current) => ({
                       ...current,
                       type: value,
@@ -2893,8 +2717,8 @@ function MenuEditor({ item, pages, menu, onSave, onDelete }) {
                         value === "PAGE" && !current.targetValue
                           ? pageOptions[0]?.value || ""
                           : current.targetValue,
-                    }))
-                  }
+                    }));
+                  }}
                   options={menuTypes}
                 />
               </Field>
@@ -2908,21 +2732,23 @@ function MenuEditor({ item, pages, menu, onSave, onDelete }) {
                     options={pageOptions}
                   />
                 </Field>
-              ) : (
+              ) : ["MEMORY", "SEARCH"].includes(draft.type) ? (
                 <TextField
                   label="Target value"
                   value={draft.targetValue}
                   onChange={(value) => update("targetValue", value)}
-                  placeholder="about, terms, memory id, or query"
+                  placeholder="Memory ID or search query"
                 />
-              )}
+              ) : null}
             </div>
-            <TextField
+            {draft.type === "EXTERNAL" ? <TextField
+              type="url"
+              required
               label="External URL"
               value={draft.url}
               onChange={(value) => update("url", value)}
               placeholder="https://..."
-            />
+            /> : null}
             {draft.type !== "GROUP" ? (
               <Field>
                 <FieldLabel>Parent group</FieldLabel>
@@ -2966,93 +2792,10 @@ function MenuEditor({ item, pages, menu, onSave, onDelete }) {
   );
 }
 
-function AttachmentsView({ data, search, selectedMemoryId, uploadAttachment, deleteAttachment }) {
-  const [memoryId, setMemoryId] = useState(
-    String(selectedMemoryId || data.memories?.[0]?.id || ""),
-  );
-  const attachments = (data.attachments || []).filter((attachment) =>
-    containsQuery([attachment.imageKey, attachment.storageType, attachment.mimeType], search),
-  );
-  const memoryOptions = (data.memories || []).map((memory) => ({
-    value: String(memory.id),
-    label: memory.title || memory.excerpt || `Memory ${memory.id}`,
-  }));
-
-  useEffect(() => {
-    if (!memoryId && memoryOptions[0]?.value) setMemoryId(memoryOptions[0].value);
-  }, [memoryId, memoryOptions]);
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <Card className="rounded-lg sm:col-span-2 xl:col-span-4">
-        <CardHeader>
-          <CardTitle>Upload attachment</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <Field>
-            <FieldLabel>Memory</FieldLabel>
-            <AdminSelect
-              ariaLabel="Memory"
-              value={memoryId}
-              onValueChange={setMemoryId}
-              options={memoryOptions}
-            />
-          </Field>
-          <Button asChild disabled={!memoryId}>
-            <label>
-              <Upload data-icon="inline-start" />
-              Upload media
-              <input
-                className="sr-only"
-                type="file"
-                multiple
-                disabled={!memoryId}
-                accept={mediaAccept}
-                onChange={(event) => {
-                  const files = Array.from(event.target.files || []);
-                  if (files.length && memoryId) uploadAttachment(files, memoryId);
-                  event.target.value = "";
-                }}
-              />
-            </label>
-          </Button>
-        </CardContent>
-      </Card>
-      {attachments.map((attachment) => (
-        <Card key={attachment.imageKey} className="rounded-lg">
-          <img
-            className="aspect-[4/3] w-full object-cover"
-            src={attachment.thumbUrl}
-            alt=""
-            loading="lazy"
-            decoding="async"
-          />
-          <CardHeader>
-            <CardTitle className="truncate text-sm">{attachment.imageKey}</CardTitle>
-            <CardDescription>
-              {attachment.storageType} · {attachment.mimeType || "image"}
-            </CardDescription>
-            {attachment.storageType === "v1" ? (
-              <CardAction>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => deleteAttachment(attachment)}
-                >
-                  <Trash2 data-icon="inline-start" />
-                  Delete
-                </Button>
-              </CardAction>
-            ) : null}
-          </CardHeader>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
 function SettingsView({
   data,
+  reportDirty,
+  saving,
   saveSettings,
   saveAccount,
   setupTwoFactor,
@@ -3129,14 +2872,15 @@ function SettingsView({
     account.email,
   ]);
 
-  const updateSite = (key, value) => setSiteDraft((current) => ({ ...current, [key]: value }));
-  const updateTracking = (key, value) =>
+  const updateSite = (key, value) => { reportDirty(true); setSiteDraft((current) => ({ ...current, [key]: value })); };
+  const updateTracking = (key, value) => {
+    reportDirty(true);
     setSiteDraft((current) => ({
       ...current,
       tracking: { ...current.tracking, [key]: value },
     }));
-  const updateAccount = (key, value) =>
-    setAccountDraft((current) => ({ ...current, [key]: value }));
+  };
+  const updateAccount = (key, value) => { reportDirty(true); setAccountDraft((current) => ({ ...current, [key]: value })); };
 
   return (
     <div className="admin-settings">
@@ -3158,6 +2902,7 @@ function SettingsView({
               </CardHeader>
               <CardContent>
                 <form
+                  inert={saving}
                   id="settings-site-form"
                   className="grid gap-5"
                   onSubmit={(event) => {
@@ -3280,6 +3025,7 @@ function SettingsView({
               </CardHeader>
               <CardContent>
                 <form
+                  inert={saving}
                   id="settings-account-form"
                   className="grid gap-5"
                   onSubmit={async (event) => {

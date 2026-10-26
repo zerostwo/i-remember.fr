@@ -45,7 +45,11 @@ export function memoryPreview(memory = {}) {
   const truncated = excerpt.length < text.length;
   // Prefer a whole final word, without dropping an unspaced CJK sentence.
   if (truncated) excerpt = excerpt.replace(/\s+[^\s]{1,20}$/, "").trimEnd();
-  return { title: memory.title || "", text: excerpt, truncated, longForm: truncated };
+  return {
+    title: memory.title || "", text: excerpt, truncated,
+    // Managed pages need the reader even when their text fits on a memory card.
+    longForm: truncated || memory.source === "page" || memory.metadata?.source === "page",
+  };
 }
 
 export function memoryReaderTitle(memory = {}) {

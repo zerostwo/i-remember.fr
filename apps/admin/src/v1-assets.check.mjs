@@ -38,5 +38,21 @@ assert.deepEqual(upload, {
   memoryId: "pub_1",
   contentBase64: "ZmFrZQ==",
   contentType: "image/jpeg",
+  metadata: { filename: "../new photo.JPG" },
 });
 console.log("admin v1 assets merge ok");
+
+const shared = mergeV1Assets({ attachments: [], counts: {} }, [
+  {
+    id: "a",
+    url: "/uploads/clip.mp4",
+    type: "video/mp4",
+    memoryId: "one",
+    metadata: { duration: 3, posterUrl: "/uploads/poster.jpg" },
+  },
+  { id: "b", url: "/uploads/clip.mp4", type: "video/mp4", memoryId: "two" },
+]);
+assert.equal(shared.attachments.length, 1);
+assert.deepEqual(shared.attachments[0].memoryIds, ["one", "two"]);
+assert.equal(shared.attachments[0].metadata.duration, 3);
+assert.equal(shared.attachments[0].type, "video/mp4");

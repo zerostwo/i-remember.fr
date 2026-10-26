@@ -62,6 +62,14 @@ The private dashboard gives the owner a compact view of content and publishing.
 
 ![Owner dashboard with recent memories and publishing controls](docs/images/admin.webp)
 
+![Page writing workspace with separate publishing controls](docs/images/admin-workspace.jpg)
+
+The Page workspace screenshot was captured on 2026-10-25 with synthetic local
+content. The admin now includes draft-safe Page editing, Markdown preview/media
+insertion, and a media library with playback, reuse and ownership-aware removal.
+See [the admin usability review](docs/admin-workspace-review-2026-10-25.md) for
+implemented repairs and verification boundaries.
+
 Search identity is editable in **Settings → Site**, alongside language and submission defaults.
 
 ![Site settings for canonical domain, search description, owner name, and alternate name](docs/images/settings.webp)

@@ -10,6 +10,11 @@ function assetKey(asset = {}) {
 function adminAttachment(asset = {}) {
   const url = String(asset.url || "");
   return {
+    id: asset.id,
+    url,
+    type: asset.type || "application/octet-stream",
+    metadata: asset.metadata || {},
+    memoryIds: asset.memoryId ? [asset.memoryId] : [],
     imageKey: assetKey(asset),
     storageType: "v1",
     thumbUrl: asset.metadata?.posterUrl || url,
@@ -37,6 +42,7 @@ export function v1AssetUploadPayload(file = {}, contentBase64 = "", memoryId, st
     memoryId,
     contentBase64,
     contentType: file.type || "application/octet-stream",
+    metadata: { filename: String(file.name || "upload") },
   };
 }
 
@@ -49,11 +55,20 @@ export function v1AssetDeletePath(attachment = {}) {
 export function mergeV1Assets(payload, assets = []) {
   if (!assets?.length) return payload;
   const seen = new Set((payload.attachments || []).map((item) => item.resizedUrl || item.thumbUrl));
-  const next = [...(payload.attachments || [])];
+  const next = (payload.attachments || []).map((item) => ({
+    ...item,
+    memoryIds: [...(item.memoryIds || [])],
+  }));
   for (const asset of assets) {
     const item = adminAttachment(asset);
     const key = item.resizedUrl || item.thumbUrl || item.imageKey;
-    if (!key || seen.has(key)) continue;
+    if (!key) continue;
+    if (seen.has(key)) {
+      const existing = next.find((entry) => (entry.resizedUrl || entry.thumbUrl) === key);
+      if (existing && asset.memoryId)
+        existing.memoryIds = [...new Set([...(existing.memoryIds || []), asset.memoryId])];
+      continue;
+    }
     seen.add(key);
     next.push(item);
   }

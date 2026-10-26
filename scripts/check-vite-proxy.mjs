@@ -32,7 +32,7 @@ try {
     await dev.listen();
     running.push(() => dev.close());
     const devBase = `http://127.0.0.1:${dev.httpServer.address().port}`;
-    for (const path of ["/admin/", "/admin/settings", "/admin/memory/editor"]) {
+    for (const path of ["/admin/", "/admin/settings", "/admin/memory/editor", "/admin/pages/editor"]) {
       const response = await fetch(devBase + path);
       const html = await response.text();
       assert.equal(response.status, 200);
