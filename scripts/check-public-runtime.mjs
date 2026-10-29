@@ -435,6 +435,30 @@ languageWindow.SONGQI_SITE_SETTINGS.defaultLanguage = "fr";
 assert.equal(languageContext.languageUrl("/?ln=fr&source=menu#footer", "fr"), "/?source=menu#footer");
 assert.equal(languageContext.languageUrl("/memory/m11111111111111111111", "en"), "/memory/m11111111111111111111?ln=en");
 
+// Production keeps jQuery inside AMD after noConflict(), with no global $.
+let originalAjaxCalls = 0, interceptedAjaxCalls = 0;
+const bundledJquery = { ajax: () => { originalAjaxCalls++; return "original"; } };
+const unrelatedJquery = { ajax: () => "unrelated" };
+const installBundledAjax = runtimeFunction("patchJqueryAjax", {
+  window: { jQuery: unrelatedJquery },
+  legacyModule: name => name === "jquery" ? bundledJquery : null,
+  localSocialPayload: () => null,
+  localApiAjax: settings => {
+    if (!settings.url.startsWith("/api/search-posts")) return null;
+    interceptedAjaxCalls++; return "live-search";
+  },
+  isExternalUrl: () => false,
+});
+assert.equal(installBundledAjax(), true);
+const installedAjax = bundledJquery.ajax;
+assert.equal(installBundledAjax(), true, "An installed adapter is ready without wrapping twice");
+assert.equal(bundledJquery.ajax, installedAjax);
+assert.equal(bundledJquery.ajax({ url: "/api/search-posts/rain", dataType: "jsonp" }), "live-search");
+assert.equal(bundledJquery.ajax({ url: "/other" }), "original");
+assert.equal(unrelatedJquery.ajax(), "unrelated");
+assert.equal(interceptedAjaxCalls, 1);
+assert.equal(originalAjaxCalls, 1);
+
 let requestedSignal;
 let finishRequest;
 let successCalls = 0;

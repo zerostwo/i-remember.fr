@@ -779,6 +779,11 @@
         } else {
           document.head.appendChild(script);
         }
+        // The bundle releases its global jQuery with noConflict(). Resolve the
+        // AMD instance after evaluation, including slow initial script loads.
+        if (window.__REVIVAL_REQUIRE__) {
+          window.__REVIVAL_REQUIRE__(["jquery"], function () { patchJqueryAjax(); });
+        }
         completeScriptNode(node);
       })
       .catch(function () {
@@ -945,8 +950,9 @@
   }
 
   function patchJqueryAjax() {
-    var jq = window.jQuery || window.$;
-    if (!jq || !jq.ajax || jq.ajax.__iRememberRevivalPatched) return false;
+    var jq = legacyModule("jquery") || window.jQuery || window.$;
+    if (!jq || !jq.ajax) return false;
+    if (jq.ajax.__iRememberRevivalPatched) return true;
 
     var originalAjax = jq.ajax;
     jq.ajax = function (options) {
@@ -1195,7 +1201,7 @@
       installJquerySecurityHook();
     }
     var patched = patchJqueryAjax();
-    if (document.querySelector(".app.show") && (patched || window.__REVIVAL_SOCIAL_JSONP_PATCHED__)) {
+    if (document.querySelector(".app.show") && patched) {
       window.clearInterval(socialPatchTimer);
       return;
     }
