@@ -383,3 +383,10 @@ Current backend/product decisions:
   discovery should balance exploration with findability, and decorative bright
   particles should not be confused with clickable memories. A specific new
   distribution or guidance design has not yet been selected.
+
+- Owner approval on 2026-10-29: implement loosely clustered, dispersed memories
+  with a few discoverable on entry, a subtle halo/breathing cue for real memories,
+  less misleading decorative highlights, and an optional camera guide to a nearby
+  unread memory. Preserve the original galaxy style and open the local preview.
+  Use deterministic world coordinates based on the immutable map identity so
+  refresh, pagination, additions and public-link edits cannot move existing memories.

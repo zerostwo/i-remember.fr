@@ -77,7 +77,7 @@ console.log("SEO metadata, alternate deployment, escaping, and sitemap checks pa
 
 for (const languageFile of ["index.html", "fr.html"]) {
   const html = versionPublicAssets(readFileSync(new URL(`../${languageFile}`, import.meta.url), "utf8"));
-  for (const path of ["js/memory-navigation.js", "js/photo-gallery.js", "js/revival-runtime.js", "css/mobile-fixes.css"]) {
+  for (const path of ["js/galaxy-discovery.js", "js/memory-navigation.js", "js/photo-gallery.js", "js/revival-runtime.js", "css/mobile-fixes.css"]) {
     const hash = createHash("sha256").update(readFileSync(new URL(`../public/${path}`, import.meta.url))).digest("hex").slice(0, 16);
     assert.ok(html.includes(`/${path}?v=${hash}`), `${languageFile}: ${path} must invalidate old browser/CDN copies`);
   }

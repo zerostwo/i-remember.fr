@@ -59,6 +59,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Place galaxy memories at deterministic world coordinates derived from their
+  immutable map identity. Preserve positions across visits, pagination and link
+  edits; spread records into loose groups within the original particle field.
+- Distinguish real memories with a subtle halo, reduce misleading close-up
+  decorative highlights, and provide an interruptible, reduced-motion-aware
+  camera guide. A guide/prefetch never counts as opening a memory.
+- Remove the persistent Live Photo instructions from the public upload circle.
+
 - Memory and managed-page bodies no longer have fixed character limits or silent
   truncation. Public submissions preserve paragraphs; content requests have a
   separate configurable 16 MiB transport budget.

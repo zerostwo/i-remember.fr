@@ -23,6 +23,10 @@ oversized requests fail explicitly instead of silently cutting off the text.
 
 - **Explore memories in 3D.** Drag, orbit, zoom, search, and open individual memories;
   the original galaxy, transitions, typography, and ambient audio are preserved.
+- **Find your way through the stars.** Real memories have a fine, gently breathing
+  halo and occupy permanent positions in loose groups. **Find a memory** moves
+  the camera to a nearby unread memory; choose the halo or **Open this memory** to
+  read it. Dragging interrupts the guide, and reduced motion skips the flight.
 - **Keep short moments and longer stories.** Write Markdown, attach photos and videos,
   organize tags, and open longer entries with **Read more** directly after the
   excerpt. Long memories and managed pages share the same restrained reading overlay.
@@ -299,6 +303,18 @@ and appearing for a particular name are not guaranteed or immediate**. See the
 [SEO guide](docs/seo.md) for deployment checks and official references.
 
 ## Local development
+
+Galaxy positions use the versioned `galaxy-v1` mapping in
+`public/js/galaxy-discovery.js`. The immutable database `mapKey` produces the API's
+`mapId` (the archive renderer's `Post.id`); salted hashes choose a fixed spiral
+group and a local offset, while the existing noise field supplies the height.
+Positions never depend on result order, collection size, camera movement or the
+editable public ID. New records and later pages cannot move existing records.
+The initial camera frames nearby records, using fewer when a sparse collection
+would otherwise put them outside a phone's view. Guidance tracks viewed/guided
+records during the current visit and requests another bounded page only as needed.
+Changing this mapping requires an explicit versioned layout migration; do not
+retune its constants for a different collection size.
 
 Use Node.js 22 (CI: 22.23.1), pnpm 10.17.1, and a running PostgreSQL database. Native
 local development requires its own database; embedded PostgreSQL is a Docker feature.

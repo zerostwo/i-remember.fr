@@ -230,7 +230,7 @@ assert.ok(patchedMain.includes("window.__REVIVAL_BIND_INPUT__(u,O,M,_,L,A)"));
 assert.ok(patchedMain.includes("s=e.isClick=!e.originalEvent.cancelled"));
 assert.ok(!patchedMain.includes('l.hasTouch?(u.addEventListener("touchstart"'));
 let searchExits = 0;
-const mapClick = patchedMain.match(/function _\(e\)\{if\(document.documentElement.classList.contains\("revival-search-open"\)\)[\s\S]*?(?=function D\(\))/)[0];
+const mapClick = patchedMain.match(/function _\(e\)\{if\(document.documentElement.classList.contains\("revival-search-open"\)[\s\S]*?(?=function D\(\))/)[0];
 runInNewContext(`(${mapClick})`, { document: { documentElement: { classList: { contains: () => true } } }, window: { __REVIVAL_EXIT_SEARCH__: () => searchExits++ } })({});
 assert.equal(searchExits, 1, "The visible globe exits search without relying on shadowed legacy locals");
 const backgroundHandler = patchedMain.match(/function _\(e\)\{e.target===this&&w&&[^}]+\}/)[0];
