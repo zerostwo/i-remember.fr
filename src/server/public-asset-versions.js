@@ -8,7 +8,7 @@ const versions = new Map();
 // A CDN may keep the stable filenames fresh for hours. Version the small set
 // of archive overrides by content so a release cannot mix old JS with new HTML.
 export function versionPublicAssets(html) {
-  return html.replace(/(src|href)="\/?((?:js\/(?:galaxy-discovery|memory-navigation|photo-gallery|revival-runtime)\.js|css\/mobile-fixes\.css|assets\/public-markdown\.js))(?:\?[^"<>]*)?"/g,
+  return html.replace(/(src|href)="\/?((?:js\/(?:memory-navigation|photo-gallery|revival-runtime)\.js|css\/mobile-fixes\.css|assets\/public-markdown\.js))(?:\?[^"<>]*)?"/g,
     (_match, attribute, path) => {
       const file = new URL(path, path.startsWith("assets/") ? distRoot : publicRoot);
       const stat = statSync(file);

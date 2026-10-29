@@ -755,18 +755,6 @@ html body .post-2d-img.has-inline-audio { cursor: default; }
 .memory-live-status { position: absolute; top: 46px; left: 0; padding: 3px 6px; background: #000b; max-width: calc(100% - 12px); }
 .memory-live-status:empty { display: none; }
 
-/* Discovery stays inside the archive's quiet serif/circular visual language. */
-.galaxy-discovery-guide { position: fixed; z-index: 11; left: 50%; transform: translateX(-50%); display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px 22px; width: max-content; max-width: calc(100vw - 48px); text-align: center; pointer-events: auto; }
-.galaxy-discovery-guide[hidden], .galaxy-discovery-guide [hidden] { display: none !important; }
-.galaxy-discovery-guide button { appearance: none; border: 0; border-bottom: 1px solid #ffffff30; border-radius: 0; background: transparent; padding: 10px 2px; min-height: 44px; color: #c9c4bc; font: italic 15px/1.5 Georgia, serif; cursor: pointer; text-shadow: 0 1px 7px #000; transition: color .2s, border-color .2s; }
-.galaxy-discovery-guide button:hover, .galaxy-discovery-guide button:focus-visible { color: #fff; border-color: #ffffff99; }
-.galaxy-discovery-guide button:focus-visible { outline: 1px solid #ffffff66; outline-offset: 5px; }
-.galaxy-discovery-guide button:disabled { opacity: .45; cursor: default; }
-.galaxy-discovery-guide .galaxy-discovery-open { color: #f4eee4; }
-.galaxy-discovery-status { flex-basis: 100%; color: #aaa; font: 12px/1.4 Georgia, serif; }
-.galaxy-discovery-status:empty { display: none; }
-@media (prefers-reduced-motion: reduce) { .galaxy-discovery-guide button { transition: none; } }
-
 /* Quiet result feedback preserves the existing search overlay and galaxy. */
 html body .revival-search-feedback { position: fixed; z-index: 12; left: 50%; bottom: 100px; transform: translateX(-50%); width: max-content; max-width: min(320px, 82vw); color: #bbb; font: 13px/1.6 Georgia, serif; text-align: center; pointer-events: auto; }
 html body .revival-search-feedback a { display: block; color: #ddd; padding: 8px 0; text-decoration: underline; text-underline-offset: 4px; }

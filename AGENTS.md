@@ -384,9 +384,9 @@ Current backend/product decisions:
   particles should not be confused with clickable memories. A specific new
   distribution or guidance design has not yet been selected.
 
-- Owner approval on 2026-10-29: implement loosely clustered, dispersed memories
-  with a few discoverable on entry, a subtle halo/breathing cue for real memories,
-  less misleading decorative highlights, and an optional camera guide to a nearby
-  unread memory. Preserve the original galaxy style and open the local preview.
-  Use deterministic world coordinates based on the immutable map identity so
-  refresh, pagination, additions and public-link edits cannot move existing memories.
+- Latest owner feedback on 2026-10-29: the dispersed-memory, halo and camera-guide
+  prototype does not match the intended appearance and is not approved for
+  production. Keep it only on `codex/galaxy-discovery-prototype`; preserve the
+  existing public galaxy on the main line. For this release, publish only the
+  removal of the persistent Live Photo upload instructions (`2e1b363`), retaining
+  Live Photo functionality. Do not ship the prototype or other pending changes.

@@ -192,6 +192,7 @@
     panel.replace(post);
   };
   window.__REVIVAL_PUBLIC_SHARE_URL__ = publicShareUrl;
+  window.__REVIVAL_CREATE_MEMORY_MAP_INDEX__ = createMemoryMapIndex;
   window.__REVIVAL_UNIQUE_MAP_POSTS__ = uniqueMapPosts;
   window.__REVIVAL_MEMORY_SEARCH_VISIBLE__ = function () {
     var search = legacyModule("scene3d/searchPostParticles");
@@ -507,6 +508,44 @@
     });
   }
 
+  function createMemoryMapIndex(getPosts, requestMore) {
+    // Particle meshes are recycled as the camera moves. Memory ownership belongs
+    // to the world grid, and must survive recycling, searches and camera resets.
+    var coordinates = new Map();
+    var known = new Set();
+    var queue = [];
+    var cursor = 0;
+    var lastPosts;
+    var lastLength = -1;
+    return {
+      atGrid: function (x, y) {
+        var coordinate = x + ":" + y;
+        if (coordinates.has(coordinate)) return coordinates.get(coordinate);
+        var posts = getPosts();
+        if (posts !== lastPosts || posts.length !== lastLength) {
+          uniqueMapPosts(posts).forEach(function (post) {
+            var identity = String(post.public_id || post.publicId || post.uid || post.id);
+            if (!known.has(identity)) {
+              known.add(identity);
+              queue.push(post);
+            }
+          });
+          lastPosts = posts;
+          lastLength = posts.length;
+        }
+        if (cursor >= queue.length) {
+          // Do not memoize empty cells: a subsequent page or new submission can
+          // fill one. Never wrap the queue back to an already assigned memory.
+          requestMore();
+          return null;
+        }
+        var post = queue[cursor++];
+        coordinates.set(coordinate, post);
+        return post;
+      }
+    };
+  }
+
   function pickTouchMemory(event, posts, camera, projector, raycaster, Vector3, width, height) {
     // Touch has no preceding hover. Resolve the rendered memory under this tap
     // synchronously, even when down/up both arrive between animation frames.
@@ -656,7 +695,7 @@
     patched = patched.replace('ht.render(.1),r.particles.position.copy(z.position)',
       'ht.render(.1),r.particles.visible=!document.documentElement.classList.contains("revival-memory-mobile-open"),r.particles.position.copy(z.position)');
     patched = patched.replace('function _(e){if(r.hasControl){var t=p.offset()',
-      'function _(e){if(document.documentElement.classList.contains("revival-search-open")||window.__REVIVAL_MEMORY_SEARCH_VISIBLE__()){window.__REVIVAL_EXIT_SEARCH__();return}if(r.hasControl){var t=p.offset()');
+      'function _(e){if(document.documentElement.classList.contains("revival-search-open")){window.__REVIVAL_EXIT_SEARCH__();return}if(r.hasControl){var t=p.offset()');
     // The server validates decoded pixels; camera photos are not limited to 5000px.
     patched = patched.replace(/function tt\(\)\{var e=this\.files\[0\],t=e\.size;[\s\S]*?(?=function nt\(e\))/,
       'function tt(){window.SongqiPhotos.uploadFiles(this.files,false)}');
@@ -675,60 +714,32 @@
         patched.slice(adjustmentEnd);
     }
     patched = patched.replace('function U(e){M=e;var t=new Image', 'function U(e){window.SongqiPhotos.showMemory(e);M=e;var t=new Image');
-    patched = patched.replace('function z(e){f.trackPage({trackPage:"memory-view"})', 'function z(e){var revivalDirect=!!window.SONGQI_DIRECT_MEMORY;window.SONGQI_DIRECT_MEMORY=false;window.SongqiGalaxy.opened(e);window.SongqiMemoryNavigation.opened(e);f.trackPage({trackPage:"memory-view"})');
+    patched = patched.replace('function z(e){f.trackPage({trackPage:"memory-view"})', 'function z(e){var revivalDirect=!!window.SONGQI_DIRECT_MEMORY;window.SONGQI_DIRECT_MEMORY=false;window.SongqiMemoryNavigation.opened(e);f.trackPage({trackPage:"memory-view"})');
     patched = patched.replace('d.fromTo(g,1,{opacity:0},{opacity:1,ease:"linear"}),d.to(b,0,{width:0}),d.to(b,.6,{delay:.4,width:348})',
       'd.fromTo(g,revivalDirect?0:1,{opacity:0},{opacity:1,ease:"linear"}),d.to(b,0,{width:0}),d.to(b,revivalDirect?0:.6,{delay:revivalDirect?0:.4,width:348})');
-    patched = patched.replace('function Q(){history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()', 'function Q(){window.SongqiPhotos.closeMemory&&window.SongqiPhotos.closeMemory();window.SongqiGalaxy.closed();window.SongqiMemoryNavigation.closed();history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()');
-    patched = patched.replace('e.preShow=U,e.show=z,e.hide=Q,e.updateFading=Y', 'e.preShow=U,e.show=z,e.hide=Q,e.replace=function(t){U(t);O=t;history.replaceState(null,"",window.__REVIVAL_PUBLIC_MEMORY_PATH__(t));b[0].scrollpane.onResize();window.SongqiGalaxy.opened(t);window.SongqiMemoryNavigation.opened(t)},e.updateFading=Y');
+    patched = patched.replace('function Q(){history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()', 'function Q(){window.SongqiPhotos.closeMemory&&window.SongqiPhotos.closeMemory();window.SongqiMemoryNavigation.closed();history.replaceState&&history.replaceState(null,"",t.SITE_URL+"/"),D.dispatch()');
+    patched = patched.replace('e.preShow=U,e.show=z,e.hide=Q,e.updateFading=Y', 'e.preShow=U,e.show=z,e.hide=Q,e.replace=function(t){U(t);O=t;history.replaceState(null,"",window.__REVIVAL_PUBLIC_MEMORY_PATH__(t));b[0].scrollpane.onResize();window.SongqiMemoryNavigation.opened(t)},e.updateFading=Y');
     patched = patched.replace('e.append("fileId",r.data.fileId),', 'e.append("fileId",r.data.fileId),r.data.photos&&r.data.photos.length&&e.append("photos",JSON.stringify(r.data.photos)),');
-    // Keep the archive's WebGL scene and PostParticle hover bloom. The new
-    // navigation renderer places only real records at deterministic coordinates.
-    var navStart = patched.indexOf('define("scene3d/navPostParticles",');
-    var navEnd = patched.indexOf(',define(', navStart + 1);
-    if (navStart >= 0 && navEnd > navStart) patched = patched.slice(0, navStart) +
-      'define("scene3d/navPostParticles",["exports","config","./PostParticle","postController","scene3dController","utils/noiseUtils"],function(e,c,p,r,s,n){return window.SongqiGalaxy.createNavigation(e,c,p,r,s,n)})' + patched.slice(navEnd);
-    patched = patched.replace('function H(){r.showMap(),l.show()}', 'function H(){r.showMap(),l.show(),window.SongqiGalaxy.enter()}')
-      .replace('function j(){r.hideMap(),l.hide()}', 'function j(){r.hideMap(),l.hide(),window.SongqiGalaxy.leave()}')
-      .replace('function Ut(){a.hide()}', 'function Ut(){a.exit()}')
-      .replace('u_time:{type:"f",value:Math.random()*100},alpha:', 'u_time:{type:"f",value:Math.random()*100},discovery:{type:"f",value:0},alpha:');
-    function shader(name, change) {
-      var start = patched.indexOf('define("text!shaders/' + name + '",');
-      var end = patched.indexOf(',define(', start + 1);
-      if (start < 0 || end < 0) return;
-      var module = patched.slice(start, end).replace(/return("(?:\\.|[^"\\])*")/, function (_match, quoted) {
-        return "return" + JSON.stringify(change(JSON.parse(quoted)));
-      });
-      patched = patched.slice(0, start) + module + patched.slice(end);
-    }
-    shader("postParticle/fragment.glsl", function (text) {
-      return text.replace("uniform float alpha;", "uniform float alpha;\nuniform float discovery;")
-        .replace("    gl_FragColor = color;", [
-          "    if (discovery > .5) {",
-          "        float halo = 1. - smoothstep(.022, .07, abs(distanceToCenter - .64));",
-          "        float core = exp(-distanceToCenter * distanceToCenter * 110.);",
-          "        float glow = exp(-distanceToCenter * distanceToCenter * 9.) * .08;",
-          "        float breath = .83 + .12 * cos(u_time * 1.6);",
-          "        float beacon = (.65 * halo * (.65 + .35 * monoNoise) + .9 * core + glow) * breath;",
-          "        color.a = mix(beacon * alpha * fade, color.a, u_pop);",
-          "    }",
-          "    gl_FragColor = color;"
-        ].join("\n"));
-    });
-    shader("particleWave/vertex.glsl", function (text) {
-      return text.replace("    vZoom = zoom;", "    if (zoom > .45) gl_PointSize = min(gl_PointSize, mix(80., 18., smoothstep(.45, .85, zoom)));\n    vZoom = zoom;");
-    });
-    shader("particleWave/fragment.glsl", function (text) {
-      return text.replace("clampNorm(vZoom, .75, 1.) * .4", "clampNorm(vZoom, .45, 1.) * .72");
-    });
+    // Retain the original noise field, geometry and transitions. Only replace
+    // cyclic memory allocation and stale mesh/hover handling in the old renderer.
     patched = patched
       .replace('function A(){var e=l[""],t=e[d];return t||(d=0,t=e[0],S()),d++,t}',
         'function A(){var e=l[""],t=e[d];return t?(d++,t):(S(),null)}')
       .replace('e.takePost=A}', 'e.takePost=A,e.loadMorePosts=S}')
+      .replace('var v=e.particles=[],m,g;',
+        'var v=e.particles=[],m,g,revivalMap=window.__REVIVAL_CREATE_MEMORY_MAP_INDEX__(function(){return r.tagNamedPosts[""]||[]},function(){r.loadMorePosts()});')
+      .replace('t=new n({type:"nav",visible:!0})', 't=new n({type:"nav",visible:!1})')
+      .replace('function b(){var e=i.cameraPosition,t=i.lookAtPosition',
+        'function b(){if(window.__REVIVAL_MEMORY_SEARCH_VISIBLE__()){for(var revivalSlot=0;revivalSlot<v.length;revivalSlot++)v[revivalSlot].visible=v[revivalSlot].interactive=!1;return []}var e=i.cameraPosition,t=i.lookAtPosition')
+      .replace('D=v[C],D.hasMatch=!1,D.uniforms.fade.value',
+        'D=v[C],D.hasMatch=D.visible=D.interactive=!1,D.uniforms.fade.value')
+      .replace('N=B[C*4+2],D=B[C*4+3];if(!D){',
+        'N=B[C*4+2],D=B[C*4+3];var revivalPost=revivalMap.atGrid(w,E);if(!revivalPost)continue;if(!D){')
+      .replace('D.changePost(r.takePost())', 'D.changePost(revivalPost)')
+      .replace('m.copy(D.position),m.sub(e)', 'D.visible=D.interactive=!0,m.copy(D.position),m.sub(e)')
       .replace('bt&&mt.unshift(bt);', 'bt&&!bt.visible&&(bt.onOut(),bt=null),bt&&mt.unshift(bt);')
       .replace('function N(t){if(e.visible)m=t,g||O();',
-        'function N(t){t=window.__REVIVAL_UNIQUE_MAP_POSTS__(t);if(e.visible)m=t,g||O();')
-      .replace('e.init=T,e.update=A,e.show=N,e.hide=O}',
-        'e.init=T,e.update=A,e.show=N,e.hide=O,e.exit=function(){m=null;b=null;g=!1;e.visible=!1;for(var j=0;j<y.length;j++){var q=y[j];c.killTweensOf(q);c.killTweensOf(q.uniforms.showScale);c.killTweensOf(q.uniforms.pop);q.visible=!1;q.fadeValue=0;q.uniforms.fade.value=0;q.uniforms.pop.value=0}c.killTweensOf(i);i.time=0}}');
+        'function N(t){t=window.__REVIVAL_UNIQUE_MAP_POSTS__(t);if(e.visible)m=t,g||O();');
     return patched
       .replace('s=n.SITE_URL+s,', 's=window.__REVIVAL_PUBLIC_SHARE_URL__(s),')
       .replace(
@@ -1510,17 +1521,10 @@
 
   function exitLegacySearch() {
     var ui = legacyModule("uiController"), scene = legacyModule("scene3dController");
-    var results = legacyModule("scene3d/searchPostParticles");
     var field = document.querySelector(".search-input");
     if (field) field.blur();
-    if (ui) { ui.hideSearch(); ui.hideNavSearchItem(); }
-    if (scene && results && results.visible) {
-      // The archive hide animation can be interrupted while its fake-particle
-      // tween owns completion, leaving visible=true indefinitely. Explicitly
-      // release the result scene before restoring the same world/camera region.
-      results.exit();
-      scene.resetCamera({ hasControl: true, lockControl: true, duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1.2 });
-    } else if (scene) scene.enableControl();
+    if (ui) ui.hideSearch();
+    if (scene) scene.enableControl();
   }
 
   function installLegacySearchState() {
