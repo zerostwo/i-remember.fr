@@ -2189,12 +2189,6 @@
 
     var uploadInput = document.querySelector("#local-upload");
     if (uploadInput) { uploadInput.setAttribute("aria-label", siteLanguage() === "fr" ? "Choisir des photos, vidéos ou fichiers audio" : siteLanguage() === "zh" ? "选择照片、视频或音频" : "Choose photos, videos or audio from this device"); uploadInput.accept = window.songqiMedia.accept; }
-    var selection = document.querySelector(".add-steps-upload-methods-selection-container");
-    if (selection && !selection.querySelector(".live-photo-upload-hint")) {
-      var liveHint = document.createElement("p"); liveHint.className = "live-photo-upload-hint";
-      liveHint.textContent = siteLanguage() === "zh" ? "实况照片：同时选择原始照片和同名 MOV，或上传 .livp。保留声音，清除位置与设备信息。" : siteLanguage() === "fr" ? "Live Photo : choisissez la photo originale et le MOV associé, ou un .livp. Son conservé ; localisation et données de l’appareil supprimées." : "Live Photo: choose the original photo + matching MOV, or a .livp. Sound stays; location and device metadata are removed.";
-      selection.appendChild(liveHint);
-    }
 
     var intro = document.querySelector(".preloader");
     if (intro) intro.setAttribute("aria-live", "polite");

@@ -754,4 +754,3 @@ html body .post-2d-img.has-inline-audio { cursor: default; }
 .memory-live-controls button:focus-visible, .memory-live-controls a:focus-visible { outline: 1px solid white; outline-offset: 2px; }
 .memory-live-status { position: absolute; top: 46px; left: 0; padding: 3px 6px; background: #000b; max-width: calc(100% - 12px); }
 .memory-live-status:empty { display: none; }
-.live-photo-upload-hint { text-align: center; color: #999; font: 12px/1.5 Georgia,serif; max-width: 320px; margin: 12px auto; }

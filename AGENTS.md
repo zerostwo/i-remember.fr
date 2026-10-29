@@ -368,3 +368,9 @@ Current backend/product decisions:
   Prioritize a coherent writing/publishing hierarchy, working photo/audio/video
   previews, reusable media with clear ownership, and complete Page creation,
   editing and save flows. Keep the established public galaxy unchanged.
+
+- Owner feedback on 2026-10-29: remove the persistent Live Photo instructions
+  from the public upload circle; retain Live Photo upload support. Galaxy
+  discovery should balance exploration with findability, and decorative bright
+  particles should not be confused with clickable memories. A specific new
+  distribution or guidance design has not yet been selected.
