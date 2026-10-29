@@ -754,3 +754,9 @@ html body .post-2d-img.has-inline-audio { cursor: default; }
 .memory-live-controls button:focus-visible, .memory-live-controls a:focus-visible { outline: 1px solid white; outline-offset: 2px; }
 .memory-live-status { position: absolute; top: 46px; left: 0; padding: 3px 6px; background: #000b; max-width: calc(100% - 12px); }
 .memory-live-status:empty { display: none; }
+
+/* Quiet result feedback preserves the existing search overlay and galaxy. */
+html body .revival-search-feedback { position: fixed; z-index: 12; left: 50%; bottom: 100px; transform: translateX(-50%); width: max-content; max-width: min(320px, 82vw); color: #bbb; font: 13px/1.6 Georgia, serif; text-align: center; pointer-events: auto; }
+html body .revival-search-feedback a { display: block; color: #ddd; padding: 8px 0; text-decoration: underline; text-underline-offset: 4px; }
+html body .revival-search-feedback[hidden], html.revival-memory-mobile-open body .revival-search-feedback { display: none; }
+@media (max-width: 640px) { html body .revival-search-feedback { bottom: 128px; } }

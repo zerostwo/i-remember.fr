@@ -33,7 +33,11 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 - `GET /api/v1/assets`
 - `POST /api/v1/assets`
 - `GET /api/v1/assets/:key*`
-- `DELETE /api/v1/assets/:key*`
+- `POST /api/v1/assets/register`
+- `POST /api/v1/assets/reconcile`
+- `GET /api/v1/media/:id`
+- `DELETE /api/v1/media/:id`
+- `GET /api/v1/public/random?current=<public-id>&seen=<comma-separated-public-ids>`
 - `POST /api/v1/auth/setup`
 - `POST /api/v1/auth/login`
 
@@ -41,21 +45,34 @@ New HTTP clients should use the TypeScript API app in `apps/api`.
 
 ```json
 {
-  "key": "memory/example.jpg",
-  "memoryId": "public-memory-id",
+  "key": "admin/unique-example.jpg",
   "contentBase64": "...",
   "contentType": "image/jpeg",
   "metadata": {}
 }
 ```
 
-The storage layer returns a URL from the configured local filesystem adapter or
-an injected S3-compatible adapter. Asset keys may include nested path segments
-such as `memory/example.jpg`. Local API assets are served from
-`STORAGE_PUBLIC_BASE_URL` (default `/uploads`), and the web/admin server proxies
-those non-legacy upload URLs to the API when `API_BASE_URL` is configured. When
-`memoryId` is present, the upload is also stored as a Prisma `Attachment` for
-that memory.
+Every upload creates an independent MediaAsset; optional `memoryId` also attaches
+it to an ordinary Memory. Keys cannot overwrite an existing stored file. The admin
+uses unique `admin/` keys. `POST /assets/register` inventories a completed local
+video/audio/Live Photo upload. `POST /assets/reconcile` inventories completed local
+`admin/` files and `posts/revival-*` media families, skipping recent/incomplete files.
+It does not delete files or resurrect deleted registry entries.
+
+`GET /assets` accepts `limit` (up to 200), `cursor`, `q`, `kind`
+(`image`, `video`, `audio`, `live`, `file`) and `unused=true`, returning
+`pagination.total` and `pagination.nextCursor`. `GET /media/:id` returns current
+Memory/Page usage, including draft/archived owners. `DELETE /media/:id` requires
+admin authentication and zero references; otherwise it returns `409 asset_in_use`.
+Deleting a local media family removes its crops, full photo, motion and download
+components together. Retired registry IDs prevent an in-flight save from restoring
+a reference to a deleted file. Unsupported/external storage locations are not
+eligible for deletion. Removing a Memory attachment only detaches it.
+
+The migration inventories existing attachments and Markdown upload references;
+old unreferenced files can be recovered with the inventory action. Media and
+reference tables are included in PostgreSQL backups; content-only JSON exports
+also retain library records but do not contain the file bytes.
 
 `POST /api/v1/agent` is the first-pass HTTP agent surface. It accepts an
 anonymous or authenticated JSON body like `{"query":"Paris","limit":5}` and
@@ -81,7 +98,18 @@ moderation status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`.
 `GET /api/v1/memories` defaults to public `NORMAL` memories. Admin clients can
 pass `status=PENDING`, `status=REJECTED`, `status=ARCHIVED`, `status=all`,
 `visibility=PRIVATE`, or `visibility=all` with a bearer token for management
-views.
+views. `offset`, `sort=views_asc|views_desc`, `longForm=true` and `summary=true`
+serve bounded admin lists; edit a memory only after fetching its full detail.
+Search uses a PostgreSQL generated document with the standard `und-x-icu`
+collation to preserve Unicode letters while normalizing accents and separators.
+Published UNLISTED records are accessible through direct links and aliases, but
+are excluded from collection, random and agent discovery. PRIVATE and non-published
+records remain admin-only. Mutating a managed Page mirror returns
+`409 page_managed_memory`; edit or archive the Page instead.
+
+Page create/patch accepts `navigationVisible`; page, public mirror and the footer
+link update in one transaction. A configured link is not exposed until the Page
+is published. Page Markdown upload references participate in media usage checks.
 
 Memory create and patch bodies may include `tags` and `attachments`; memory
 responses include both relation lists. Admin-authenticated import/sync clients

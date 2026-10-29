@@ -324,17 +324,19 @@ function settingsFromV1(settings = {}, account = {}) {
   };
 }
 
-async function v1Bootstrap() {
+async function v1Bootstrap({ full = false } = {}) {
   const settings = await v1Api("/api/v1/settings");
   const language = encodeURIComponent(settings.defaultLanguage || "en");
-  const [dashboard, memories, pages, menu, account, assets] = await Promise.all([
+  const [dashboard, memoryResult, pages, menu, account, assetResult] = await Promise.all([
     v1Api("/api/v1/dashboard"),
-    collectPages(v1Api, "/api/v1/memories?status=all&visibility=all"),
+    full ? collectPages(v1Api, "/api/v1/memories?status=all&visibility=all") : v1Api("/api/v1/memories?status=all&visibility=all&summary=true&limit=5", { envelope: true }),
     v1Api(`/api/v1/pages?language=${language}`),
     v1Api(`/api/v1/menu-items?language=${language}`),
     v1Api("/api/v1/auth/account"),
-    collectPages(v1Api, "/api/v1/assets"),
+    full ? collectPages(v1Api, "/api/v1/assets") : v1Api("/api/v1/assets?limit=1", { envelope: true }),
   ]);
+  const memories = full ? memoryResult : memoryResult.data;
+  const assets = full ? assetResult : assetResult.data;
   const payload = {
     language: settings.defaultLanguage || "en",
     counts: {
@@ -346,7 +348,7 @@ async function v1Bootstrap() {
       users: dashboard.totalUsers,
       pages: pages.length,
       menuItems: menu.length,
-      attachments: assets.length,
+      attachments: full ? assets.length : assetResult.pagination.total,
     },
     memories: memories.map(v1MemoryAdmin),
     pages: pages.map(v1PageAdmin),
@@ -354,7 +356,7 @@ async function v1Bootstrap() {
     attachments: [],
     settings: settingsFromV1(settings, account),
   };
-  return mergeV1Assets(payload, assets);
+  return { ...mergeV1Assets(payload, assets), counts: payload.counts };
 }
 
 function dataUrlBase64(value = "") {
@@ -711,15 +713,23 @@ export function AdminApp() {
     setError("");
     try {
       const payload = await v1Bootstrap();
-      setData(payload);
       const requested = memoryIdFromLocation();
-      if (requested && !payload.memories.some((memory) => memory.id === requested)) {
+      if (requested && routeFromLocation() === "memory-editor") {
         // A direct editor route must not depend on the owner's cached list.
         const record = await v1Api(`/api/v1/memories/${encodeURIComponent(requested)}`);
-        payload.memories.push(v1MemoryAdmin(record));
+        payload.memories = [...payload.memories.filter(item => item.id !== record.id), v1MemoryAdmin(record)];
         setData({ ...payload });
       }
       if (requested) setSelectedMemoryId(requested);
+      const requestedMemory = payload.memories.find(item => item.id === requested);
+      const ownerPage = payload.pages.find(page => page.linkedMemoryId === requested || page.slug === requestedMemory?.metadata?.pageSlug);
+      if (requested && ownerPage && routeFromLocation() === "memory-editor") {
+        window.history.replaceState({}, "", `/admin/pages/editor?slug=${encodeURIComponent(ownerPage.slug)}`);
+        locationRef.current = window.location.href;
+        setSelectedPageSlug(ownerPage.slug);
+        setRoute("page-editor");
+      }
+      setData({ ...payload });
       setSelectedMenuId((current) =>
         payload.menu.some((item) => item.id === current) ? current : payload.menu[0]?.id || null,
       );
@@ -743,6 +753,7 @@ export function AdminApp() {
       setRoute(routeFromLocation());
       setSelectedMemoryId(memoryIdFromLocation());
       setSelectedPageSlug(new URLSearchParams(window.location.search).get("slug") || "");
+      if (routeFromLocation() === "memory-editor" && memoryIdFromLocation()) void refreshData();
     };
     window.addEventListener("popstate", handleLocation);
     window.addEventListener("hashchange", handleLocation);
@@ -939,8 +950,22 @@ export function AdminApp() {
     setRoute("memory-editor");
   }
 
-  function editMemory(id, section = "content") {
+  async function editMemory(id, section = "content") {
+    const memory = data?.memories.find(item => item.id === id);
+    const ownerPage = data?.pages.find(page => page.linkedMemoryId === id || page.slug === memory?.metadata?.pageSlug);
+    if (ownerPage) { editPage(ownerPage.slug); return; }
     if (!canLeaveEditor(() => editMemory(id, section))) return;
+    if (actionRef.current) return;
+    actionRef.current = true;
+    setError("");
+    try {
+      const record = v1MemoryAdmin(await v1Api(`/api/v1/memories/${encodeURIComponent(id)}`));
+      setData(current => ({ ...current, memories: [...current.memories.filter(item => item.id !== record.id), record] }));
+      const page = data.pages.find(item => item.linkedMemoryId === record.id || item.slug === record.metadata?.pageSlug);
+      if (page) { actionRef.current = false; editPage(page.slug); return; }
+      id = record.id;
+    } catch (err) { setError(err.message); return; }
+    finally { actionRef.current = false; }
     reportDirty(false);
     setNewDraftVersion((value) => value + 1);
     setSelectedMemoryId(id);
@@ -956,7 +981,10 @@ export function AdminApp() {
   async function uploadEditorFile(file, signal, onProgress = () => {}) {
     if (isLivePhotoFile(file) || isAudioFile(file) || /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
       const asset = (await uploadVideoFile(file, { signal, onProgress })).attachment;
-      return { ...asset, metadata: { ...asset.metadata, filename: file.name || asset.metadata?.filename } };
+      const saved = await v1Api("/api/v1/assets/register", { method: "POST", body: JSON.stringify({ ...asset, metadata: { ...asset.metadata, filename: file.name } }) });
+      const { id, ...attachment } = saved;
+      setData(current => mergeV1Assets(current, [saved]));
+      return { ...attachment, mediaId: id };
     }
     onProgress({ phase: "uploading", percent: 0 });
     const contentBase64 = dataUrlBase64(await readFileAsDataUrl(file));
@@ -967,7 +995,9 @@ export function AdminApp() {
       onProgress: (fraction) => onProgress({ phase: "uploading", percent: Math.floor(fraction * 100) }),
       onUploaded: () => onProgress({ phase: "processing", percent: null }),
     });
-    return { ...payload.data, metadata: { ...payload.data?.metadata, filename: file.name || payload.data?.metadata?.filename } };
+    setData(current => mergeV1Assets(current, [payload.data]));
+    const { id, ...attachment } = payload.data;
+    return { ...attachment, mediaId: id, metadata: { ...attachment.metadata, filename: file.name || attachment.metadata?.filename } };
   }
 
   async function deleteMemory(id) {
@@ -995,11 +1025,12 @@ export function AdminApp() {
   }
 
   async function uploadAttachment(files, memoryId, signal, onProgress) {
-    if (!files?.length || !memoryId || actionRef.current) return;
+    if (!files?.length || actionRef.current) return;
     actionRef.current = true;
     try {
       for (const [index, file] of groupLivePhotos(files).entries()) {
         const attachment = await uploadEditorFile(file, signal, progress => onProgress?.({ ...progress, index: index + 1 }));
+        if (!memoryId) continue;
         const path = `/api/v1/memories/${encodeURIComponent(memoryId)}`;
         const current = await v1Api(path);
         await v1Api(path, { method: "PATCH", body: JSON.stringify({ attachments: appendV1Attachment(current.attachments, attachment) }) });
@@ -1018,6 +1049,18 @@ export function AdminApp() {
       return true;
     });
     return result;
+  }
+
+  const queryMedia = useCallback((params, signal) => v1Api(`/api/v1/assets?${new URLSearchParams({ limit: "40", ...params })}`, { envelope: true, signal }), []);
+  const loadMedia = useCallback(id => v1Api(`/api/v1/media/${encodeURIComponent(id)}`), []);
+  async function deleteMedia(id) {
+    await v1Api(`/api/v1/media/${encodeURIComponent(id)}`, { method: "DELETE" });
+    await refreshData();
+  }
+  async function scanMedia() {
+    const result = await v1Api("/api/v1/assets/reconcile", { method: "POST" });
+    await refreshData();
+    setNotice(`Storage scan complete. ${result.found} files checked.`);
   }
 
   async function savePage(slug, payload) {
@@ -1132,7 +1175,7 @@ export function AdminApp() {
       const bundle = {
         generatedAt: new Date().toISOString(),
         format: "i-remember-v1-export",
-        data: await v1Bootstrap(),
+        data: await v1Bootstrap({ full: true }),
       };
       const stamp = String(bundle.generatedAt).slice(0, 10);
       downloadJson(`i-remember-backup-${stamp}.json`, bundle);
@@ -1304,6 +1347,10 @@ export function AdminApp() {
                 deleteMemory={deleteMemory}
                 uploadAttachment={uploadAttachment}
                 detachAttachment={detachAttachment}
+                loadMedia={loadMedia}
+                queryMedia={queryMedia}
+                deleteMedia={deleteMedia}
+                scanMedia={scanMedia}
                 createPage={createPage}
                 savePage={savePage}
                 createMenuItem={createMenuItem}
@@ -1780,6 +1827,18 @@ function Spotlight({ open, data, close, navigate, createMemory, createPage, edit
   const inputRef = useRef(null);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [found, setFound] = useState([]), [searchError, setSearchError] = useState("");
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    setFound([]); setSearchError("");
+    const timer = setTimeout(() => {
+      v1Api(`/api/v1/memories?status=all&visibility=all&summary=true&limit=6&q=${encodeURIComponent(query.trim())}`, { signal: controller.signal })
+        .then(rows => { if (!controller.signal.aborted) setFound(rows.map(v1MemoryAdmin)); })
+        .catch(err => { if (!controller.signal.aborted) setSearchError(err.message); });
+    }, 180);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [open, query]);
   useDialogFocusTrap(open, dialogRef, inputRef, close);
 
   const normalizedQuery = query.trim().toLowerCase();
@@ -1791,8 +1850,7 @@ function Spotlight({ open, data, close, navigate, createMemory, createPage, edit
   const results = [
     { group: "Quick actions", label: "New memory", meta: "N", action: createMemory },
     { group: "Quick actions", label: "Create page", meta: "P", action: createPage },
-    ...(data?.memories || [])
-      .filter((memory) => matches(`${memory.title} ${memory.excerpt} ${memory.author}`))
+    ...found
       .slice(0, normalizedQuery ? 6 : 2)
       .map((memory) => ({
         group: "Memories",
@@ -1854,7 +1912,7 @@ function Spotlight({ open, data, close, navigate, createMemory, createPage, edit
         className="admin-spotlight"
         role="dialog"
         aria-modal="true"
-        aria-label="Search admin content"
+        aria-label={searchError ? `Search admin content: ${searchError}` : "Search admin content"}
         tabIndex={-1}
         onKeyDown={(event) => {
           if (event.key === "ArrowDown") {
@@ -1959,7 +2017,7 @@ function AdminRoute(props) {
     case "page-editor":
       return <PagesWorkspace key={`${props.route}-${props.selectedPageSlug}-${props.newDraftVersion}`} {...props} />;
     case "attachments":
-      return <MediaLibrary assets={props.data.attachments} memories={props.data.memories} onUpload={props.uploadAttachment} onDetach={props.detachAttachment} editMemory={props.editMemory} />;
+      return <MediaLibrary assets={props.data.attachments} queryMedia={props.queryMedia} onUpload={props.uploadAttachment} loadMedia={props.loadMedia} deleteMedia={props.deleteMedia} scanMedia={props.scanMedia} editMemory={props.editMemory} editPage={props.editPage} />;
     case "menus":
       return <MenusView {...props} />;
     case "settings":
@@ -2201,29 +2259,30 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
   const [page, setPage] = useState(1);
   const [viewOrder, setViewOrder] = useState(null);
   const [refreshingViews, setRefreshingViews] = useState(false);
-  const memories = data.memories || [];
-  const filtered = memories.filter((memory) => {
-    const matchesFilter =
-      memoryFilter === "all" ||
-      (memoryFilter === "long" && memory.isLongForm) ||
-      memory.status === memoryFilter;
-    return (
-      matchesFilter &&
-      containsQuery(
-        [memory.title, memory.author, memory.excerpt, memory.status, memory.source],
-        search,
-      )
-    );
-  });
-  if (viewOrder) filtered.sort((a, b) => viewOrder === "descending" ? b.viewCount - a.viewCount : a.viewCount - b.viewCount);
+  const [result, setResult] = useState({ data: [], total: 0 });
+  const [pending, setPending] = useState(true), [error, setError] = useState("");
   const pageSize = 25;
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageCount = Math.max(1, Math.ceil(result.total / pageSize));
   const currentPage = Math.min(page, pageCount);
-  const pageItems = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
+  const pageItems = result.data;
+  useEffect(() => { setPage(1); }, [search, memoryFilter, viewOrder]);
   useEffect(() => {
-    setPage(1);
-  }, [search, memoryFilter, viewOrder]);
+    const controller = new AbortController();
+    setPending(true); setError("");
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({ status: ({ pending: "PENDING", published: "NORMAL", archived: "ARCHIVED" })[memoryFilter] || "all", visibility: "all", summary: "true", limit: String(pageSize), offset: String((page - 1) * pageSize), q: search.trim() });
+      if (memoryFilter === "long") params.set("longForm", "true");
+      if (viewOrder) params.set("sort", viewOrder === "descending" ? "views_desc" : "views_asc");
+      v1Api(`/api/v1/memories?${params}`, { envelope: true, signal: controller.signal }).then(payload => {
+        if (controller.signal.aborted) return;
+        setResult({ data: payload.data.map(v1MemoryAdmin), total: payload.pagination.total });
+        const last = Math.max(1, Math.ceil(payload.pagination.total / pageSize));
+        if (page > last) setPage(last);
+      }).catch(err => { if (!controller.signal.aborted) setError(err.message); })
+        .finally(() => { if (!controller.signal.aborted) setPending(false); });
+    }, search.trim() ? 180 : 0);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [page, search, memoryFilter, viewOrder, data]);
 
   return (
     <div className="grid gap-5">
@@ -2256,6 +2315,9 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
               try { await refreshData(); } finally { setRefreshingViews(false); }
             }}>{refreshingViews ? "Refreshing…" : "Refresh views"}</Button>
           </div>
+          {pending ? <p role="status">Loading memories…</p> : null}
+          {error ? <p role="alert">{error}</p> : null}
+          {!pending && !error && !result.total ? <p>No memories match these filters.</p> : null}
           <Table className="admin-responsive-memory-table">
             <TableHeader>
               <TableRow>
@@ -2303,14 +2365,14 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
           </Table>
           <div className="flex flex-col gap-2 border-t pt-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <span>
-              Showing {filtered.length ? (currentPage - 1) * pageSize + 1 : 0}-
-              {Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+              Showing {result.total ? (currentPage - 1) * pageSize + 1 : 0}-
+              {Math.min(currentPage * pageSize, result.total)} of {result.total}
             </span>
             <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                disabled={currentPage <= 1}
+                disabled={pending || currentPage <= 1}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
               >
                 Previous
@@ -2318,7 +2380,7 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
               <Button
                 variant="outline"
                 size="sm"
-                disabled={currentPage >= pageCount}
+                disabled={pending || currentPage >= pageCount}
                 onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
               >
                 Next
@@ -2339,6 +2401,7 @@ function MemoryEditorView({
   navigate,
   reportDirty,
   uploadEditorFile,
+  queryMedia,
   savingMemory,
   onUploadingChange,
   newDraftVersion,
@@ -2373,6 +2436,7 @@ function MemoryEditorView({
       reportDirty={reportDirty}
       siteSettings={data.settings}
       assets={data.attachments}
+      queryMedia={queryMedia}
       onUpload={uploadEditorFile}
       saving={savingMemory}
       onUploadingChange={onUploadingChange}
@@ -2404,7 +2468,7 @@ function MemoryListItem({ memory, compact = false }) {
   );
 }
 
-function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, reportDirty, onUpload, saving, assets, onUploadingChange }) {
+function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, reportDirty, onUpload, saving, assets, queryMedia, onUploadingChange }) {
   const [draft, setDraft] = useState(null);
   const [uploading, setUploading] = useState(false);
   useEffect(() => () => onUploadingChange(false), [onUploadingChange]);
@@ -2467,7 +2531,7 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
             />
             <WritingField label="Body" value={draft.bodyMarkdown} onChange={value => update("bodyMarkdown", value)} />
           </FieldGroup>
-          <EditorAttachments attachments={draft.attachments || []} assets={assets} onUpload={onUpload}
+          <EditorAttachments attachments={draft.attachments || []} assets={assets} queryMedia={queryMedia} onUpload={onUpload}
             disabled={saving} onBusy={value => { setUploading(value); onUploadingChange(value); }} onDirty={() => reportDirty(true)}
             onChange={attachments => { reportDirty(true); setDraft(current => ({ ...current, attachments, attachmentsDirty: true })); }} />
           <div className="admin-editor-actions">
@@ -2491,75 +2555,27 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
       </Card>
       <aside className="admin-editor-rail">
         <Card id="memory-publishing"><CardHeader><CardTitle>Publishing</CardTitle></CardHeader>
-          <CardContent className="grid gap-5" inert={saving}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextField
-                label="Author display name"
-                value={draft.author}
-                onChange={(value) => update("author", value)}
-              />
-              <Field>
-                <FieldLabel>Status</FieldLabel>
-                <AdminSelect
-                  ariaLabel="Status"
-                  value={draft.status}
-                  onValueChange={(value) => update("status", value)}
-                  options={memoryStatuses.map((value) => ({
-                    value,
-                    label:
-                      {
-                        published: "Published",
-                        pending: "Draft",
-                        archived: "Archived",
-                        rejected: "Rejected",
-                      }[value] || value,
-                  }))}
-                />
-              </Field>
+          <CardContent className="grid gap-4" inert={saving}>
+            <div className="admin-publishing-primary">
+              <Field><FieldLabel>Status</FieldLabel><AdminSelect ariaLabel="Status" value={draft.status} onValueChange={value => update("status", value)}
+                options={memoryStatuses.map(value => ({ value, label: {published: "Published", pending: "Draft", archived: "Archived", rejected: "Rejected"}[value] || value }))} /></Field>
+              <Field><FieldLabel>Visibility</FieldLabel><AdminSelect ariaLabel="Visibility" value={draft.visibility || "PUBLIC"} onValueChange={value => update("visibility", value)}
+                options={[{value: "PUBLIC", label: "Public"}, {value: "UNLISTED", label: "Unlisted"}, {value: "PRIVATE", label: "Private"}]} /></Field>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextField
-                label="Public ID"
-                value={draft.linkId ?? draft.publicId ?? ""}
-                onChange={(value) => update("linkId", value)}
-                placeholder="Generated automatically"
-                description={draft.publicId ? "4–32 letters, numbers or hyphens; start with a letter. Old links will still work." : "Leave blank for a short random ID, or choose your own. Start with a letter; 4–32 characters."}
-                pattern="[A-Za-z][A-Za-z0-9-]{3,31}"
-                minLength={4}
-                maxLength={32}
-                required={Boolean(draft.publicId)}
-                autoCapitalize="none"
-                spellCheck={false}
-              />
-              <Field>
-                <FieldLabel>Visibility</FieldLabel>
-                <AdminSelect
-                  ariaLabel="Visibility"
-                  value={draft.visibility || "PUBLIC"}
-                  onValueChange={(value) => update("visibility", value)}
-                  options={[
-                    { value: "PUBLIC", label: "Public" },
-                    { value: "UNLISTED", label: "Unlisted" },
-                    { value: "PRIVATE", label: "Private" },
-                  ]}
-                />
-              </Field>
-            </div>
-            <TextField
-              label="Location"
-              description="Optional saved location. Not currently shown on public memory cards."
-              value={draft.locationName || ""}
-              maxLength={160}
-              onChange={(value) => update("locationName", value)}
-            />
-
-            {memory.publicId && memory.status === "published" && memory.visibility === "PUBLIC" ? <Button asChild variant="outline"><a href={memory.publicUrl} target="_blank" rel="noreferrer">Open on site <ExternalLink size={16} /></a></Button> : null}
+            <p className="admin-field-help">{draft.status !== "published" ? "Hidden from visitors until published." : draft.visibility === "UNLISTED" ? "Anyone with the link can read it. Hidden from the galaxy and search." : draft.visibility === "PRIVATE" ? "Only you can read it in admin." : "Visible in the galaxy and site search."}</p>
+            <details className="admin-secondary-fields"><summary>Author and advanced options</summary>
+              <TextField label="Author display name" value={draft.author} onChange={value => update("author", value)} />
+              <TextField label="Public ID" value={draft.linkId ?? draft.publicId ?? ""} onChange={value => update("linkId", value)} placeholder="Generated automatically"
+                description="4–32 letters, numbers or hyphens; start with a letter. Old links keep working."
+                pattern="[A-Za-z][A-Za-z0-9-]{3,31}" minLength={4} maxLength={32} required={Boolean(draft.publicId)} autoCapitalize="none" spellCheck={false} />
+              <TextField label="Location" description="Saved privately; not displayed on the card." value={draft.locationName || ""} maxLength={160} onChange={value => update("locationName", value)} />
+            </details>
+            {memory.publicId && memory.status === "published" && memory.visibility !== "PRIVATE" ? <Button asChild variant="outline"><a href={memory.publicUrl} target="_blank" rel="noreferrer">Open on site <ExternalLink size={16} /></a></Button> : null}
             <Button type="submit" disabled={saving || uploading}>{saving ? "Saving…" : uploading ? "Uploading…" : isNew ? (draft.status === "pending" ? "Save draft" : "Publish memory") : "Save changes"}</Button>
           </CardContent>
         </Card>
-        <Card className="admin-public-preview"><CardHeader><CardTitle>Card preview</CardTitle><CardDescription>Text and cover. Play media in Attachments.</CardDescription></CardHeader>
-          <CardContent><MemoryCard memory={draft} settings={siteSettings} /></CardContent>
-        </Card>
+        <details className="admin-public-preview admin-secondary-fields"><summary>Card preview</summary><p className="admin-field-help">Text and cover. Play media in Attachments.</p><MemoryCard memory={draft} settings={siteSettings} /></details>
+
       </aside>
     </form>
   );

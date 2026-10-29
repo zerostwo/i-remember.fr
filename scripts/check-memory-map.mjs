@@ -214,7 +214,7 @@ paginated.scene.cameraPosition.x = 10000;
 paginated.scene.cameraPosition.z = 10250;
 assert.equal(paginated.nav.update().length, 0);
 assert.equal(paginated.network.length, 1, "Empty cells must share the controller's in-flight request");
-assert.equal(new URL(paginated.network[0].url, "http://local").searchParams.get("lastId"), "299");
+assert.equal(new URL(paginated.network[0].url, "http://local").searchParams.get("lastId"), record(299).public_id);
 paginated.network[0].success({
   success: true, input: { tagName: "" },
   data: { tagName: "", posts: [record(299), record(300), record(301)] },

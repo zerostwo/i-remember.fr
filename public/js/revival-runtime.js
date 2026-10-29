@@ -628,7 +628,9 @@
       'define.amd={jQuery:!0}})(),window.__REVIVAL_REQUIREJS__=requirejs,' +
       'window.__REVIVAL_REQUIRE__=require,window.__REVIVAL_DEFINE__=define,' +
       'define("../../build/almond"';
-    var patched = source;
+    var patched = source.replace('var r=e&&v>0?e[v-1].id:-1', 'var r=e&&v>0?e[v-1].public_id:-1')
+      .replace('"/api/related-post-count/"+e.id+', '"/api/related-post-count/"+e.public_id+')
+      .replace('function T(e){b.dispatch({tagName:e.input.tagName})}', 'function T(t){var r=t&&t.input&&t.input.tagName||e.tagName;e.parsedTagName="";b.dispatch({tagName:r})}');
     if (patched.indexOf(marker) !== -1) patched = patched.replace(marker, replacement);
     patched =
       "if(window.SETTINGS&&window.REVIVAL_FADING!=null){window.SETTINGS.fading=window.REVIVAL_FADING;}\n" +
@@ -804,6 +806,42 @@
     }
   }
 
+  var searchFeedbackSequence = 0;
+  document.addEventListener("click", function (event) {
+    if (event.target.closest && event.target.closest(".nav-map-wrapper,.nav-search-item-close-btn,.nav-add-btn")) {
+      ++searchFeedbackSequence;
+      showSearchFeedback("", null, false);
+    }
+  });
+  function showSearchFeedback(query, payload, failed) {
+    var host = document.body;
+    if (!host) return;
+    var feedback = document.querySelector(".revival-search-feedback");
+    if (!feedback) {
+      feedback = document.createElement("div");
+      feedback.className = "revival-search-feedback";
+      feedback.setAttribute("role", "status");
+      feedback.setAttribute("aria-live", "polite");
+      host.appendChild(feedback);
+    }
+    feedback.replaceChildren();
+    feedback.hidden = !query;
+    if (!query) return;
+    var lang = siteLanguage();
+    if (failed) { feedback.textContent = lang === "fr" ? "Recherche indisponible. Réessayez." : lang === "zh" ? "搜索暂不可用，请重试。" : "Search unavailable. Please try again."; return; }
+    if (!payload) { feedback.textContent = lang === "fr" ? "Recherche…" : lang === "zh" ? "搜索中…" : "Searching…"; return; }
+    var count = payload.total == null ? (payload.posts || []).length : payload.total;
+    var status = document.createElement("span");
+    status.textContent = lang === "fr" ? count + " souvenir(s)" : lang === "zh" ? count + " 条回忆" : count + (count === 1 ? " memory found" : " memories found");
+    feedback.appendChild(status);
+    if (payload.posts && payload.posts[0]) {
+      var first = payload.posts[0], link = document.createElement("a");
+      link.href = window.__REVIVAL_PUBLIC_MEMORY_PATH__(first);
+      link.textContent = (lang === "fr" ? "Ouvrir : " : lang === "zh" ? "打开：" : "Open: ") + String(first.title_text || first.name || query).slice(0, 55);
+      feedback.appendChild(link);
+    }
+  }
+
   function localApiAjax(settings) {
     var method = String(settings.type || settings.method || "GET").toUpperCase();
     var url = localApiUrl(settings.url);
@@ -828,6 +866,10 @@
     }
 
     requestUrl = method === "GET" ? appendQueryData(url, settings.data) : url;
+    var parsedRequest = new URL(requestUrl), searchQuery = parsedRequest.searchParams.get("tagName") || decodeURIComponent(path.replace(/^\/api\/search-posts\/?/, ""));
+    var reportSearch = method === "GET" && path.indexOf("/api/search-posts") === 0 && !parsedRequest.searchParams.has("lastId");
+    var feedbackSequence = reportSearch ? ++searchFeedbackSequence : 0;
+    if (reportSearch) showSearchFeedback(searchQuery, null, false);
 
     requestOptions = {
       credentials: "same-origin",
@@ -853,6 +895,7 @@
         controller.abort();
       },
       readyState: 1,
+      input: { tagName: searchQuery || "" },
       status: 0
     };
 
@@ -867,17 +910,19 @@
         });
       })
       .then(function (result) {
-        if (aborted) return;
+        if (aborted || (reportSearch && feedbackSequence !== searchFeedbackSequence)) return;
         jqxhr.readyState = 4;
         jqxhr.status = result.response.status;
         jqxhr.responseText = result.text;
         jqxhr.responseJSON = result.payload;
         if (!result.response.ok) throw result;
+        if (reportSearch && feedbackSequence === searchFeedbackSequence) showSearchFeedback(searchQuery, result.payload.data, false);
         if (settings.success) settings.success(result.payload, "success", jqxhr);
         if (settings.complete) settings.complete(jqxhr, "success");
       })
       .catch(function (error) {
-        if (aborted) return;
+        if (aborted || (reportSearch && feedbackSequence !== searchFeedbackSequence)) return;
+        if (reportSearch && feedbackSequence === searchFeedbackSequence) showSearchFeedback(searchQuery, null, true);
         jqxhr.readyState = 4;
         jqxhr.status = error.response ? error.response.status : 0;
         jqxhr.responseJSON = error.payload || null;

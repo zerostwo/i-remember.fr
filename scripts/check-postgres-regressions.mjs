@@ -60,7 +60,10 @@ try {
   await repository.update(legacyId, { publicId: legacyId });
   for (const visibility of ["PRIVATE", "UNLISTED"]) {
     await repository.update(legacyId, { visibility });
-    assert.equal(await service.get(anonymous, firstSlug), null);
+    const direct = await service.get(anonymous, firstSlug);
+    assert.equal(direct?.publicId || null, visibility === "UNLISTED" ? legacyId : null);
+    assert.ok(!(await service.list(anonymous, { q: prefix })).some(item => item.id === linkMemory.id), "Unlisted/private memories must not enter discovery");
+    if (visibility === "UNLISTED") await service.view(firstSlug);
   }
   await repository.update(legacyId, { visibility: "PUBLIC", status: "ARCHIVED" });
   assert.equal(await service.get(anonymous, firstSlug), null);
@@ -73,7 +76,8 @@ try {
     assert.equal(redirect.headers.get("location"), `/memory/${firstSlug}?ln=fr`);
     const canonical = await fetch(new URL(`/memory/${firstSlug}`, base));
     assert.equal(canonical.status, 200);
-    assert.ok((await canonical.text()).includes(`https://songqi.org/memory/${firstSlug}`));
+    const canonicalUrl = (await canonical.text()).match(/<link rel="canonical" href="([^"]+)"/)[1];
+    assert.equal(new URL(canonicalUrl).pathname, `/memory/${firstSlug}`);
     assert.equal((await fetch(new URL("/memory/12345", base))).status, 404);
     await repository.update(firstSlug, { visibility: "PRIVATE" });
     assert.equal((await fetch(new URL(`/memory/${legacyId}`, base), { redirect: "manual" })).status, 404);
@@ -128,7 +132,7 @@ try {
   assert.equal(await service.get(anonymous, memory.publicId), null);
   await service.update(admin, memory.publicId, { status: "NORMAL" });
   assert.equal((await service.get(admin, memory.publicId)).visibility, "UNLISTED");
-  assert.equal(await service.get(anonymous, memory.publicId), null);
+  assert.equal((await service.get(anonymous, memory.publicId)).visibility, "UNLISTED");
   await service.update(admin, memory.publicId, { status: "NORMAL", visibility: "PUBLIC" });
   assert.equal((await service.get(anonymous, memory.publicId)).status, "NORMAL");
   const attachmentPayload = v1MemoryPayload({
@@ -228,6 +232,13 @@ try {
     `${prefix}-old-slug`,
     "Existing unique tag names must not fail after the slug fix",
   );
+  const accentMemory = await repository.create({ title: `${prefix} café`, content: "A café-au-lait story. 中文旅行。", authorName: "Renée" });
+  assert.ok((await service.page(anonymous, { q: `${prefix} cafe`, limit: 10 })).data.some(item => item.id === accentMemory.id));
+  assert.ok((await service.page(anonymous, { q: "cafe au lait", limit: 10 })).data.some(item => item.id === accentMemory.id));
+  assert.ok((await service.page(anonymous, { q: "中文旅行", limit: 10 })).data.some(item => item.id === accentMemory.id));
+  await repository.update(accentMemory.publicId, { content: "The revised ending", title: `${prefix} revised` });
+  assert.ok(!(await service.page(anonymous, { q: "cafe au lait", limit: 10 })).data.some(item => item.id === accentMemory.id));
+  await db.memory.delete({ where: { id: accentMemory.id } });
   const createdAt = new Date("2026-01-01T00:00:00Z");
   await db.memory.createMany({
     data: Array.from({ length: 405 }, (_, i) => ({
@@ -264,21 +275,14 @@ try {
       assert.equal(response.status, 200);
       const posts = (await response.json()).data.posts;
       publicIds.push(...posts.map((p) => p.public_id));
-      lastId = posts.length === 200 ? posts.at(-1).id : "";
+      lastId = posts.length === 200 ? posts.at(-1).public_id : "";
     } while (lastId);
     assert.equal(publicIds.length, 407);
     assert.equal(new Set(publicIds).size, 407);
   }
   const search = await service.page(anonymous, { q: `${prefix} cursor page 0`, limit: 10 });
   assert.equal(search.data.length, 1);
-  await db.attachment.createMany({
-    data: Array.from({ length: 205 }, (_, i) => ({
-      memoryId: memory.id,
-      url: `/${prefix}/${i}.png`,
-      type: "image/png",
-      createdAt,
-    })),
-  });
+  for (let i = 0; i < 205; i++) await assets.create({ memoryId: memory.id, url: `/${prefix}/${i}.png`, type: "image/png" });
   let assetCursor,
     assetIds = [];
   do {
@@ -287,14 +291,16 @@ try {
     assetCursor = page.length === 200 ? page.at(-1).id : undefined;
   } while (assetCursor);
   const owned = assetIds.filter((a) => a.url.includes(prefix));
-  assert.equal(owned.length, 207);
-  assert.equal(new Set(owned.map((a) => a.id)).size, 207);
-  assert.ok(owned.every((a) => a.memoryId === memory.publicId));
+  assert.equal(owned.length, 208, "Detached extra files remain in the independent library");
+  assert.equal(new Set(owned.map((a) => a.id)).size, 208);
+  const usage = await assets.usage(owned.find(a => a.url.endsWith("/204.png")).id);
+  assert.equal(usage[0].id, memory.publicId);
   console.log(
-    "PostgreSQL regressions passed: short/custom IDs, alias redirects, concurrent conflicts, stable map/views/attachments, private alias protection, private/unlisted draft preservation, unchanged and edited attachment IDs/types/timestamps, attachment ownership and count validation, archive restore, Unicode/existing tags, 405 records and 207 attachment pagination",
+    "PostgreSQL regressions passed: short/custom IDs, alias redirects, concurrent conflicts, stable map/views/attachments, private alias protection, private/unlisted draft preservation, unchanged and edited attachment IDs/types/timestamps, attachment ownership and count validation, archive restore, Unicode/existing tags, 405 records and 208 independent media records across page boundaries",
   );
 } finally {
   await db.memory.deleteMany({ where: { title: { startsWith: prefix } } });
+  await db.mediaAsset.deleteMany({ where: { url: { contains: prefix } } });
   await db.tag.deleteMany({ where: { name: { startsWith: prefix } } });
   await db.$disconnect();
 }

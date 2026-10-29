@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mergeV1Assets, v1AssetDeletePath, v1AssetUploadPayload, v1AssetPreviewUrls } from "./v1-assets.js";
+import { mergeV1Assets, v1AssetUploadPayload, v1AssetPreviewUrls } from "./v1-assets.js";
 
 const merged = mergeV1Assets(
   {
@@ -25,7 +25,6 @@ assert.equal(merged.counts.attachments, 2);
 assert.equal(merged.attachments[1].imageKey, "admin/new-photo.jpg");
 assert.equal(merged.attachments[1].storageType, "v1");
 assert.equal(merged.attachments[1].memoryId, "pub_1");
-assert.equal(v1AssetDeletePath(merged.attachments[1]), "/api/v1/assets/admin%2Fnew-photo.jpg");
 
 const upload = v1AssetUploadPayload(
   { name: "../new photo.JPG", type: "image/jpeg" },
@@ -67,3 +66,5 @@ assert.deepEqual(v1AssetPreviewUrls({ ...photo, metadata: { livePhoto: true } })
 });
 assert.equal(v1AssetPreviewUrls({ url: "/uploads/admin/photo.png", type: "image/png" }).preview, "/uploads/admin/photo.png");
 assert.equal(v1AssetPreviewUrls({ url: "/uploads/posts/revival-abc/video.mp4", type: "video/mp4" }).preview, "/uploads/posts/revival-abc/video.mp4");
+
+assert.equal(mergeV1Assets({ counts: { attachments: 300 }, attachments: [{ url: "/uploads/admin/cached.jpg", resizedUrl: "/uploads/admin/cached.jpg" }] }, [{ id: "fresh", url: "/uploads/admin/fresh.jpg", type: "image/jpeg" }]).counts.attachments, 301, "A bounded cache must not replace the full library count");

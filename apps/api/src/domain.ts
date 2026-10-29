@@ -104,7 +104,10 @@ export type UserUpdateInput = Partial<{
 
 export type AssetRecord = {
   id: string;
-  memoryId: string;
+  memoryId?: string;
+  identity?: string;
+  usageCount?: number;
+  canDelete?: boolean;
   url: string;
   type: string;
   metadata?: Record<string, unknown> | null;
@@ -114,11 +117,13 @@ export type AssetRecord = {
 export type AttachmentRecord = AssetRecord;
 
 export type AssetCreateInput = {
-  memoryId: string;
+  memoryId?: string;
   url: string;
   type: string;
   metadata?: Record<string, unknown>;
 };
+
+export type AssetUsage = { kind: "memory" | "page"; id: string; title: string; status: string; slug?: string };
 
 export type TagRecord = {
   id: string;
@@ -149,6 +154,7 @@ export type PageInput = {
   status?: PageStatus;
   linkedMemoryId?: string;
   metadata?: Record<string, unknown>;
+  navigationVisible?: boolean;
 };
 
 export type PageUpdateInput = Partial<PageInput>;

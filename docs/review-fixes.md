@@ -43,7 +43,7 @@ full-content preview uses the same safe Markdown body as the public reader.
 - Opening admin search preserves an unsaved draft. Leaving a dirty editor asks
   before discarding it; uploads happen inline, and repeated saves are guarded.
 - Memory and attachment APIs expose stable cursor pagination. Admin lists,
-  search, exports, and the public galaxy consume every page. Public search uses
+  search, and the public galaxy request bounded pages as needed; explicit exports consume every page. Public search uses
   record order instead of comparing the random-derived legacy numeric handles.
 - Unicode tag names generate distinct stable slugs, with existing tag names
   reused to avoid unique-name conflicts.

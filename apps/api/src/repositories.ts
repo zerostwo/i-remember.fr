@@ -1,6 +1,7 @@
 import type {
   AssetCreateInput,
   AssetRecord,
+  AssetUsage,
   CommentInput,
   CommentRecord,
   CommentUpdateInput,
@@ -25,6 +26,10 @@ export type MemoryListQuery = {
   cursor?: string;
   status?: "all" | MemoryRecord["status"];
   visibility?: "all" | MemoryRecord["visibility"];
+  offset?: number;
+  sort?: "views_asc" | "views_desc";
+  longForm?: boolean;
+  summary?: boolean;
 };
 
 export type CommentListQuery = {
@@ -42,6 +47,7 @@ export interface MemoryRepository {
   create(input: MemoryInput): Promise<MemoryRecord>;
   update(id: string, input: MemoryUpdateInput): Promise<MemoryRecord>;
   archive(id: string): Promise<MemoryRecord>;
+  random(exclude: string[]): Promise<MemoryRecord | null>;
 }
 
 export interface UserRepository {
@@ -82,10 +88,15 @@ export interface SettingRepository {
 }
 
 export interface AssetRepository {
-  list(limit: number, cursor?: string): Promise<AssetRecord[]>;
+  list(limit: number, cursor?: string, query?: AssetListQuery): Promise<AssetRecord[]>;
+  count(query?: AssetListQuery): Promise<number>;
+  get(id: string): Promise<AssetRecord | null>;
+  usage(id: string): Promise<AssetUsage[]>;
   create(input: AssetCreateInput): Promise<AssetRecord>;
-  deleteByUrl(url: string): Promise<void>;
+  deleteUnused(id: string, remove: (asset: AssetRecord) => Promise<void>): Promise<void>;
 }
+
+export type AssetListQuery = { q?: string; kind?: string; unused?: boolean };
 
 export interface ReadinessRepository {
   check(): Promise<void>;

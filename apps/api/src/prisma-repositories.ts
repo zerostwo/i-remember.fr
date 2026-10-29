@@ -22,8 +22,10 @@ import type {
   UserUpdateInput,
 } from "./domain.js";
 import { ApiError } from "./errors.js";
+import { mediaStorageKey, registerMedia, syncMediaReferences } from "./media.js";
 import type {
   AssetRepository,
+  AssetListQuery,
   CommentListQuery,
   CommentRepository,
   MenuItemRepository,
@@ -232,16 +234,15 @@ function user(row: any): UserRecord {
 }
 
 function memoryWhere(query: MemoryListQuery) {
-  const q = query.q?.trim();
+  const q = query.q?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
   return {
     ...(query.status === "all" ? {} : { status: query.status || "NORMAL" }),
     ...(query.visibility === "all" ? {} : { visibility: query.visibility || "PUBLIC" }),
+    ...(query.longForm ? { metadata: { path: ["isLongForm"], equals: true } } : {}),
     ...(q
       ? {
           OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { content: { contains: q, mode: "insensitive" } },
-            { excerpt: { contains: q, mode: "insensitive" } },
+            { searchText: { contains: q } },
             {
               tags: {
                 some: {
@@ -287,12 +288,21 @@ function commentWhere(query: CommentListQuery) {
 export class PrismaMemoryRepository implements MemoryRepository {
   constructor(private readonly db = getPrismaClient()) {}
 
+  private async assertEditable(tx: any, record: MemoryRecord) {
+    const links = await tx.memoryLink.findMany({ where: { memoryId: record.id }, select: { publicId: true } });
+    const owner = await tx.page.findFirst({
+      where: { linkedMemoryId: { in: [record.id, record.publicId, ...links.map((link: any) => link.publicId)] } },
+      select: { slug: true },
+    });
+    if (owner) throw new ApiError(409, `This memory belongs to the page “${owner.slug}”. Edit or archive it in Pages.`, "page_managed_memory");
+  }
+
   async list(query: MemoryListQuery) {
     const rows = await this.db.memory.findMany({
       where: memoryWhere(query) as any,
-      include: memoryInclude,
-      orderBy: [{ createdAt: "desc" }, { publicId: "desc" }],
-      ...(query.cursor ? { cursor: { publicId: query.cursor }, skip: 1 } : {}),
+      include: memoryInclude, omit: { searchText: true },
+      orderBy: [...(query.sort ? [{ viewCount: query.sort === "views_asc" ? "asc" as const : "desc" as const }] : []), { createdAt: "desc" }, { publicId: "desc" }],
+      ...(query.cursor ? { cursor: { publicId: query.cursor }, skip: 1 } : { skip: query.offset || 0 }),
       take: Math.min(query.limit || 100, 201),
     });
     return rows.map(memory);
@@ -302,12 +312,20 @@ export class PrismaMemoryRepository implements MemoryRepository {
     return this.db.memory.count({ where: memoryWhere(query) as any });
   }
 
+  async random(exclude: string[]) {
+    const where = { status: "NORMAL" as const, visibility: "PUBLIC" as const, publicId: { notIn: exclude }, content: { not: "" } };
+    const count = await this.db.memory.count({ where });
+    if (!count) return null;
+    const row = await this.db.memory.findFirst({ where, skip: randomInt(count), orderBy: { publicId: "asc" }, include: memoryInclude, omit: { searchText: true } });
+    return row ? memory(row) : null;
+  }
+
   async get(id: string) {
     const row = await this.db.memory.findFirst({
       where: {
         OR: [{ id }, { publicId: id }, { links: { some: { publicId: id } } }],
       },
-      include: memoryInclude,
+      include: memoryInclude, omit: { searchText: true },
     });
     return row ? memory(row) : null;
   }
@@ -320,7 +338,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
           if (await tx.memory.findUnique({ where: { id: publicId } })) {
             throw new ApiError(409, "This public ID is already in use. Choose another.", "public_id_taken");
           }
-          return memory(await tx.memory.create({
+          const saved = await tx.memory.create({
             data: {
               publicId,
               mapKey: publicId,
@@ -335,15 +353,17 @@ export class PrismaMemoryRepository implements MemoryRepository {
               latitude: input.latitude,
               longitude: input.longitude,
               emotion: input.emotion,
-              metadata: input.metadata as any,
+              metadata: { ...input.metadata, isLongForm: input.content.length > 220 } as any,
               embedding: input.embedding as any,
               aiSummary: input.aiSummary,
               knowledgeGraph: input.knowledgeGraph as any,
               attachments: input.attachments?.length ? { create: attachmentCreates(input.attachments) } : undefined,
               tags: input.tags?.length ? { create: await tagCreates(tx, input.tags) } : undefined,
             },
-            include: memoryInclude,
-          }));
+            include: memoryInclude, omit: { searchText: true },
+          });
+          await syncMediaReferences(tx, { memoryId: saved.id }, saved.content, input.attachments);
+          return memory(saved);
         });
       } catch (error: any) {
         if (!publicIdConflict(error)) throw error;
@@ -355,14 +375,14 @@ export class PrismaMemoryRepository implements MemoryRepository {
 
   async incrementView(id: string) {
     const existing = await this.get(id);
-    if (!existing || existing.status !== "NORMAL" || existing.visibility !== "PUBLIC") {
+    if (!existing || existing.status !== "NORMAL" || !["PUBLIC", "UNLISTED"].includes(existing.visibility)) {
       throw new ApiError(404, "Memory not found", "not_found");
     }
     return memory(
       await this.db.memory.update({
         where: { id: existing.id },
         data: { viewCount: { increment: 1 } },
-        include: memoryInclude,
+        include: memoryInclude, omit: { searchText: true },
       }),
     );
   }
@@ -372,6 +392,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
     if (!existing) throw new ApiError(404, "Memory not found", "not_found");
     try {
       return await this.db.$transaction(async (tx) => {
+        await this.assertEditable(tx, existing);
         if (input.publicId && input.publicId !== existing.publicId) {
           const reserved = await tx.memoryLink.findUnique({ where: { publicId: input.publicId } });
           const internal = await tx.memory.findUnique({ where: { id: input.publicId } });
@@ -392,14 +413,16 @@ export class PrismaMemoryRepository implements MemoryRepository {
           longitude: input.longitude,
           emotion: input.emotion,
           status: input.status,
-          metadata: input.metadata as any,
+          metadata: { ...(input.metadata || existing.metadata), isLongForm: (input.content ?? existing.content).length > 220 } as any,
           embedding: input.embedding as any,
           aiSummary: input.aiSummary,
           knowledgeGraph: input.knowledgeGraph as any,
         };
         if (input.attachments) data.attachments = attachmentChanges(existing, input.attachments);
         if (input.tags) data.tags = { deleteMany: {}, create: await tagCreates(tx, input.tags) };
-        return memory(await tx.memory.update({ where: { id: existing.id }, data, include: memoryInclude }));
+        const saved = await tx.memory.update({ where: { id: existing.id }, data, include: memoryInclude, omit: { searchText: true } });
+        await syncMediaReferences(tx, { memoryId: saved.id }, saved.content, saved.attachments as AttachmentInput[]);
+        return memory(saved);
       });
     } catch (error: any) {
       if (publicIdConflict(error)) {
@@ -410,15 +433,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
   }
 
   async archive(id: string) {
-    const existing = await this.get(id);
-    if (!existing) throw new ApiError(404, "Memory not found", "not_found");
-    return memory(
-      await this.db.memory.update({
-        where: { id: existing.id },
-        data: { status: "ARCHIVED" },
-        include: memoryInclude,
-      }),
-    );
+    return this.update(id, { status: "ARCHIVED" });
   }
 }
 
@@ -641,6 +656,15 @@ export class PrismaPageRepository implements PageRepository {
           if (existing && existing.slug !== saved.slug) {
             await tx.menuItem.updateMany({ where: { type: "PAGE", language: existing.language, targetValue: existing.slug }, data: { targetValue: saved.slug } });
           }
+          await syncMediaReferences(tx, { pageId: saved.id }, saved.bodyMarkdown);
+          if (input.navigationVisible !== undefined) {
+            const current = await tx.menuItem.findFirst({ where: { language: saved.language, type: "PAGE", targetValue: saved.slug } });
+            if (current) await tx.menuItem.update({ where: { id: current.id }, data: { isVisible: input.navigationVisible } });
+            else if (input.navigationVisible) {
+              const last = await tx.menuItem.aggregate({ where: { language: saved.language }, _max: { position: true } });
+              await tx.menuItem.create({ data: { uid: `page-${saved.id}`, language: saved.language, label: saved.title, type: "PAGE", targetValue: saved.slug, position: (last._max.position || 0) + 10, isVisible: true } });
+            }
+          }
           return page(saved);
         });
       } catch (error: any) {
@@ -754,54 +778,67 @@ export class PrismaReadinessRepository implements ReadinessRepository {
   }
 }
 
+function assetWhere(query: AssetListQuery = {}) {
+  const and: any[] = [];
+  if (query.q) and.push({ OR: [
+    { url: { contains: query.q, mode: "insensitive" } },
+    { metadata: { path: ["filename"], string_contains: query.q, mode: "insensitive" } },
+    { references: { some: { OR: [{ memory: { title: { contains: query.q, mode: "insensitive" } } }, { page: { title: { contains: query.q, mode: "insensitive" } } }] } } },
+  ] });
+  if (query.kind && ["image", "video", "audio"].includes(query.kind)) and.push({ type: { startsWith: query.kind + "/" } });
+  if (query.kind === "live") and.push({ metadata: { path: ["livePhoto"], equals: true } });
+  if (query.kind === "file") and.push({ NOT: ["image", "video", "audio"].map(kind => ({ type: { startsWith: kind + "/" } })) });
+  if (query.unused) and.push({ references: { none: {} } });
+  return { deletedAt: null, AND: and };
+}
+function mediaAsset(row: any): AssetRecord {
+  return { id: row.id, identity: row.identity, url: row.url, type: row.type, metadata: row.metadata,
+    usageCount: row._count?.references, canDelete: Boolean(mediaStorageKey(row.identity)), createdAt: row.createdAt };
+}
 export class PrismaAssetRepository implements AssetRepository {
   constructor(private readonly db = getPrismaClient()) {}
 
-  async list(limit: number, cursor?: string): Promise<AssetRecord[]> {
-    const rows = await this.db.attachment.findMany({
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  async list(limit: number, cursor?: string, query: AssetListQuery = {}) {
+    return (await this.db.mediaAsset.findMany({
+      where: assetWhere(query) as any, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      include: { memory: { select: { publicId: true } } },
-      take: Math.min(limit, 201),
-    });
-    return rows.map((row: any) => ({
-      id: row.id,
-      memoryId: row.memory?.publicId || row.memoryId,
-      url: row.url,
-      type: row.type,
-      metadata: row.metadata && typeof row.metadata === "object" ? row.metadata : null,
-      createdAt: row.createdAt,
-    }));
+      include: { _count: { select: { references: true } } }, take: Math.min(limit, 201),
+    })).map(mediaAsset);
   }
-
-  async create(input: AssetCreateInput): Promise<AssetRecord> {
-    const memory = await this.db.memory.findFirst({
-      where: { OR: [{ id: input.memoryId }, { publicId: input.memoryId }] },
-      select: { id: true },
-    });
-    if (!memory) throw new ApiError(404, "Memory not found", "not_found");
-    const row = await this.db.attachment.create({
-      data: {
-        memoryId: memory.id,
-        url: input.url,
-        type: input.type,
-        metadata: input.metadata as any,
-      },
-    });
-    return {
-      id: row.id,
-      memoryId: row.memoryId,
-      url: row.url,
-      type: row.type,
-      metadata:
-        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
-          ? (row.metadata as Record<string, unknown>)
-          : null,
-      createdAt: row.createdAt,
-    };
+  async count(query: AssetListQuery = {}) { return this.db.mediaAsset.count({ where: assetWhere(query) as any }); }
+  async get(id: string) {
+    const row = await this.db.mediaAsset.findFirst({ where: { id, deletedAt: null }, include: { _count: { select: { references: true } } } });
+    return row ? mediaAsset(row) : null;
   }
-
-  async deleteByUrl(url: string) {
-    await this.db.attachment.deleteMany({ where: { url } });
+  async usage(id: string) {
+    const rows = await this.db.mediaReference.findMany({ where: { assetId: id }, include: {
+      memory: { select: { publicId: true, title: true, status: true } }, page: { select: { id: true, slug: true, title: true, status: true } },
+    } });
+    return rows.map(row => row.page
+      ? { kind: "page" as const, ...row.page }
+      : { kind: "memory" as const, id: row.memory!.publicId, title: row.memory!.title, status: row.memory!.status });
+  }
+  async create(input: AssetCreateInput) {
+    return this.db.$transaction(async tx => {
+      const asset = await registerMedia(tx, input);
+      if (input.memoryId) {
+        const owner = await tx.memory.findFirst({ where: { OR: [{ id: input.memoryId }, { publicId: input.memoryId }] } });
+        if (!owner) throw new ApiError(404, "Memory not found", "not_found");
+        if (await tx.page.findFirst({ where: { linkedMemoryId: owner.publicId } })) throw new ApiError(409, "Upload media in the Page editor.", "page_managed_memory");
+        await tx.attachment.create({ data: { memoryId: owner.id, url: input.url, type: input.type, metadata: input.metadata as any } });
+        await tx.mediaReference.upsert({ where: { assetId_memoryId: { assetId: asset.id, memoryId: owner.id } }, create: { assetId: asset.id, memoryId: owner.id }, update: {} });
+      }
+      return { ...mediaAsset(asset), memoryId: input.memoryId };
+    });
+  }
+  async deleteUnused(id: string, remove: (asset: AssetRecord) => Promise<void>) {
+    await this.db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM media_assets WHERE id = ${id} FOR UPDATE`;
+      const row = await tx.mediaAsset.findFirst({ where: { id, deletedAt: null } });
+      if (!row) throw new ApiError(404, "File not found", "not_found");
+      if (await tx.mediaReference.count({ where: { assetId: id } })) throw new ApiError(409, "This file is still used. Remove all memory and page references before deleting it.", "asset_in_use");
+      await remove(mediaAsset(row));
+      await tx.mediaAsset.update({ where: { id }, data: { deletedAt: new Date() } });
+    }, { timeout: 15000 });
   }
 }

@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Give managed Pages one authoritative editor: opening a Page mirror from Memories
+  redirects to Pages, and direct mirror mutations return a conflict.
+- Allow published Unlisted memories through direct/current/previous links and view
+  counting while excluding them from public search, galaxy, and random selection.
+- Keep independent media records and Memory/Page references. Detaching keeps a file
+  reusable; guarded deletion refuses referenced files and removes unused media
+  families together. Inventory completed historical files from Attachments.
+- Upload media directly in Page writing and add/remove the footer link with the
+  page save. Draft/archived Pages stay hidden from public navigation.
+- Put publication state and visibility above writing on phones, collapse advanced
+  fields/previews, and size the body editor to its content.
+- Show search progress, result counts, failures and a direct result link without
+  replacing the galaxy. Ignore outdated search responses.
+- Query memories/media in bounded pages and search on the server. A PostgreSQL
+  generated search document preserves accent, Unicode and separator normalization;
+  full-content editor fetches and complete backup exports remain explicit.
+
 - Resolve full-photo previews and Live Photo playback/downloads for existing
   public uploads in the admin library while retaining their card crops.
 - Make admin media usable with image/video/audio previews, ownership-aware

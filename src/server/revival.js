@@ -4,10 +4,10 @@ import { createVideoUploads, videoChunkBytes } from "./video-uploads.js";
 import { uploadLivePhoto, livePhotoMaxBytes } from "./live-photo.js";
 import { uploadVideo, videoLimits } from "./video.js";
 import { serveAsset } from "./static-assets.js";
-import { renderSeo, sitemapXml, siteOrigin, publicPosts } from "./seo.js";
+import { renderSeo, sitemapXml, siteOrigin } from "./seo.js";
 import { versionPublicAssets } from "./public-asset-versions.js";
 import { markdownToHtml, memoryBody, memoryPreview } from "../../packages/content/src/markdown.js";
-import { randomUUID, randomInt, createHash } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
@@ -258,44 +258,9 @@ function postHaystack(post) {
   );
 }
 
-function postHaystackTokens(post) {
-  return postHaystack(post).split(" ").filter(Boolean);
-}
-
-function matchingPosts(posts, tag) {
-  const normalized = normalizeTag(tag);
-  if (!normalized) return posts;
-
-  const words = normalized.split(" ").filter(Boolean);
-  const exact = posts.filter((post) => {
-    const haystack = postHaystack(post);
-    if (words.length === 1) {
-      return postHaystackTokens(post).includes(words[0]) || haystack.includes(words[0]);
-    }
-    return haystack.includes(normalized);
-  });
-  if (exact.length) return exact;
-
-  return posts.filter((post) => {
-    const tokens = postHaystackTokens(post);
-    return words.some((word) => {
-      return word.length > 1 && tokens.some((token) => token.includes(word));
-    });
-  });
-}
-
 function numericPostId(post) {
   const id = Number.parseInt(post?.id, 10);
   return Number.isFinite(id) ? id : -1;
-}
-
-function paginatePosts(posts, url) {
-  const lastId = url.searchParams.get("lastId");
-  const index = lastId ? posts.findIndex((post) => String(post.id) === lastId) : -1;
-  // The internal numeric handle is derived from a random public ID, not chronology.
-  const page = lastId ? (index < 0 ? [] : posts.slice(index + 1)) : posts;
-
-  return page.slice(0, postSearchResultMax);
 }
 
 function uniquePosts(posts) {
@@ -314,33 +279,6 @@ function textTagTokens(value = "", language = "en") {
   return [...new Set(matches)].filter((word) => {
     return word.length > 1 && !stopWords.has(word);
   });
-}
-
-function relatedTagCountsForPosts(post, posts, language = "en") {
-  if (post.tags && Object.keys(post.tags).length) return post.tags;
-
-  const ownTokens = textTagTokens(post.text, language);
-  const otherTokenSets = posts
-    .filter((candidate) => String(candidate.id) !== String(post.id))
-    .map((candidate) => {
-      return new Set(
-        textTagTokens(`${candidate.name || ""} ${candidate.text || ""}`, language),
-      );
-    });
-  const related = {};
-
-  for (const token of ownTokens) {
-    const count = otherTokenSets.reduce((total, tokenSet) => {
-      return total + (tokenSet.has(token) ? 1 : 0);
-    }, 0);
-    if (count > 0) related[token] = count;
-  }
-
-  return Object.fromEntries(
-    Object.entries(related).sort((left, right) => {
-      return right[1] - left[1] || left[0].localeCompare(right[0]);
-    }),
-  );
 }
 
 function autocompleteList(posts, fragment, language = "en") {
@@ -779,6 +717,8 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     id: v1LegacyPostId(memory, index),
     uid: String(memory?.id || memory?.publicId || `v1_memory_${index}`),
     public_id: String(memory?.id || memory?.publicId || ""),
+    visibility: memory.visibility,
+    status: memory.status,
     name: String(memory?.authorName || "I Remember"),
     title: htmlText(memory?.title || "I Remember"),
     title_text: String(memory?.title || "I Remember"),
@@ -1034,18 +974,16 @@ class RevivalBackend {
     }
   }
 
-  async v1PublicMemories(language) {
-    const records = [], seen = new Set();
-    let cursor = "";
-    do {
-      const result = await this.v1Data(`/api/v1/memories?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, { envelope: true });
-      if (!Array.isArray(result?.data)) throw new HttpError(503, "Memory service unavailable", "service_unavailable");
-      records.push(...result.data);
-      cursor = result.pagination?.nextCursor || "";
-      if (cursor && seen.has(cursor)) throw new HttpError(502, "Invalid memory pagination", "invalid_pagination");
-      if (cursor) seen.add(cursor);
-    } while (cursor);
-    return [...new Map(records.map((memory) => [memory.id, memory])).values()].map((memory, index) => v1MemoryToPost(memory, index, language));
+  async v1PublicMemories(language, query = "", cursor = "", limit = postSearchResultMax) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (query) params.set("q", normalizeTag(query));
+    if (cursor && cursor !== "-1") params.set("cursor", cursor);
+    const result = await this.v1Data(`/api/v1/memories?${params}`, { envelope: true });
+    if (!Array.isArray(result?.data)) throw new HttpError(503, "Memory service unavailable", "service_unavailable");
+    return Object.assign(uniquePosts(result.data.map((memory, index) => v1MemoryToPost(memory, index, language))), {
+      total: result.pagination?.total ?? result.data.length,
+      nextCursor: result.pagination?.nextCursor || null,
+    });
   }
 
   async v1PublicMemory(publicId, language) {
@@ -1137,18 +1075,23 @@ class RevivalBackend {
   }
 
   async searchPosts(language, tag, url) {
-    const posts = await this.allPosts(language);
-    return paginatePosts(matchingPosts(posts, tag), url);
+    return this.v1PublicMemories(language, tag, url.searchParams.get("lastId") || "");
   }
 
   async relatedTagCounts(language, id) {
-    const posts = await this.allPosts(language);
-    const post = posts.find((item) => String(item.id) === String(id));
-    return post ? relatedTagCountsForPosts(post, posts, language) : {};
+    const post = await this.v1PublicMemory(id, language);
+    if (!post) return {};
+    const tokens = [...new Set([...Object.keys(post.tags || {}), ...textTagTokens(post.text, language)])].slice(0, 8);
+    const counts = await Promise.all(tokens.map(async token => {
+      const result = await this.v1Data(`/api/v1/memories?limit=1&q=${encodeURIComponent(token)}`, { envelope: true });
+      return [token, Math.max(0, (result?.pagination?.total || 0) - 1)];
+    }));
+    return Object.fromEntries(counts.filter(([, count]) => count > 0));
   }
 
   async autocomplete(language, fragment) {
-    const posts = await this.allPosts(language);
+    if (!normalizeTag(fragment)) return [];
+    const posts = await this.v1PublicMemories(language, fragment, "", 40);
     return autocompleteList(posts, fragment, language);
   }
 
@@ -2094,12 +2037,9 @@ async function handleRequest(backend, req, res, next, options = {}) {
 
   if (req.method === "GET" && pathname === "/api/random-memory") {
     assertRateLimit(req, "random-memory", 120, 60 * 1000);
-    const current = url.searchParams.get("current") || "";
-    const seen = new Set((url.searchParams.get("seen") || "").split(",").slice(-50));
-    const alternatives = publicPosts(await backend.allPosts(memoryLanguage)).filter(post => post.public_id !== current);
-    const unseen = alternatives.filter(post => !seen.has(post.public_id));
-    const candidates = unseen.length ? unseen : alternatives;
-    sendJson(req, res, { success: true, data: { post: candidates.length ? candidates[randomInt(candidates.length)] : null } });
+    const params = new URLSearchParams({ current: url.searchParams.get("current") || "", seen: url.searchParams.get("seen") || "" });
+    const memory = await backend.v1Data(`/api/v1/public/random?${params}`);
+    sendJson(req, res, { success: true, data: { post: memory ? v1MemoryToPost(memory, 0, memoryLanguage) : null } });
     return;
   }
 
@@ -2122,6 +2062,8 @@ async function handleRequest(backend, req, res, next, options = {}) {
       data: {
         tagName: parsedTag,
         posts: found,
+        total: found.total,
+        nextCursor: found.nextCursor,
       },
       input: {
         ln: memoryLanguage,
@@ -2148,6 +2090,8 @@ async function handleRequest(backend, req, res, next, options = {}) {
       data: {
         tagName: parsedTag,
         posts: found,
+        total: found.total,
+        nextCursor: found.nextCursor,
       },
       input: {
         ln: memoryLanguage,

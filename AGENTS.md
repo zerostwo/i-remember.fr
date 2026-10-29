@@ -369,6 +369,15 @@ Current backend/product decisions:
   previews, reusable media with clear ownership, and complete Page creation,
   editing and save flows. Keep the established public galaxy unchanged.
 
+- Owner instruction on 2026-10-29: fix all seven findings from the current
+  project review. Give managed Pages one authoritative editor; support Unlisted
+  direct links without discovery; retain independent media records and usage
+  tracking; allow Page media uploads and simpler publication/navigation; bring
+  mobile publication controls closer to writing and collapse advanced fields;
+  add quiet search-result feedback within the existing galaxy; replace repeated
+  full-collection loading with bounded queries and pagination. This authorizes
+  these focused workflow/layout repairs in the current visual style.
+
 - Owner feedback on 2026-10-29: remove the persistent Live Photo instructions
   from the public upload circle; retain Live Photo upload support. Galaxy
   discovery should balance exploration with findability, and decorative bright

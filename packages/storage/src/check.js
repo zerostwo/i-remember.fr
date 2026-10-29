@@ -10,6 +10,8 @@ try {
   const local = createLocalStorage({ rootDir, publicBaseUrl: "/files" });
   assert.equal(await local.upload("nested/a.txt", Buffer.from("ok")), "/files/nested/a.txt");
   assert.equal(await readFile(join(rootDir, "nested/a.txt"), "utf8"), "ok");
+  await assert.rejects(local.upload("nested/a.txt", Buffer.from("overwrite")), { code: "EEXIST" });
+  assert.equal(await readFile(join(rootDir, "nested/a.txt"), "utf8"), "ok");
   assert.throws(() => local.getUrl("../../secret.txt"), /Invalid storage key/);
   await local.delete("nested/a.txt");
 

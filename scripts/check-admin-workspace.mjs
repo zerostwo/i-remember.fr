@@ -37,6 +37,11 @@ try {
   memoryIds.push(mirror.id);
   assert.equal(mirror.content, draft.bodyMarkdown);
   assert.equal(mirror.status, "NORMAL");
+  for (const change of [{ content: "Must not overwrite the page" }, { status: "ARCHIVED" }, { publicId: "PageOther" }]) {
+    await assert.rejects(memories.update(mirror.publicId, change), error => error.code === "page_managed_memory");
+  }
+  await assert.rejects(memories.archive(mirror.publicId), error => error.code === "page_managed_memory");
+  assert.equal((await memories.get(mirror.publicId)).content, draft.bodyMarkdown);
   await memories.incrementView(mirror.publicId);
   const menu = await db.menuItem.create({
     data: { uid: prefix, label: prefix, language: "en", type: "PAGE", targetValue: prefix },
@@ -91,5 +96,6 @@ try {
   await db.memory.deleteMany({
     where: { OR: [{ id: { in: memoryIds } }, { title: { startsWith: prefix } }] },
   });
+  await db.mediaAsset.deleteMany({ where: { url: { contains: prefix } } });
   await db.$disconnect();
 }

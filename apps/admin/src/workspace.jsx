@@ -194,87 +194,36 @@ function Modal({ title, description, children, open, onClose, className = "" }) 
     </Dialog.Root>
   );
 }
-function MediaDialog({ asset, onClose, memories = [], onDetach, editMemory }) {
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const usedBy = memories.filter((memory) =>
-    (memory.attachments || []).some((item) => item.url === mediaUrl(asset)),
-  );
-  return (
-    <Modal
-      open
-      title={assetName(asset)}
-      description={`${kindLabels[mediaKind(asset)]} · ${asset.type || asset.mimeType || "File"}`}
-      onClose={onClose}
-    >
-      <div className="admin-media-stage">
-        <MediaPlayer asset={asset} />
-      </div>
-      <div className="admin-media-detail">
-        <Button asChild variant="outline">
-          <a
-            href={v1AssetPreviewUrls(asset).download}
-            download
-            target="_blank"
-            rel="noreferrer"
-          >
-            <Download size={16} />
-            {asset.metadata?.livePhoto ? "Download photo + MOV" : "Download file"}
-          </a>
-        </Button>
-        {usedBy.length ? (
-          <section>
-            <h3>
-              Used in {usedBy.length} {usedBy.length === 1 ? "memory" : "memories"}
-            </h3>
-            {usedBy.map((memory) => (
-              <div className="admin-media-usage" key={memory.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    editMemory?.(memory.id);
-                  }}
-                  disabled={!editMemory}
-                >
-                  {memory.title || memory.excerpt}
-                </button>
-                {onDetach ? (
-                  <Button
-                    disabled={busy}
-                    variant="ghost"
-                    type="button"
-                    onClick={async () => {
-                      if (
-                        !window.confirm(
-                          `Remove this attachment from “${memory.title || "this memory"}”? Other memories keep their copy.`,
-                        )
-                      )
-                        return;
-                      setBusy(true);
-                      setError("");
-                      try {
-                        if (await onDetach(asset, memory.id)) onClose();
-                        else setError("Could not remove this attachment. Try again.");
-                      } catch (err) {
-                        setError(err.message);
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  >
-                    Remove from memory
-                  </Button>
-                ) : null}
-              </div>
-            ))}
-          </section>
-        ) : null}
-        {error ? <p role="alert">{error}</p> : null}
-      </div>
-    </Modal>
-  );
+function MediaDialog({ asset, onClose, loadMedia, deleteMedia, editMemory, editPage }) {
+  const [detail, setDetail] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    if (loadMedia && asset.id) loadMedia(asset.id).then(value => { if (active) setDetail(value); }).catch(err => { if (active) setError(err.message); });
+    return () => { active = false; };
+  }, [asset.id, loadMedia]);
+  return <Modal open title={assetName(asset)} description={kindLabels[mediaKind(asset)]} onClose={() => { if (!busy) onClose(); }}>
+    <div className="admin-media-stage"><MediaPlayer asset={asset} /></div>
+    <div className="admin-media-detail">
+      <Button asChild variant="outline"><a href={v1AssetPreviewUrls(asset).download} download target="_blank" rel="noreferrer"><Download size={16} />{asset.metadata?.livePhoto ? "Download photo + MOV" : "Download file"}</a></Button>
+      {loadMedia && !detail && !error ? <p role="status">Checking file usage…</p> : null}
+      {detail ? <section><h3>{detail.usage.length ? `Used in ${detail.usage.length} ${detail.usage.length === 1 ? "place" : "places"}` : "Not used in any saved memory or page"}</h3>
+        {detail.usage.map(item => <div className="admin-media-usage" key={item.kind + item.id}>
+          <button type="button" onClick={() => { onClose(); if (item.kind === "page") editPage?.(item.slug); else editMemory?.(item.id); }}>
+            {item.title}<small>{item.kind === "page" ? "Page" : "Memory"} · {item.status.toLowerCase()}</small>
+          </button>
+        </div>)}
+        {!detail.usage.length ? <p className="admin-field-help">Kept in your library for reuse. Deleting also removes the stored file and its media variants.</p> : null}
+        {!detail.usage.length && detail.canDelete && deleteMedia ? <Button variant="outline" disabled={busy} onClick={async () => {
+          if (!window.confirm("Permanently delete this unused file and its media variants? This cannot be undone.")) return;
+          setBusy(true); setError("");
+          try { await deleteMedia(asset.id); onClose(); } catch (err) { setError(err.message); } finally { setBusy(false); }
+        }}>{busy ? "Deleting…" : "Delete unused file"}</Button> : null}
+      </section> : null}
+      {error ? <p role="alert">{error}</p> : null}
+    </div>
+  </Modal>;
 }
+
 function MediaGrid({ assets, onSelect, selectLabel = "Preview", selected = [] }) {
   return (
     <div className="admin-media-grid">
@@ -292,8 +241,8 @@ function MediaGrid({ assets, onSelect, selectLabel = "Preview", selected = [] })
           <span className="admin-media-caption">
             {selected.includes(mediaUrl(asset))
               ? "Already attached"
-              : asset.memoryIds?.length
-                ? `Used in ${asset.memoryIds.length} ${asset.memoryIds.length === 1 ? "memory" : "memories"}`
+              : asset.usageCount !== undefined
+                ? asset.usageCount ? `Used in ${asset.usageCount} ${asset.usageCount === 1 ? "place" : "places"}` : "Unused · kept in library"
                 : kindLabels[mediaKind(asset)]}
           </span>
         </button>
@@ -309,7 +258,7 @@ function LibraryFilter({ query, setQuery, kind, setKind, count }) {
         <Input
           type="search"
           aria-label="Search media"
-          placeholder="Search media or memory…"
+          placeholder="Search files or their owners…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -325,27 +274,42 @@ function LibraryFilter({ query, setQuery, kind, setKind, count }) {
         <option value="audio">Audio</option>
         <option value="live">Live Photos</option>
         <option value="file">Files</option>
+        <option value="unused">Unused</option>
       </select>
       <span className="admin-workspace-count">{count} items</span>
     </div>
   );
 }
-function filterAssets(assets, memories, query, kind) {
-  const needle = query.trim().toLocaleLowerCase();
-  return assets.filter(
-    (asset) =>
-      (kind === "all" || mediaKind(asset) === kind) &&
-      [
-        assetName(asset),
-        asset.imageKey,
-        ...(memories || [])
-          .filter((memory) => memory.attachments?.some((item) => item.url === mediaUrl(asset)))
-          .map((memory) => memory.title),
-      ]
-        .join(" ")
-        .toLocaleLowerCase()
-        .includes(needle),
-  );
+function useMediaPage(queryMedia, query, kind, enabled, revision) {
+  const [result, setResult] = useState({ assets: [], total: 0, cursor: null, loading: false, error: "" });
+  const request = useRef(null), generation = useRef(0);
+  const load = async (cursor, version) => {
+    request.current?.abort();
+    const controller = new AbortController(); request.current = controller;
+    setResult(current => ({ ...current, loading: true, error: "" }));
+    try {
+      const payload = await queryMedia({ q: query.trim(), ...(kind === "unused" ? { unused: "true" } : { kind }), ...(cursor ? { cursor } : {}) }, controller.signal);
+      if (controller.signal.aborted || generation.current !== version) return;
+      setResult(current => ({ assets: cursor ? [...current.assets, ...payload.data] : payload.data, total: payload.pagination.total, cursor: payload.pagination.nextCursor, loading: false, error: "" }));
+    } catch (error) {
+      if (!controller.signal.aborted && generation.current === version) setResult(current => ({ ...current, loading: false, error: error.message }));
+    }
+  };
+  useEffect(() => {
+    const version = ++generation.current;
+    setResult({ assets: [], total: 0, cursor: null, loading: Boolean(enabled), error: "" });
+    if (!enabled || !queryMedia) return;
+    const timer = setTimeout(() => load(null, version), query.trim() ? 180 : 0);
+    return () => { clearTimeout(timer); request.current?.abort(); generation.current++; };
+  }, [queryMedia, query, kind, enabled, revision]);
+  return { ...result, more: () => load(result.cursor, generation.current), retry: () => load(null, generation.current) };
+}
+function MediaPagination({ library }) {
+  return <div className="admin-media-pagination">
+    {library.loading ? <p role="status">Loading media…</p> : null}
+    {library.error ? <p role="alert">{library.error} <Button variant="ghost" onClick={library.retry}>Retry</Button></p> : null}
+    {library.cursor ? <Button type="button" variant="outline" disabled={library.loading} onClick={library.more}>Load more media</Button> : null}
+  </div>;
 }
 function UploadStatus({ progress, onCancel }) {
   return (
@@ -362,18 +326,18 @@ function UploadStatus({ progress, onCancel }) {
     </div>
   );
 }
-export function MediaLibrary({ assets = [], memories = [], onUpload, onDetach, editMemory }) {
+export function MediaLibrary({ assets = [], queryMedia, onUpload, loadMedia, deleteMedia, scanMedia, editMemory, editPage }) {
   const [query, setQuery] = useState(""),
     [kind, setKind] = useState("all"),
     [selected, setSelected] = useState(null),
     [uploadOpen, setUploadOpen] = useState(false);
-  const [memoryId, setMemoryId] = useState(""),
-    [busy, setBusy] = useState(false),
+  const [busy, setBusy] = useState(false),
     [progress, setProgress] = useState(null),
     [error, setError] = useState("");
   const controller = useRef(null);
   useEffect(() => () => controller.current?.abort(), []);
-  const filtered = filterAssets(assets, memories, query, kind);
+  const library = useMediaPage(queryMedia, query, kind, true, assets);
+  const filtered = library.assets;
   return (
     <div className="admin-media-workspace">
       <div className="admin-section-heading">
@@ -381,24 +345,25 @@ export function MediaLibrary({ assets = [], memories = [], onUpload, onDetach, e
           <h2>Media library</h2>
           <p>Preview files, find their memories, and reuse them while writing.</p>
         </div>
-        <Button onClick={() => setUploadOpen(true)}>
+        <div className="admin-media-library-actions"><Button variant="ghost" disabled={busy} onClick={async () => { setBusy(true); setError(""); try { await scanMedia(); } catch (err) { setError(err.message); } finally { setBusy(false); } }}>Find stored files</Button><Button onClick={() => setUploadOpen(true)}>
           <Upload size={16} />
           Upload media
-        </Button>
+        </Button></div>
       </div>
-      <LibraryFilter {...{ query, setQuery, kind, setKind }} count={filtered.length} />
+      {error && !uploadOpen ? <p role="alert">{error}</p> : null}
+      <LibraryFilter {...{ query, setQuery, kind, setKind }} count={library.total} />
       {filtered.length ? (
         <MediaGrid assets={filtered} onSelect={setSelected} />
-      ) : (
+      ) : !library.loading && !library.error ? (
         <div className="admin-workspace-empty">
           <Image size={32} />
-          <h3>{assets.length ? "No matching media" : "Your media library is empty"}</h3>
+          <h3>{query || kind !== "all" ? "No matching media" : "Your media library is empty"}</h3>
           <p>
-            {assets.length
+            {query || kind !== "all"
               ? "Try another search or media type."
-              : "Upload to a memory, or add media while writing one."}
+              : "Upload media here or while writing a memory or page."}
           </p>
-          {assets.length ? (
+          {query || kind !== "all" ? (
             <Button
               variant="outline"
               onClick={() => {
@@ -410,43 +375,25 @@ export function MediaLibrary({ assets = [], memories = [], onUpload, onDetach, e
             </Button>
           ) : null}
         </div>
-      )}
+      ) : null}
+      <MediaPagination library={library} />
       {selected ? (
         <MediaDialog
           key={mediaUrl(selected)}
           asset={selected}
           onClose={() => setSelected(null)}
-          {...{ memories, onDetach, editMemory }}
+          {...{ loadMedia, deleteMedia, editMemory, editPage }}
         />
       ) : null}
       <Modal
         open={uploadOpen}
         title="Upload media"
-        description="Choose the memory these files belong to."
+        description="Upload once, then use the file in any memory or page."
         onClose={() => {
           if (!busy) setUploadOpen(false);
         }}
       >
         <div className="admin-upload-dialog-body">
-          <label className="admin-workspace-field">
-            Memory
-            <select
-              aria-label="Memory"
-              value={memoryId}
-              onChange={(event) => setMemoryId(event.target.value)}
-              disabled={busy}
-            >
-              <option value="">Choose a memory…</option>
-              {memories.map((memory) => (
-                <option key={memory.id} value={memory.id}>
-                  {memory.title || memory.excerpt}
-                </option>
-              ))}
-            </select>
-          </label>
-          {!memories.length ? (
-            <p>Create a memory first, then add its media in the editor.</p>
-          ) : null}
           <label className="admin-upload-dropzone">
             <Upload size={26} />
             <strong>Choose photos, audio or video</strong>
@@ -456,7 +403,7 @@ export function MediaLibrary({ assets = [], memories = [], onUpload, onDetach, e
               type="file"
               accept={mediaAccept}
               multiple
-              disabled={!memoryId || busy}
+              disabled={busy}
               onChange={async (event) => {
                 const files = Array.from(event.target.files || []);
                 event.target.value = "";
@@ -467,12 +414,12 @@ export function MediaLibrary({ assets = [], memories = [], onUpload, onDetach, e
                 setError("");
                 setProgress({ phase: "uploading", percent: 0 });
                 try {
-                  await onUpload(files, memoryId, abort.signal, setProgress);
+                  await onUpload(files, null, abort.signal, setProgress);
                   if (!abort.signal.aborted) setUploadOpen(false);
                 } catch (err) {
                   setError(
                     abort.signal.aborted
-                      ? "Upload cancelled. Completed files remain attached."
+                      ? "Upload cancelled. Completed files remain in the library."
                       : err.message,
                   );
                 } finally {
@@ -493,6 +440,7 @@ export function MediaLibrary({ assets = [], memories = [], onUpload, onDetach, e
 export function EditorAttachments({
   attachments,
   assets = [],
+  queryMedia,
   onUpload,
   onChange,
   onDirty,
@@ -506,6 +454,7 @@ export function EditorAttachments({
     [error, setError] = useState("");
   const [query, setQuery] = useState(""),
     [kind, setKind] = useState("all");
+  const library = useMediaPage(queryMedia, query, kind, picker, assets);
   const controller = useRef(null),
     currentAttachments = useRef(attachments);
   currentAttachments.current = attachments;
@@ -662,10 +611,10 @@ export function EditorAttachments({
         <div className="admin-library-picker">
           <LibraryFilter
             {...{ query, setQuery, kind, setKind }}
-            count={filterAssets(assets, [], query, kind).length}
+            count={library.total}
           />
           <MediaGrid
-            assets={filterAssets(assets, [], query, kind)}
+            assets={library.assets}
             selected={attachments.map(mediaUrl)}
             selectLabel="Attach"
             onSelect={(asset) => {
@@ -679,7 +628,8 @@ export function EditorAttachments({
               setPicker(false);
             }}
           />
-          {!assets.length ? (
+          <MediaPagination library={library} />
+          {!library.loading && !library.error && !library.total ? (
             <p className="admin-workspace-empty">
               No saved media yet. Upload a file to this memory.
             </p>
@@ -689,11 +639,22 @@ export function EditorAttachments({
     </section>
   );
 }
-export function WritingField({ label, value = "", onChange, assets }) {
+export function WritingField({ label, value = "", onChange, assets, queryMedia, onUpload, onBusy = () => {} }) {
   const [mediaOpen, setMediaOpen] = useState(false);
+  const [query, setQuery] = useState(""), [kind, setKind] = useState("all");
+  const library = useMediaPage(queryMedia, query, kind, mediaOpen, assets);
+  const [uploading, setUploading] = useState(false), [progress, setProgress] = useState(null), [uploadError, setUploadError] = useState("");
+  const uploadController = useRef(null), valueRef = useRef(value);
+  valueRef.current = value;
   const [preview, setPreview] = useState(false),
     textarea = useRef(null),
     id = useId();
+  useEffect(() => () => uploadController.current?.abort(), []);
+  useEffect(() => {
+    if (!textarea.current) return;
+    textarea.current.style.height = "auto";
+    textarea.current.style.height = Math.min(420, Math.max(180, textarea.current.scrollHeight)) + "px";
+  }, [value, preview]);
   const tools = [
     [Bold, "Bold", "**", "**", "bold text"],
     [Italic, "Italic", "_", "_", "italic text"],
@@ -701,16 +662,18 @@ export function WritingField({ label, value = "", onChange, assets }) {
     [Link, "Link", "[", "](https://)", "link text"],
     [List, "List", "\n- ", "", "List item"],
   ];
-  const insert = (before, after, fallback) => {
+  const insert = (before, after, fallback, collapse = false) => {
     const field = textarea.current;
     if (!field) return;
     const start = field.selectionStart,
       end = field.selectionEnd,
-      text = value.slice(start, end) || fallback;
-    onChange(value.slice(0, start) + before + text + after + value.slice(end));
+      text = valueRef.current.slice(start, end) || fallback;
+    valueRef.current = valueRef.current.slice(0, start) + before + text + after + valueRef.current.slice(end);
+    onChange(valueRef.current);
     requestAnimationFrame(() => {
       field.focus();
-      field.setSelectionRange(start + before.length, start + before.length + text.length);
+      const position = start + before.length + text.length + (collapse ? after.length : 0);
+      field.setSelectionRange(collapse ? position : start + before.length, position);
     });
   };
   return (
@@ -773,7 +736,7 @@ export function WritingField({ label, value = "", onChange, assets }) {
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder="Start writing…"
-            rows={18}
+            rows={6}
           />
         </>
       ) : (
@@ -792,24 +755,50 @@ export function WritingField({ label, value = "", onChange, assets }) {
         open={mediaOpen}
         title="Insert media"
         description="Photos appear inline. Other files are inserted as links."
-        onClose={() => setMediaOpen(false)}
+        onClose={() => { if (!uploading) setMediaOpen(false); }}
       >
         <div className="admin-library-picker">
+          {onUpload ? <label className="admin-upload-dropzone compact">
+            <Upload size={20} /><strong>Upload and insert media</strong>
+            <input type="file" aria-label="Upload page media" accept={mediaAccept} multiple disabled={uploading}
+              onChange={async event => {
+                let files;
+                try { files = groupLivePhotos(event.target.files); } catch (err) { setUploadError(err.message); return; }
+                event.target.value = "";
+                if (!files.length) return;
+                const controller = new AbortController(); uploadController.current = controller;
+                setUploading(true); onBusy(true); setUploadError("");
+                try {
+                  for (const file of files) {
+                    const asset = await onUpload(file, controller.signal, setProgress);
+                    const image = ["image", "live"].includes(mediaKind(asset));
+                    insert(image ? "\n![" : "\n[", `](<${v1AssetPreviewUrls(asset).preview}>)\n`, assetName(asset).replace(/[\[\]]/g, ""), true);
+                  }
+                  setMediaOpen(false);
+                } catch (err) { setUploadError(controller.signal.aborted ? "Upload cancelled. Completed files stay in your library." : err.message); }
+                finally { setUploading(false); onBusy(false); }
+              }} />
+          </label> : null}
+          {uploading ? <UploadStatus progress={progress} onCancel={() => uploadController.current?.abort()} /> : null}
+          {uploadError ? <p role="alert">{uploadError}</p> : null}
+          <LibraryFilter {...{ query, setQuery, kind, setKind }} count={library.total} />
           <MediaGrid
-            assets={assets || []}
+            assets={library.assets}
             selectLabel="Insert"
             onSelect={(asset) => {
+              if (uploading) return;
               const image = ["image", "live"].includes(mediaKind(asset));
               insert(
                 image ? "\n![" : "\n[",
-                `](<${mediaUrl(asset)}>)\n`,
-                assetName(asset).replace(/[\[\]]/g, ""),
+                `](<${v1AssetPreviewUrls(asset).preview}>)\n`,
+                assetName(asset).replace(/[\[\]]/g, ""), true,
               );
               setMediaOpen(false);
             }}
           />
-          {!assets?.length ? (
-            <p>No saved media. Add files to a memory to make them available here.</p>
+          <MediaPagination library={library} />
+          {!library.loading && !library.error && !library.total ? (
+            <p>No saved media yet. Upload a file here to start your library.</p>
           ) : null}
         </div>
       </Modal>
@@ -913,11 +902,14 @@ function PageEditorWorkspace({
   savingPage,
   reportDirty,
   navigate,
+  uploadEditorFile,
+  queryMedia,
+  onUploadingChange,
 }) {
   const page = data.pages?.find((item) => item.slug === selectedPageSlug);
   const [draft, setDraft] = useState(() =>
     page
-      ? { ...page }
+      ? { ...page, navigationVisible: data.menu.some(item => item.type === "PAGE" && item.targetValue === page.slug && item.isVisible) }
       : {
           title: "",
           slug: "",
@@ -926,13 +918,16 @@ function PageEditorWorkspace({
           status: "DRAFT",
           language: data.settings.defaultLanguage,
           metadata: {},
+          navigationVisible: false,
         },
   );
   const slugTouched = useRef(Boolean(page));
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  useEffect(() => () => onUploadingChange(false), [onUploadingChange]);
   useEffect(() => {
     if (page) {
-      setDraft({ ...page });
+      setDraft({ ...page, navigationVisible: data.menu.some(item => item.type === "PAGE" && item.targetValue === page.slug && item.isVisible) });
       slugTouched.current = true;
     }
   }, [page]);
@@ -962,7 +957,7 @@ function PageEditorWorkspace({
         className="admin-editor-grid admin-page-editor"
         onSubmit={async (event) => {
           event.preventDefault();
-          if (savingPage) return;
+          if (savingPage || uploading) return;
           setError("");
           if (draft.status === "PUBLISHED" && !draft.bodyMarkdown.trim()) {
             setError("Write some content before publishing this page.");
@@ -997,7 +992,7 @@ function PageEditorWorkspace({
                           .replace(/[^a-z0-9\s-]/g, "")
                           .trim()
                           .replace(/[\s-]+/g, "-")
-                          .slice(0, 120),
+                          .slice(0, 120) || (title.trim() ? `page-${crypto.randomUUID().slice(0, 8)}` : ""),
                       }
                     : {}),
                 }));
@@ -1005,6 +1000,9 @@ function PageEditorWorkspace({
             />
             <WritingField
               assets={data.attachments}
+              onUpload={uploadEditorFile}
+              queryMedia={queryMedia}
+              onBusy={value => { setUploading(value); onUploadingChange(value); if (value) reportDirty(true); }}
               label="Page content"
               value={draft.bodyMarkdown}
               onChange={(value) => update("bodyMarkdown", value)}
@@ -1025,7 +1023,7 @@ function PageEditorWorkspace({
           </CardContent>
         </Card>
         <aside className="admin-editor-rail">
-          <Card>
+          <Card id="page-publishing">
             <CardHeader>
               <CardTitle>Publishing</CardTitle>
             </CardHeader>
@@ -1049,7 +1047,9 @@ function PageEditorWorkspace({
                     ? "Hidden from the public site. Select Draft or Published to restore it."
                     : "Only you can see this draft."}
               </p>
-              <FieldInput
+              <label className="admin-navigation-choice"><input type="checkbox" checked={draft.navigationVisible} onChange={event => update("navigationVisible", event.target.checked)} /> Show in footer navigation</label>
+              <p className="admin-field-help">The link becomes available when this page is published.</p>
+              <details className="admin-secondary-fields"><summary>Advanced</summary><FieldInput
                 label="Navigation key"
                 required
                 pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
@@ -1063,8 +1063,8 @@ function PageEditorWorkspace({
               />
               <p className="admin-field-help">
                 Used to identify this page in Navigation. Existing menu links follow a key change.
-              </p>
-              <Button type="submit" disabled={savingPage}>
+              </p></details>
+              <Button type="submit" disabled={savingPage || uploading}>
                 {savingPage ? "Saving…" : "Save page"}
               </Button>
               {error ? <p role="alert">{error}</p> : null}
@@ -1078,14 +1078,13 @@ function PageEditorWorkspace({
               ) : null}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="admin-page-navigation-help">
             <CardHeader>
               <CardTitle>Public navigation</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="admin-field-help">
-                After publishing, add a Page item in Navigation to place this article in the site
-                footer.
+                Use Navigation for custom labels, ordering and grouped footer links.
               </p>
               <Button type="button" variant="ghost" onClick={() => navigate("menus")}>
                 Manage navigation

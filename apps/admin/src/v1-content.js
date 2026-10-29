@@ -76,6 +76,7 @@ export function v1PagePayload(
     excerpt: String(page.excerpt || "").slice(0, 600),
     bodyMarkdown: String(page.bodyMarkdown || page.body_markdown || ""),
     status: pageStatus(page.status),
+    ...(page.navigationVisible !== undefined ? { navigationVisible: Boolean(page.navigationVisible) } : {}),
     linkedMemoryId: page.linkedMemoryId || page.linked_memory_id || undefined,
     metadata: pageMetadata(page),
   };

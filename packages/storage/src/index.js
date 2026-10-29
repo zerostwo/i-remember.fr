@@ -20,11 +20,11 @@ export function createLocalStorage({ rootDir, publicBaseUrl = "/uploads" }) {
       const name = safeKey(key);
       const path = join(rootDir, name);
       await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, data);
+      await writeFile(path, data, { flag: "wx" });
       return this.getUrl(name);
     },
     async delete(key) {
-      await rm(join(rootDir, safeKey(key)), { force: true });
+      await rm(join(rootDir, safeKey(key)), { force: true, recursive: true });
     },
     getUrl(key) {
       return `${publicBaseUrl.replace(/\/+$/g, "")}/${safeKey(key).replace(/\\/g, "/")}`;
@@ -44,6 +44,7 @@ export function createS3Storage({ client, bucket, publicBaseUrl = "" }) {
         Key: name,
         Body: data,
         ContentType: options.contentType,
+        IfNoneMatch: "*",
       });
       return this.getUrl(name);
     },

@@ -8,6 +8,9 @@ screenshots were captured on 2026-09-14.
 - `admin.webp`: the owner dashboard with authored demo memories.
 - `settings.webp`: the saved Site settings, including search identity.
 
+- `admin-workspace.jpg`: the Page editor with direct media insertion and footer
+  publishing controls, captured on 2026-10-29 with synthetic local content.
+
 - `upload-progress.webp`: actual circular photo upload progress, captured locally
   on 2026-10-18 with a synthetic image and throttled transfer.
 

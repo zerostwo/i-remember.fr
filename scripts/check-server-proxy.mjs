@@ -67,11 +67,9 @@ const upstream = createServer(async (req, res) => {
     );
     return;
   }
-  if (req.method === "GET" && req.url === "/api/v1/memories?limit=200") {
-    res.end(
-      JSON.stringify({
-        success: true,
-        data: [
+  if (req.method === "GET" && (req.url.startsWith("/api/v1/memories?limit=") || req.url.startsWith("/api/v1/public/random?"))) {
+    const params = new URL(req.url, "http://api.test").searchParams;
+    const all = [
           {
             id: v1PublicId,
             title: "Prisma public memory",
@@ -101,9 +99,18 @@ const upstream = createServer(async (req, res) => {
             updatedAt: "2021-01-01T00:00:00.000Z",
           },
           ...v1CreatedMemories,
-        ],
-      }),
-    );
+        ];
+    const q = (params.get("q") || "").toLowerCase();
+    const matches = all.filter(item => !q || [item.title, item.content, item.authorName, ...item.tags.map(tag => tag.name)].join(" ").toLowerCase().includes(q));
+    if (req.url.startsWith("/api/v1/public/random?")) {
+      const other = all.filter(item => item.id !== params.get("current"));
+      const seen = (params.get("seen") || "").split(",");
+      res.end(JSON.stringify({ success: true, data: other.find(item => !seen.includes(item.id)) || other[0] || null }));
+    } else {
+      const start = params.has("cursor") ? matches.findIndex(item => item.id === params.get("cursor")) + 1 : 0;
+      const limit = Number(params.get("limit") || 100), data = matches.slice(start, start + limit);
+      res.end(JSON.stringify({ success: true, data, pagination: { total: matches.length, nextCursor: start + limit < matches.length ? data.at(-1).id : null } }));
+    }
     return;
   }
   if (

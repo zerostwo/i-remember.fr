@@ -439,6 +439,7 @@ let requestedSignal;
 let finishRequest;
 let successCalls = 0;
 const ajax = runtimeFunction("localApiAjax", {
+  searchFeedbackSequence: 0, showSearchFeedback: () => {},
   URL,
   AbortController,
   window: {},
@@ -470,6 +471,7 @@ for (const endpoint of ["search-posts/rain", "auto-complete-tags/rai", "related-
   const payload = { success: true, data: { posts: [{ id: "real-memory" }] } };
   let fetchedUrl, returned;
   const liveAjax = runtimeFunction("localApiAjax", {
+  searchFeedbackSequence: 0, showSearchFeedback: () => {},
     URL, AbortController, window: {},
     localApiUrl: (url) => url,
     appendQueryData: (url) => url + "?ln=en",
@@ -488,6 +490,7 @@ for (const endpoint of ["search-posts/rain", "auto-complete-tags/rai", "related-
 
 let uploadFailure;
 const failedUpload = runtimeFunction("localApiAjax", {
+  searchFeedbackSequence: 0, showSearchFeedback: () => {},
   URL, AbortController, window: {}, uploadImageInFlight: 0,
   localApiUrl: (url) => url,
   parseAjaxPayload: JSON.parse,
@@ -549,3 +552,19 @@ assert.equal(classes.get("revival-keyboard-open"), false);
 console.log(
   "Public runtime passed: clean language URLs/history, live search/autocomplete/count requests, real request cancellation, keyboard/pinch distinction, and coalesced viewport updates",
 );
+
+// A slower previous query must not replace the newest search result.
+const pendingSearches = [], shownSearches = [];
+const racingSearch = runtimeFunction("localApiAjax", {
+  URL, AbortController, window: {}, searchFeedbackSequence: 0,
+  showSearchFeedback: () => {}, localApiUrl: url => url,
+  appendQueryData: url => url, parseAjaxPayload: JSON.parse,
+  fetch: () => new Promise(resolve => pendingSearches.push(resolve)),
+});
+racingSearch({ url: "http://local/api/search-posts/earlier", success: () => shownSearches.push("earlier") });
+racingSearch({ url: "http://local/api/search-posts/latest", success: () => shownSearches.push("latest") });
+pendingSearches[1]({ ok: true, status: 200, text: async () => '{"success":true,"data":{"posts":[]}}' });
+await new Promise(resolve => setImmediate(resolve));
+pendingSearches[0]({ ok: true, status: 200, text: async () => '{"success":true,"data":{"posts":[]}}' });
+await new Promise(resolve => setImmediate(resolve));
+assert.deepEqual(shownSearches, ["latest"]);

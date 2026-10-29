@@ -49,12 +49,12 @@ import {
   settingsInput,
 } from "./validation.js";
 
-function memoryDto(memory: MemoryRecord, includePrivate = false) {
+function memoryDto(memory: MemoryRecord, includePrivate = false, summary = false) {
   const dto = {
     id: memory.publicId,
     mapId: memory.mapId,
     title: memory.title,
-    content: memory.content,
+    content: summary ? memory.excerpt || memory.content.slice(0, 220) : memory.content,
     excerpt: memory.excerpt,
     authorId: memory.authorId,
     authorName: memory.authorName,
@@ -175,12 +175,18 @@ export class MemoryController {
 
   async list(context: RequestContext) {
     const principal = authenticate(context.req);
-    const page = await this.memories.page(principal, memoryListQuery(context.url.searchParams));
+    const query = memoryListQuery(context.url.searchParams);
+    const page = await this.memories.page(principal, query);
     return {
       success: true,
       pagination: page.pagination,
-      data: page.data.map((memory) => memoryDto(memory, principal.role === "ADMIN")),
+      data: page.data.map((memory) => memoryDto(memory, principal.role === "ADMIN", query.summary)),
     };
+  }
+
+  async random(context: RequestContext) {
+    const memory = await this.memories.random(context.url.searchParams.get("current") || "", (context.url.searchParams.get("seen") || "").split(",").slice(-50));
+    return { success: true, data: memory ? memoryDto(memory) : null };
   }
 
   async get(context: RequestContext) {
@@ -477,16 +483,18 @@ export class AssetController {
   async list(context: RequestContext) {
     const principal = authenticate(context.req);
     const limit = assetListLimit(context.url.searchParams);
+    const query = { q: context.url.searchParams.get("q")?.slice(0, 200), kind: context.url.searchParams.get("kind") || undefined, unused: context.url.searchParams.get("unused") === "true" };
     const rows = await this.assets.list(
       principal,
       limit + 1,
       cursorParam(context.url.searchParams),
+      query,
     );
     const data = rows.slice(0, limit);
     return {
       success: true,
       data,
-      pagination: { nextCursor: rows.length > limit ? data.at(-1)?.id : null },
+      pagination: { total: await this.assets.count(principal, query), nextCursor: rows.length > limit ? data.at(-1)?.id : null },
     };
   }
 
@@ -508,10 +516,18 @@ export class AssetController {
     return { success: true, data };
   }
 
+  async detail(context: RequestContext) { return { success: true, data: await this.assets.detail(authenticate(context.req), context.params.id) }; }
+  async register(context: RequestContext) {
+    const input = await readJson(context.req);
+    if (typeof input.url !== "string" || typeof input.type !== "string") throw new ApiError(400, "Invalid media", "invalid_asset");
+    return { success: true, data: await this.assets.register(authenticate(context.req), { url: input.url, type: input.type, metadata: input.metadata as Record<string, unknown> }) };
+  }
+  async reconcile(context: RequestContext) { return { success: true, data: await this.assets.reconcile(authenticate(context.req)) }; }
+
   async delete(context: RequestContext) {
     const data = await this.assets.delete(
       authenticate(context.req),
-      assetKeyInput(context.params.key),
+      context.params.id,
     );
     return { success: true, data };
   }

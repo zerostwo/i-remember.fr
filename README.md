@@ -45,6 +45,15 @@ oversized requests fail explicitly instead of silently cutting off the text.
   media/text/name/email/terms flow and publish immediately when enabled.
 - **Manage a personal site.** Dashboard, Memories, Pages, Attachments, and Navigation;
   Site, Account, Security, and Backup settings; keyboard search with ⌘K / Ctrl-K.
+- **Publish Pages from one editor.** Upload media while writing, preview Markdown,
+  and choose whether a published page appears in footer navigation. Page mirrors
+  in Memories always open their owning Page editor.
+- **Share a link quietly.** Published Unlisted memories open by direct link,
+  including previous aliases, but stay out of galaxy/search/random discovery.
+- **Reuse media independently.** Upload to Attachments without choosing a memory;
+  see every Memory/Page reference and delete only unused files. Removing an
+  attachment from a story keeps it in the library. **Find stored files** inventories
+  completed local uploads that predate the library, without deleting anything.
 - **Own the data.** PostgreSQL/Prisma, local upload storage, two-factor authentication,
   full backup/restore tooling, and optional self-hosted Umami analytics.
 - **Make content discoverable.** Server-rendered metadata, canonical URLs, structured
@@ -64,9 +73,13 @@ The private dashboard gives the owner a compact view of content and publishing.
 
 ![Page writing workspace with separate publishing controls](docs/images/admin-workspace.jpg)
 
-The Page workspace screenshot was captured on 2026-10-25 with synthetic local
+The Page workspace screenshot was captured on 2026-10-29 with synthetic local
 content. The admin now includes draft-safe Page editing, Markdown preview/media
-insertion, and a media library with playback, reuse and ownership-aware removal.
+uploads/insertion, footer publication controls, and a media library with playback, reuse and reference-protected deletion.
+Lists and media pickers load bounded server pages; admin search searches complete
+saved content. Public search shows a quiet result count and a direct result link
+within the galaxy. On phones, publishing controls appear before writing and
+advanced fields and card previews collapse.
 See [the admin usability review](docs/admin-workspace-review-2026-10-25.md) for
 implemented repairs and verification boundaries.
 
@@ -341,7 +354,7 @@ pnpm audit --prod --audit-level=high
 
 For data-dependent regression checks, set `I_REMEMBER_TEST_DATABASE_URL` to a migrated,
 disposable PostgreSQL database whose name contains `test` or `review`, then run
-`pnpm test:postgres`. Runtime databases, uploads, generated builds, and disposable QA
+`pnpm test:postgres`, `pnpm test:admin-workspace`, and `pnpm test:media-library`. Runtime databases, uploads, generated builds, and disposable QA
 artifacts are excluded from Git. Curated README screenshots live in `docs/images`.
 
 Builds use one root `Dockerfile`. Turbo builds the database before the API and

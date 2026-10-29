@@ -1,10 +1,13 @@
 import { join } from "node:path";
+import { access, readdir, readFile, stat } from "node:fs/promises";
+import { mediaIdentity, mediaStorageKey } from "./media.js";
 import sharp from "sharp";
 import { createLocalStorage, type StorageAdapter } from "@i-remember/storage";
 import type {
   AgentAnswer,
   AgentQueryInput,
   AssetUploadInput,
+  AttachmentInput,
   CommentInput,
   CommentUpdateInput,
   MenuItemInput,
@@ -35,6 +38,7 @@ import {
 } from "./auth.js";
 import type {
   AssetRepository,
+  AssetListQuery,
   CommentListQuery,
   CommentRepository,
   MenuItemRepository,
@@ -179,8 +183,8 @@ export class RuntimeSettingsService {
   }
 }
 
-function isRealPublicMemory(memory: MemoryRecord | null) {
-  if (!memory || memory.status !== "NORMAL" || memory.visibility !== "PUBLIC") return false;
+function isReadableMemory(memory: MemoryRecord | null) {
+  if (!memory || memory.status !== "NORMAL" || !["PUBLIC", "UNLISTED"].includes(memory.visibility)) return false;
   const content = memory.content.trim();
   return (
     Boolean(content) &&
@@ -189,11 +193,19 @@ function isRealPublicMemory(memory: MemoryRecord | null) {
   );
 }
 
+function isRealPublicMemory(memory: MemoryRecord | null) {
+  return memory?.visibility === "PUBLIC" && isReadableMemory(memory);
+}
+
 export class MemoryService {
   constructor(
     private readonly memories: MemoryRepository,
     private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
+
+  async random(current: string, seen: string[]) {
+    return await this.memories.random([current, ...seen].filter(Boolean)) || await this.memories.random([current].filter(Boolean));
+  }
 
   async list(principal: Principal, query: MemoryListQuery) {
     if (
@@ -228,8 +240,8 @@ export class MemoryService {
   async get(principal: Principal, id: string) {
     const memory = await this.memories.get(id);
     if (!memory) return null;
-    if (principal.role === "ANONYMOUS" && !isRealPublicMemory(memory)) return null;
-    if (memory.status !== "NORMAL" || memory.visibility !== "PUBLIC") {
+    if (principal.role === "ANONYMOUS" && !isReadableMemory(memory)) return null;
+    if (!isReadableMemory(memory)) {
       requireRole(principal, ["ADMIN"]);
     }
     return memory;
@@ -260,7 +272,7 @@ export class MemoryService {
   }
 
   async view(id: string) {
-    if (!isRealPublicMemory(await this.memories.get(id))) {
+    if (!isReadableMemory(await this.memories.get(id))) {
       throw new ApiError(404, "Memory not found", "not_found");
     }
     return this.memories.incrementView(id);
@@ -505,7 +517,9 @@ export class PublicContentService {
   ) {}
 
   async menu(language = "en") {
-    return (await this.menuItems.list(language)).filter((item) => item.isVisible);
+    const [items, pages] = await Promise.all([this.menuItems.list(language), this.pages.list(language)]);
+    const published = new Set(pages.filter(page => page.status === "PUBLISHED").map(page => page.slug));
+    return items.filter(item => item.isVisible && (item.type !== "PAGE" || published.has(item.targetValue || item.label)));
   }
 
   async target(id: string, language = "en") {
@@ -697,9 +711,55 @@ export class AssetService {
     }),
   ) {}
 
-  list(principal: Principal, limit: number, cursor?: string) {
+  list(principal: Principal, limit: number, cursor?: string, query?: AssetListQuery) {
     requireRole(principal, ["ADMIN"]);
-    return this.assets.list(limit, cursor);
+    return this.assets.list(limit, cursor, query);
+  }
+
+  count(principal: Principal, query?: AssetListQuery) { requireRole(principal, ["ADMIN"]); return this.assets.count(query); }
+  async detail(principal: Principal, id: string) {
+    requireRole(principal, ["ADMIN"]);
+    const asset = await this.assets.get(id);
+    if (!asset) throw new ApiError(404, "File not found", "not_found");
+    return { ...asset, usage: await this.assets.usage(id) };
+  }
+  async register(principal: Principal, input: AttachmentInput) {
+    requireRole(principal, ["ADMIN"]);
+    const key = mediaStorageKey(mediaIdentity(input.url));
+    if (!key) throw new ApiError(400, "Only completed local uploads can be added to the library.", "invalid_asset_url");
+    await access(join(process.env.STORAGE_PATH || join(process.cwd(), ".revival-storage"), key))
+      .catch(() => { throw new ApiError(404, "Upload not found", "not_found"); });
+    return this.assets.create({ ...input, type: input.type || "application/octet-stream" });
+  }
+
+  async reconcile(principal: Principal) {
+    requireRole(principal, ["ADMIN"]);
+    const root = process.env.STORAGE_PATH || join(process.cwd(), ".revival-storage");
+    let found = 0;
+    for (const folder of ["admin", "posts"]) {
+      const entries = await readdir(join(root, folder), { withFileTypes: true }).catch(() => []);
+      for (const entry of entries) {
+        const key = `${folder}/${entry.name}`;
+        if (!mediaStorageKey(this.storage.getUrl(key))) continue;
+        let file = key, type = "image/jpeg", metadata: any = { filename: entry.name };
+        if (entry.isDirectory()) {
+          let manifest: any;
+          for (const name of ["live-photo", "audio", "video"]) {
+            try { manifest = JSON.parse(await readFile(join(root, key, name + ".json"), "utf8")); type = name === "audio" ? "audio/mpeg" : name === "video" ? "video/mp4" : "image/jpeg"; metadata = { ...manifest, ...(name === "live-photo" ? { livePhoto: true } : {}) }; break; } catch { /* Photos have no media manifest. */ }
+          }
+          file += type.startsWith("audio") ? "/audio.mp3" : type.startsWith("video") ? "/video.mp4" : "/full.jpg";
+          metadata.posterUrl ||= this.storage.getUrl(key + "/resized.jpg");
+          if (metadata.livePhoto) { metadata.videoUrl = this.storage.getUrl(key + "/video.mp4"); metadata.downloadUrl = this.storage.getUrl(key + "/live-photo.zip"); }
+        } else if (!/\.(jpe?g|png|gif|webp)$/i.test(entry.name)) continue;
+        else type = "image/" + (entry.name.split(".").pop()?.toLowerCase().replace("jpg", "jpeg") || "jpeg");
+        const info = await stat(join(root, file)).catch(() => null);
+        // Do not inventory files that an upload/conversion may still be writing.
+        if (!info?.isFile() || Date.now() - info.mtimeMs < 60000) continue;
+        try { await this.assets.create({ url: this.storage.getUrl(file), type, metadata }); found++; }
+        catch (error: any) { if (error.code !== "asset_deleted") throw error; }
+      }
+    }
+    return { found };
   }
 
   async upload(principal: Principal, input: AssetUploadInput) {
@@ -721,17 +781,20 @@ export class AssetService {
         throw new ApiError(400, "Choose a valid JPEG, PNG, WebP or GIF. Upload Live Photos as a photo and MOV pair.", "invalid_asset_image");
       }
     }
-    const url = await this.storage.upload(input.key, data, { contentType: input.contentType });
+    let url: string;
+    try { url = await this.storage.upload(input.key, data, { contentType: input.contentType }); }
+    catch (error: any) {
+      if (error.code === "EEXIST") throw new ApiError(409, "A file already uses this storage key. Choose a new key.", "asset_key_taken");
+      throw error;
+    }
     let record = null;
     try {
-      record = input.memoryId
-        ? await this.assets.create({
+      record = await this.assets.create({
             memoryId: input.memoryId,
             url,
             type: input.contentType || "application/octet-stream",
             metadata: input.metadata,
-          })
-        : null;
+          });
     } catch (error) {
       await this.storage.delete(input.key).catch(() => null);
       throw error;
@@ -754,10 +817,13 @@ export class AssetService {
     };
   }
 
-  async delete(principal: Principal, key: string) {
+  async delete(principal: Principal, id: string) {
     requireRole(principal, ["ADMIN"]);
-    await this.storage.delete(key);
-    await this.assets.deleteByUrl(this.storage.getUrl(key));
-    return { key, deleted: true };
+    await this.assets.deleteUnused(id, async asset => {
+      const key = mediaStorageKey(asset.identity || mediaIdentity(asset.url));
+      if (!key) throw new ApiError(400, "This file is not managed by local storage.", "unmanaged_asset");
+      await this.storage.delete(key);
+    });
+    return { id, deleted: true };
   }
 }

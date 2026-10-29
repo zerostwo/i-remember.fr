@@ -25,6 +25,7 @@ export function v1AssetPreviewUrls(asset = {}) {
 function adminAttachment(asset = {}) {
   const url = String(asset.url || "");
   return {
+    ...asset,
     id: asset.id,
     url,
     type: asset.type || "application/octet-stream",
@@ -40,7 +41,7 @@ function adminAttachment(asset = {}) {
   };
 }
 
-export function v1AssetKey(file = {}, stamp = Date.now()) {
+export function v1AssetKey(file = {}, stamp = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`) {
   const name =
     String(file.name || "upload.bin")
       .replace(/\\/g, "/")
@@ -59,12 +60,6 @@ export function v1AssetUploadPayload(file = {}, contentBase64 = "", memoryId, st
     contentType: file.type || "application/octet-stream",
     metadata: { filename: String(file.name || "upload") },
   };
-}
-
-export function v1AssetDeletePath(attachment = {}) {
-  const key =
-    attachment.imageKey || assetKey({ url: attachment.resizedUrl || attachment.thumbUrl });
-  return `/api/v1/assets/${encodeURIComponent(key)}`;
 }
 
 export function mergeV1Assets(payload, assets = []) {
@@ -92,7 +87,7 @@ export function mergeV1Assets(payload, assets = []) {
     attachments: next,
     counts: {
       ...(payload.counts || {}),
-      attachments: next.length,
+      attachments: Math.max(payload.counts?.attachments || 0, payload.attachments?.length || 0) + next.length - (payload.attachments?.length || 0),
     },
   };
 }

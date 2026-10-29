@@ -104,6 +104,8 @@ class MemoryRepo implements MemoryRepository {
     return (await this.list(query)).length;
   }
 
+  async random(exclude: string[]) { return this.memories.find(item => item.status === "NORMAL" && item.visibility === "PUBLIC" && !exclude.includes(item.publicId)) || null; }
+
   async get(id: string) {
     return this.memories.find((memory) => memory.publicId === id || memory.id === id) || null;
   }
@@ -403,6 +405,9 @@ class AssetRepo implements AssetRepository {
   async list(): Promise<AssetRecord[]> {
     return this.assets;
   }
+  async count() { return this.assets.length; }
+  async get(id: string) { return this.assets.find(asset => asset.id === id) || null; }
+  async usage() { return []; }
 
   async create(input: AssetCreateInput): Promise<AssetRecord> {
     if (input.memoryId === "missing") throw new ApiError(404, "Memory not found", "not_found");
@@ -418,8 +423,11 @@ class AssetRepo implements AssetRepository {
     return asset;
   }
 
-  async deleteByUrl(url: string) {
-    this.assets = this.assets.filter((asset) => asset.url !== url);
+  async deleteUnused(id: string, remove: (asset: AssetRecord) => Promise<void>) {
+    const asset = await this.get(id);
+    if (!asset) throw new ApiError(404, "File not found", "not_found");
+    await remove(asset);
+    this.assets = this.assets.filter((asset) => asset.id !== id);
   }
 }
 
@@ -1316,14 +1324,14 @@ const uploaded = await json("/api/v1/assets", {
   method: "POST",
   headers: adminHeaders,
   body: JSON.stringify({
-    key: "asset-test.txt",
+    key: "admin/asset-test.txt",
     memoryId: created.body.data.id,
     contentBase64: Buffer.from("asset smoke").toString("base64"),
     contentType: "text/plain",
   }),
 });
 assert.equal(uploaded.response.status, 201);
-assert.equal(uploaded.body.data.url, "/uploads/asset-test.txt");
+assert.equal(uploaded.body.data.url, "/uploads/admin/asset-test.txt");
 assert.equal(uploaded.body.data.memoryId, created.body.data.id);
 
 const privateImage = await sharp({ create: { width: 40, height: 60, channels: 3, background: "#778899" } })
@@ -1391,7 +1399,7 @@ assert.equal(storage.keys.has("orphan-test.txt"), false);
 const assetsAfterUpload = await json("/api/v1/assets", {
   headers: adminHeaders,
 });
-assert.equal(assetsAfterUpload.body.data[0].url, "/uploads/asset-test.txt");
+assert.ok(assetsAfterUpload.body.data.some((asset: AssetRecord) => asset.url === "/uploads/admin/asset-test.txt"));
 
 const invalidAssetLimit = await json("/api/v1/assets?limit=abc", {
   headers: adminHeaders,
@@ -1399,10 +1407,10 @@ const invalidAssetLimit = await json("/api/v1/assets?limit=abc", {
 assert.equal(invalidAssetLimit.response.status, 400);
 assert.equal(invalidAssetLimit.body.error.code, "invalid_asset_limit");
 
-const assetUrl = await json("/api/v1/assets/asset-test.txt", {
+const assetUrl = await json("/api/v1/assets/admin/asset-test.txt", {
   headers: adminHeaders,
 });
-assert.equal(assetUrl.body.data.url, "/uploads/asset-test.txt");
+assert.equal(assetUrl.body.data.url, "/uploads/admin/asset-test.txt");
 
 const nestedAssetUrl = await json("/api/v1/assets/memory/nested-test.txt", {
   headers: adminHeaders,
@@ -1446,7 +1454,7 @@ try {
   await rm(assetRoot, { recursive: true, force: true });
 }
 
-const deleted = await json("/api/v1/assets/asset-test.txt", {
+const deleted = await json(`/api/v1/media/${uploaded.body.data.id}`, {
   method: "DELETE",
   headers: adminHeaders,
 });
@@ -1456,7 +1464,7 @@ const assetsAfterDelete = await json("/api/v1/assets", {
 });
 assert.equal(
   assetsAfterDelete.body.data.some(
-    (asset: { url: string }) => asset.url === "/uploads/asset-test.txt",
+    (asset: { url: string }) => asset.url === "/uploads/admin/asset-test.txt",
   ),
   false,
 );

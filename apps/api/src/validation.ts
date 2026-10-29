@@ -257,6 +257,10 @@ export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery 
 
   return {
     cursor: cursorParam(searchParams),
+    offset: Math.min(1000000, Math.max(0, Number.parseInt(searchParams.get("offset") || "0", 10) || 0)),
+    sort: ["views_asc", "views_desc"].includes(searchParams.get("sort") || "") ? searchParams.get("sort") as "views_asc" | "views_desc" : undefined,
+    longForm: searchParams.get("longForm") === "true",
+    summary: searchParams.get("summary") === "true",
     q: searchParams.get("q") || searchParams.get("tag") || undefined,
     limit,
     status: status === "ALL" ? "all" : (status as MemoryStatus),
@@ -374,6 +378,7 @@ export function pageInput(value: Record<string, unknown>): PageInput {
   }
 
   return {
+    navigationVisible: bool(value.navigationVisible),
     slug,
     language: language(value.language ?? value.ln ?? "en"),
     title,
@@ -390,6 +395,7 @@ export function pageInput(value: Record<string, unknown>): PageInput {
 
 export function pagePatchInput(value: Record<string, unknown>): PageUpdateInput {
   const input: PageUpdateInput = {};
+  if (has(value, "navigationVisible")) input.navigationVisible = bool(value.navigationVisible);
   if (has(value, "slug")) {
     input.slug = pageSlugInput(value.slug, "missing_page_slug");
   }

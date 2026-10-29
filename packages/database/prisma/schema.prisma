@@ -73,6 +73,8 @@ model Memory {
   mapKey         String       @map("map_key")
   title          String
   content        String
+  // PostgreSQL maintains this generated search document on every write.
+  searchText     String @default(dbgenerated()) @map("search_text")
   excerpt        String?
   authorId       String?      @map("author_id")
   authorName     String?      @map("author_name")
@@ -93,6 +95,7 @@ model Memory {
   tags           MemoryTag[]
   comments       Comment[]
   links          MemoryLink[]
+  mediaReferences MediaReference[]
 
   @@index([visibility, status, createdAt])
   @@map("memories")
@@ -119,6 +122,37 @@ model Attachment {
 
   @@index([memoryId])
   @@map("attachments")
+}
+
+model MediaAsset {
+  id         String   @id @default(cuid())
+  identity   String   @unique
+  url        String
+  type       String
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+  references MediaReference[]
+
+  @@index([deletedAt, createdAt, id])
+  @@map("media_assets")
+}
+
+model MediaReference {
+  id       String @id @default(cuid())
+  assetId  String @map("asset_id")
+  memoryId String? @map("memory_id")
+  pageId   String? @map("page_id")
+  asset    MediaAsset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  memory   Memory? @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  page     Page? @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, memoryId])
+  @@unique([assetId, pageId])
+  @@index([memoryId])
+  @@index([pageId])
+  @@map("media_references")
 }
 
 model Tag {
@@ -171,6 +205,7 @@ model Page {
   metadata       Json?
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
+  mediaReferences MediaReference[]
 
   @@unique([language, slug])
   @@index([status, updatedAt])
