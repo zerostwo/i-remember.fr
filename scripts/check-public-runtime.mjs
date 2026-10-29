@@ -592,3 +592,52 @@ await new Promise(resolve => setImmediate(resolve));
 pendingSearches[0]({ ok: true, status: 200, text: async () => '{"success":true,"data":{"posts":[]}}' });
 await new Promise(resolve => setImmediate(resolve));
 assert.deepEqual(shownSearches, ["latest"]);
+
+// Exercise the actual button/Enter submission path, not only the legacy AJAX
+// wrapper: it must share loading, totals, errors, and stale-response protection.
+const submittedRequests = [], submittedFeedback = [], submittedResults = [], emptyResults = [];
+let submittedText = "失眠";
+const submissionContext = {
+  URL, AbortController, window: {}, searchFeedbackSequence: 0,
+  searchInputText: () => submittedText,
+  normalizeSearchTag: runtimeFunction("normalizeSearchTag"),
+  localApiUrl: url => new URL(url, "http://local").href,
+  appendQueryData: url => url, parseAjaxPayload: JSON.parse,
+  showSearchFeedback: (query, payload, failed) => submittedFeedback.push({ query, total: payload?.total, failed }),
+  setSearchFallbackNav: () => {},
+  showLegacySearchResults: payload => submittedResults.push(payload.data.posts[0].id),
+  showSearchFallbackNoResult: query => emptyResults.push(query),
+  fetch: (url) => new Promise(resolve => submittedRequests.push({ url, resolve })),
+};
+submissionContext.localApiAjax = runtimeFunction("localApiAjax", submissionContext);
+const submitSearch = runtimeFunction("submitSearchFallback", submissionContext);
+const finishSubmitted = async (index, posts, total, ok = true) => {
+  submittedRequests[index].resolve({ ok, status: ok ? 200 : 503,
+    text: async () => JSON.stringify({ success: ok, data: { posts, total } }) });
+  await new Promise(resolve => setImmediate(resolve));
+};
+assert.equal(submitSearch(), true);
+assert.equal(submittedFeedback.at(-1).query, "失眠");
+assert.equal(submittedFeedback.at(-1).total, undefined, "Submissions show loading immediately");
+assert.equal(new URL(submittedRequests[0].url).searchParams.get("tagName"), "失眠");
+await finishSubmitted(0, [{ id: "real-memory" }], 7);
+assert.equal(submittedFeedback.at(-1).total, 7, "Use the server total instead of the current page length");
+assert.deepEqual(submittedResults, ["real-memory"]);
+submittedText = "missing"; submitSearch();
+await finishSubmitted(1, [], 0);
+assert.deepEqual(emptyResults, ["missing"]);
+assert.equal(submittedFeedback.at(-1).total, 0);
+submittedText = "earlier"; submitSearch();
+submittedText = "latest"; submitSearch();
+await finishSubmitted(3, [{ id: "latest-memory" }], 1);
+await finishSubmitted(2, [{ id: "stale-memory" }], 1);
+assert.deepEqual(submittedResults, ["real-memory", "latest-memory"]);
+assert.equal(submittedFeedback.at(-1).query, "latest");
+submittedText = "offline"; submitSearch();
+await finishSubmitted(4, [], 0, false);
+assert.equal(submittedFeedback.at(-1).failed, true);
+assert.deepEqual(emptyResults, ["missing"], "Network failure must not masquerade as no matching memories");
+submittedText = "leave-search"; submitSearch();
+submissionContext.searchFeedbackSequence += 1;
+await finishSubmitted(5, [{ id: "cancelled-memory" }], 1);
+assert.deepEqual(submittedResults, ["real-memory", "latest-memory"], "Leaving search suppresses its late response");

@@ -2103,11 +2103,10 @@
       "?tagName=" +
       encodeURIComponent(raw);
 
-    window.fetch(url, { credentials: "same-origin" })
-      .then(function (response) {
-        return response.json();
-      })
-      .then(function (payload) {
+    localApiAjax({
+      url: url,
+      type: "GET",
+      success: function (payload) {
         var posts =
           payload && payload.success && payload.data && payload.data.posts
             ? payload.data.posts
@@ -2120,10 +2119,13 @@
         } else {
           showSearchFallbackNoResult(raw || tag);
         }
-      })
-      .catch(function () {
-        showSearchFallbackNoResult(raw || tag);
-      });
+      },
+      error: function () {
+        // The shared request adapter reports failures distinctly from an empty
+        // result and ignores replies after a newer search or map navigation.
+        setSearchFallbackNav(raw || tag);
+      }
+    });
 
     return true;
   }

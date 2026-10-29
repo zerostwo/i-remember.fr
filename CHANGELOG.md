@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show search progress, result counts, failures and a direct result link without
   replacing the galaxy. Ignore outdated search responses and attach the request
   adapter to the bundled jQuery instance on production and slow initial loads.
+  Route button and Enter submissions through that same request/feedback flow.
 - Query memories/media in bounded pages and search on the server. A PostgreSQL
   generated search document preserves accent, Unicode and separator normalization;
   full-content editor fetches and complete backup exports remain explicit.
