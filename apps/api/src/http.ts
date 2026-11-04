@@ -58,6 +58,7 @@ type Route = {
 
 export class Router {
   private routes: Route[] = [];
+  constructor(private readonly beforeRequest?: (req: IncomingMessage) => Promise<void>) {}
 
   add(method: string, path: string, handler: RouteHandler) {
     const keys: string[] = [];
@@ -81,6 +82,7 @@ export class Router {
       if (route.method !== (req.method || "GET").toUpperCase()) continue;
       const match = url.pathname.match(route.pattern);
       if (!match) continue;
+      await this.beforeRequest?.(req);
       const params = Object.fromEntries(
         route.keys.map((key, index) => [key, decodeURIComponent(match[index + 1] || "")]),
       );

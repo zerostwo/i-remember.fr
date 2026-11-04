@@ -1,3 +1,4 @@
+import { validateSession } from "./auth.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   AgentController,
@@ -120,7 +121,7 @@ export function createApiV1Router(dependencies: ApiDependencies = {}) {
   const settings = new SettingController(settingService);
   const readiness = new ReadinessController(readinessService);
   const auth = new AuthController(authService);
-  const router = new Router();
+  const router = new Router(req => validateSession(req, userRepository));
 
   router.add("GET", "/api/v1/memories", (context) => memories.list(context));
   router.add("GET", "/api/v1/public/random", (context) => memories.random(context));

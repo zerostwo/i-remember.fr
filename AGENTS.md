@@ -390,3 +390,7 @@ Current backend/product decisions:
   existing public galaxy on the main line. For this release, publish only the
   removal of the persistent Live Photo upload instructions (`2e1b363`), retaining
   Live Photo functionality. Do not ship the prototype or other pending changes.
+
+- Owner instruction on 2026-11-04: repair the nine findings from the current
+  review and close the test coverage gaps, preserving the existing galaxy
+  visuals and interactions. Validate the complete local release before delivery.

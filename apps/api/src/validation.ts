@@ -560,6 +560,11 @@ export function commentPatchInput(value: Record<string, unknown>): CommentUpdate
 }
 
 export function settingsInput(value: Record<string, unknown>) {
+  if (has(value, "timezone")) {
+    try { if (typeof value.timezone !== "string" || !value.timezone.trim()) throw new Error(); new Intl.DateTimeFormat("en", { timeZone: value.timezone.trim() }); }
+    catch { throw new ApiError(400, "Choose a valid timezone", "invalid_timezone"); }
+    value = { ...value, timezone: (value.timezone as string).trim() };
+  }
   if (has(value, "canonicalUrl")) {
     try {
       const url = new URL(String(value.canonicalUrl));

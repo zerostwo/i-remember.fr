@@ -812,9 +812,11 @@
   }
 
   var searchFeedbackSequence = 0;
+  var menuNavigationSequence = 0;
   document.addEventListener("click", function (event) {
     if (event.target.closest && event.target.closest(".nav-map-wrapper,.nav-search-item-close-btn,.nav-add-btn")) {
       ++searchFeedbackSequence;
+      ++menuNavigationSequence;
       showSearchFeedback("", null, false);
     }
   });
@@ -1926,6 +1928,9 @@
     if (!posts.length && payload && payload.results) posts = payload.results;
     if (!scene || !scene.showSearchedPosts || !posts.length) return false;
     if (ui && ui.hidePost2d) ui.hidePost2d();
+    var Post = legacyModule("posts/Post");
+    if (!Post) return false;
+    posts = posts.map(function (post) { var item = post.preloadThumb ? post : new Post(post); if (!item.isThumbStartLoading) item.preloadThumb(); return item; });
     scene.showSearchedPosts(posts);
     return true;
   }
@@ -2013,14 +2018,16 @@
     setLegacyModalOpen(true, ".revival-menu-memory");
   }
 
-  function renderMenuMemoryAfterSearch(payload) {
+  function renderMenuMemoryAfterSearch(payload, sequence) {
+    if (sequence !== menuNavigationSequence) return;
     var navigated = showLegacySearchResults(payload);
     window.setTimeout(function () {
-      renderMenuMemory(payload);
+      if (sequence === menuNavigationSequence) renderMenuMemory(payload);
     }, navigated ? 850 : 120);
   }
 
   function closeMenuMemory() {
+    ++menuNavigationSequence;
     var overlay = document.querySelector(".revival-menu-memory");
     if (overlay) {
       overlay.classList.remove("is-visible", "is-expanded");
@@ -2092,6 +2099,7 @@
   }
 
   function submitSearchFallback() {
+    ++menuNavigationSequence;
     var raw = searchInputText();
     var tag = normalizeSearchTag(raw);
     var url;
@@ -2112,6 +2120,20 @@
             ? payload.data.posts
             : [];
         if (posts.length > 0) {
+          var sequence = searchFeedbackSequence;
+          var seenCursors = {};
+          function nextPage(cursor) {
+            if (!cursor || seenCursors[cursor] || sequence !== searchFeedbackSequence) return;
+            seenCursors[cursor] = true;
+            localApiAjax({ url: url + "&lastId=" + encodeURIComponent(cursor), type: "GET", success: function (next) {
+              if (sequence !== searchFeedbackSequence) return;
+              var seen = {}; posts.forEach(function (p) { seen[p.id] = true; });
+              (next.data.posts || []).forEach(function (p) { if (!seen[p.id]) { posts.push(p); seen[p.id] = true; } });
+              showLegacySearchResults({ data: { posts: posts } });
+              nextPage(next.data.nextCursor);
+            }, error: function () { if (sequence === searchFeedbackSequence) showSearchFeedback(raw, null, true); } });
+          }
+          nextPage(payload.data.nextCursor);
           setSearchFallbackNav(raw || tag);
           try {
             showLegacySearchResults({ data: { posts: posts } });
@@ -2476,14 +2498,16 @@
           return;
         }
 
+        var menuSequence = ++menuNavigationSequence;
+        ++searchFeedbackSequence;
         showFooterSearchToken(managedItem.getAttribute("data-menu-label") || managedItem.textContent);
         fetchJson(
           "/api/public/menu-target/" +
             encodeURIComponent(managedItem.getAttribute("data-menu-id"))
         )
-          .then(renderMenuMemoryAfterSearch)
+          .then(function (payload) { renderMenuMemoryAfterSearch(payload, menuSequence); })
           .catch(function () {
-            hideFooterSearchToken();
+            if (menuSequence === menuNavigationSequence) hideFooterSearchToken();
           });
         return;
       }

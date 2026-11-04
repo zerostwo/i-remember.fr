@@ -198,3 +198,12 @@ inactivity and do not survive a server restart. Uploading does not publish a
 memory or increment its view count. The direct multipart `/api/upload-video`
 endpoint remains available for clients whose proxy supports its total size and
 conversion timeout.
+
+Page lists accept `limit` (1–200, default 40) and an opaque `cursor`, return
+`pagination.nextCursor`, and omit Markdown bodies by default. Use the Page detail
+endpoint for editing or `summary=false` with pagination for an explicit export.
+
+Administrator tokens are checked against the current account password on every
+API request. Changing the password revokes earlier sessions. Tokens issued before
+this upgrade require a fresh login. Media uploads require an authenticated owner
+when anonymous submissions are disabled, including chunk/status/cancel requests.

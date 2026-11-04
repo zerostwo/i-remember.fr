@@ -232,8 +232,8 @@ class UserRepo implements UserRepository {
 class PageRepo implements PageRepository {
   pages: PageRecord[] = [];
 
-  async list(language = "en") {
-    return this.pages.filter((page) => page.language === language);
+  async list(language = "en", options?: { limit: number; cursor?: string; summary?: boolean }) {
+    return this.pages.filter((page) => page.language === language && (!options?.cursor || page.id > options.cursor)).sort((a, b) => a.id.localeCompare(b.id)).slice(0, options?.limit).map(page => options?.summary ? { ...page, bodyMarkdown: undefined as any } : page);
   }
 
   async get(slug: string, language = "en") {
@@ -941,6 +941,10 @@ const reloggedIn = await json("/api/v1/auth/login", {
 });
 assert.equal(reloggedIn.response.status, 200);
 const adminToken = reloggedIn.body.data.token;
+assert.equal((await json("/api/v1/users", { headers: adminHeaders })).response.status, 401, "Password changes revoke existing sessions");
+adminHeaders.Authorization = `Bearer ${adminToken}`;
+assert.equal((await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ timezone: "Asia/Shangai" }) })).response.status, 400);
+
 
 const twoFactorSetup = await json("/api/v1/auth/2fa/setup", {
   method: "POST",

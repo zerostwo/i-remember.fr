@@ -599,6 +599,7 @@ const submittedRequests = [], submittedFeedback = [], submittedResults = [], emp
 let submittedText = "失眠";
 const submissionContext = {
   URL, AbortController, window: {}, searchFeedbackSequence: 0,
+  menuNavigationSequence: 0,
   searchInputText: () => submittedText,
   normalizeSearchTag: runtimeFunction("normalizeSearchTag"),
   localApiUrl: url => new URL(url, "http://local").href,
@@ -641,3 +642,48 @@ submittedText = "leave-search"; submitSearch();
 submissionContext.searchFeedbackSequence += 1;
 await finishSubmitted(5, [{ id: "cancelled-memory" }], 1);
 assert.deepEqual(submittedResults, ["real-memory", "latest-memory"], "Leaving search suppresses its late response");
+
+// Use the bundled Post constructor, including its real preload callback.
+const bundle = await readFile(new URL("../public/js/main.js", import.meta.url), "utf8");
+const postStart = bundle.indexOf('define("posts/Post",');
+const postEnd = bundle.indexOf(',define(', postStart);
+let Post;
+const thumbLoads = [];
+runInNewContext(bundle.slice(postStart, postEnd), { define: (_name, _deps, factory) => {
+  Post = factory({ UPLOADS_FOLDER: "/uploads/" }, { Signal: class { add() {} dispatch() {} } },
+    { loadSingle: (url, callback) => thumbLoads.push({ url, callback }) }, Object.assign, (fn, self) => fn.bind(self));
+} });
+let renderedPosts;
+const showResults = runtimeFunction("showLegacySearchResults", {
+  legacyModule: name => name === "posts/Post" ? Post : name === "scene3dController" ? { showSearchedPosts: posts => { renderedPosts = posts; } } : null,
+});
+showResults({ data: { posts: [{ id: "photo", img: "fixture" }] } });
+assert.equal(renderedPosts[0] instanceof Post, true);
+assert.equal(thumbLoads[0].url, "/uploads/posts/fixture/thumb.jpg");
+thumbLoads[0].callback({ content: "decoded-image" });
+assert.equal(renderedPosts[0].isThumbLoaded, true);
+assert.equal(renderedPosts[0].thumb, "decoded-image");
+
+submittedText = "many"; submitSearch();
+const manyIndex = submittedRequests.length - 1;
+submittedRequests[manyIndex].resolve({ ok: true, status: 200, text: async () => JSON.stringify({ success: true, data: { posts: Array.from({ length: 200 }, (_, i) => ({ id: String(i) })), total: 201, nextCursor: "page-two" } }) });
+await new Promise(resolve => setImmediate(resolve));
+assert.equal(new URL(submittedRequests.at(-1).url).searchParams.get("lastId"), "page-two");
+let finalPosts;
+submissionContext.showLegacySearchResults = payload => { finalPosts = payload.data.posts; };
+await finishSubmitted(submittedRequests.length - 1, [{ id: "200" }], 201);
+assert.equal(finalPosts.length, 201);
+
+const menuTimers = [], menuOpened = [];
+const menuContext = { menuNavigationSequence: 2, showLegacySearchResults: () => true,
+  window: { setTimeout: callback => menuTimers.push(callback) }, renderMenuMemory: payload => menuOpened.push(payload.id) };
+const menuRender = runtimeFunction("renderMenuMemoryAfterSearch", menuContext);
+menuRender({ id: "old" }, 1);
+menuRender({ id: "latest" }, 2);
+assert.equal(menuTimers.length, 1);
+menuContext.menuNavigationSequence = 3;
+menuTimers.shift()();
+assert.deepEqual(menuOpened, [], "Leaving a pending page cancels its delayed overlay");
+menuRender({ id: "current" }, 3); menuTimers.shift()();
+assert.deepEqual(menuOpened, ["current"]);
+console.log("Search photo initialization, 201 results and stale footer overlays passed");

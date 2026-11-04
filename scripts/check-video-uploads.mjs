@@ -82,6 +82,7 @@ try {
     deleted = 0;
   globalThis.fetch = async (url, options = {}) => {
     let data;
+    assert.equal(options.headers.Authorization, "Bearer owner-fixture", "Authorize every media session request");
     if (options.method === "DELETE") {
       deleted++;
       return new Response("{}");
@@ -96,7 +97,7 @@ try {
     return Response.json({ success: true, data });
   };
   const events = [];
-  const result = await uploadVideoFile(new Blob([Buffer.alloc(101 * 1024 * 1024)]), { onProgress: (event) => events.push(event) });
+  const result = await uploadVideoFile(new Blob([Buffer.alloc(101 * 1024 * 1024)]), { headers: { Authorization: "Bearer owner-fixture" }, onProgress: (event) => events.push(event) });
   assert.equal(events[0].percent, 0);
   assert.equal(events.at(-1).phase, "complete");
   assert.equal(events.filter((event) => event.phase === "uploading").at(-1).loaded, 101 * 1024 * 1024);
@@ -105,6 +106,7 @@ try {
   assert.equal(chunks, 13);
   assert.equal(deleted, 1);
   globalThis.fetch = async (url, options = {}) => {
+    assert.equal(options.headers.Authorization, "Bearer owner-fixture", "Authorize every media session request");
     if (options.method === "DELETE") {
       deleted++;
       return new Response("{}");
@@ -113,7 +115,7 @@ try {
       return Response.json({ success: true, data: { id: "failure", chunkBytes: videoChunkBytes } });
     throw new Error("Connection lost");
   };
-  await assert.rejects(uploadVideoFile(new Blob(["test"])), /Connection lost/);
+  await assert.rejects(uploadVideoFile(new Blob(["test"]), { headers: { Authorization: "Bearer owner-fixture" } }), /Connection lost/);
   assert.equal(deleted, 2, "Failed uploads release their temporary session");
   console.log(
     "Video parts passed: 500 MB boundary, size/order validation, capacity, single async processing, expiry, 101 MB client transfer and failure cleanup",

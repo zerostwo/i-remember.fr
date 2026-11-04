@@ -16,6 +16,7 @@ const v1CreateBodies = [];
 const v1CreatedMemories = [];
 let v1ViewCount = 0;
 let siteDefaultLanguage = "zh";
+let anonymousSubmissions = true;
 let v1Ready = true;
 let v1Reachable = true;
 async function freePort() {
@@ -31,6 +32,12 @@ const upstream = createServer(async (req, res) => {
   for await (const chunk of req) chunks.push(chunk);
   const body = Buffer.concat(chunks).toString("utf8");
   res.setHeader("Content-Type", "application/json; charset=utf-8");
+  if (req.url === "/api/v1/auth/account") {
+    const authorized = req.headers.authorization === "Bearer upload-owner-fixture";
+    res.statusCode = authorized ? 200 : 401;
+    res.end(JSON.stringify({ success: authorized, data: authorized ? { role: "ADMIN" } : null }));
+    return;
+  }
   if (req.method === "GET" && req.url === "/readyz") {
     if (!v1Reachable) {
       req.socket.destroy();
@@ -56,7 +63,7 @@ const upstream = createServer(async (req, res) => {
           canonicalUrl: "https://songqi.org",
           timezone: "Asia/Shanghai",
           defaultLanguage: siteDefaultLanguage,
-          anonymousSubmissions: true,
+          anonymousSubmissions,
           tracking: {
             enabled: true,
             umamiSrc: "https://stats.example.test/script.js",
@@ -711,7 +718,11 @@ try {
 
   // A fresh middleware instance loads the owner's changed default, rather
   // than relying on the environment fallback or the prior instance's cache.
+  await rm(join(dataDir, "uploads", "posts", publicUploadBody.data.fileId), { recursive: true, force: true });
+  assert.equal((await fetch(`${baseUrl}/uploads/tmp/${publicUploadBody.data.fileId}/resized.jpg`)).status, 404, "Deleted previews must not survive in memory");
+
   siteDefaultLanguage = "en";
+  anonymousSubmissions = false;
   const englishMiddleware = createRevivalMiddleware({ apiBaseUrl: `http://127.0.0.1:${upstreamPort}` });
   const englishServer = createServer((req, res) => englishMiddleware(req, res, () => {
     res.statusCode = 404;
@@ -720,6 +731,14 @@ try {
   await new Promise((resolve) => englishServer.listen(0, "127.0.0.1", resolve));
   try {
     const englishBaseUrl = `http://127.0.0.1:${englishServer.address().port}`;
+    for (const path of ["/api/upload-image", "/api/upload-video", "/api/video-uploads", "/api/audio-uploads", "/api/live-photo-uploads"]) {
+      assert.equal((await fetch(englishBaseUrl + path, { method: "POST", body: "{}" })).status, 403, path);
+    }
+    const ownerHeaders = { Authorization: "Bearer upload-owner-fixture", "Content-Type": "application/json" };
+    const ownerUpload = await fetch(englishBaseUrl + "/api/video-uploads", { method: "POST", headers: ownerHeaders, body: JSON.stringify({ size: 1024 }) });
+    assert.equal(ownerUpload.status, 200, "Owner can upload while anonymous submissions are closed");
+    const ownerSession = await ownerUpload.json();
+    await fetch(englishBaseUrl + "/api/video-uploads/" + ownerSession.data.id, { method: "DELETE", headers: ownerHeaders });
     for (const path of ["/", `/memory/${v1PublicId}`]) {
       const response = await fetch(`${englishBaseUrl}${path}?ln=en&source=menu`, { redirect: "manual" });
       assert.equal(response.status, 302);

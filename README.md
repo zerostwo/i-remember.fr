@@ -377,3 +377,13 @@ This is a source-available restoration with third-party frontend code and assets
 The repository as a whole is **not offered under MIT, Apache, or GPL**. Restored
 visuals, fonts, audio, and other third-party materials retain their existing rights
 and are not relicensed by this README. See [LICENSE](LICENSE) for the repository notice.
+
+The default `pnpm test` also runs PostgreSQL, Page workspace, media-library,
+video, audio and Live Photo regressions. Install PostgreSQL (`pg_config` and its
+server/client binaries), FFmpeg, ExifTool and `heif-convert` for local checks.
+The database runner creates and removes an isolated UTF-8 cluster automatically;
+`I_REMEMBER_TEST_DATABASE_URL` can instead select an explicitly disposable migrated
+test/review database. CI installs these dependencies and runs the same suite.
+
+After the session-revocation update, existing administrator sessions require one
+fresh login. Subsequent password changes immediately revoke older sessions.

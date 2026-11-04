@@ -61,7 +61,7 @@ export interface UserRepository {
 }
 
 export interface PageRepository {
-  list(language?: string): Promise<PageRecord[]>;
+  list(language?: string, options?: { limit: number; cursor?: string; summary?: boolean }): Promise<PageRecord[]>;
   get(slug: string, language?: string): Promise<PageRecord | null>;
   create(input: PageInput): Promise<PageRecord>;
   update(slug: string, input: PageUpdateInput, language?: string): Promise<PageRecord>;

@@ -1,3 +1,4 @@
+import { memoryDate } from "./dates.js";
 import { isAudioFile, mediaAccept } from "../../../packages/config/src/media-limits.js";
 import { uploadRequest } from "../../../packages/content/src/upload-request.js";
 import { uploadVideoFile } from "../../../packages/content/src/video-upload.js";
@@ -330,7 +331,7 @@ async function v1Bootstrap({ full = false } = {}) {
   const [dashboard, memoryResult, pages, menu, account, assetResult] = await Promise.all([
     v1Api("/api/v1/dashboard"),
     full ? collectPages(v1Api, "/api/v1/memories?status=all&visibility=all") : v1Api("/api/v1/memories?status=all&visibility=all&summary=true&limit=5", { envelope: true }),
-    v1Api(`/api/v1/pages?language=${language}`),
+    collectPages(v1Api, `/api/v1/pages?language=${language}&summary=${!full}`),
     v1Api(`/api/v1/menu-items?language=${language}`),
     v1Api("/api/v1/auth/account"),
     full ? collectPages(v1Api, "/api/v1/assets") : v1Api("/api/v1/assets?limit=1", { envelope: true }),
@@ -718,7 +719,6 @@ export function AdminApp() {
         // A direct editor route must not depend on the owner's cached list.
         const record = await v1Api(`/api/v1/memories/${encodeURIComponent(requested)}`);
         payload.memories = [...payload.memories.filter(item => item.id !== record.id), v1MemoryAdmin(record)];
-        setData({ ...payload });
       }
       if (requested) setSelectedMemoryId(requested);
       const requestedMemory = payload.memories.find(item => item.id === requested);
@@ -728,6 +728,11 @@ export function AdminApp() {
         locationRef.current = window.location.href;
         setSelectedPageSlug(ownerPage.slug);
         setRoute("page-editor");
+      }
+      const pageSlug = new URLSearchParams(window.location.search).get("slug");
+      if (routeFromLocation() === "page-editor" && pageSlug) {
+        const page = v1PageAdmin(await v1Api(`/api/v1/pages/${encodeURIComponent(pageSlug)}?language=${encodeURIComponent(payload.settings.defaultLanguage)}`));
+        payload.pages = [...payload.pages.filter(item => item.id !== page.id), page];
       }
       setData({ ...payload });
       setSelectedMenuId((current) =>
@@ -741,12 +746,13 @@ export function AdminApp() {
   }, []);
 
   useEffect(() => {
-    const handleLocation = () => {
+    const handleLocation = async () => {
       const targetUrl = window.location.href;
       if (!canLeaveEditor(() => { window.history.pushState({}, "", targetUrl); handleLocation(); })) {
         window.history.pushState({}, "", locationRef.current);
         return;
       }
+      if (routeFromLocation() === "page-editor") await refreshData();
       reportDirty(false);
       setNewDraftVersion((value) => value + 1);
       locationRef.current = window.location.href;
@@ -980,7 +986,7 @@ export function AdminApp() {
 
   async function uploadEditorFile(file, signal, onProgress = () => {}) {
     if (isLivePhotoFile(file) || isAudioFile(file) || /^video\//.test(file.type) || /\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
-      const asset = (await uploadVideoFile(file, { signal, onProgress })).attachment;
+      const asset = (await uploadVideoFile(file, { signal, onProgress, headers: { Authorization: `Bearer ${adminToken()}` } })).attachment;
       const saved = await v1Api("/api/v1/assets/register", { method: "POST", body: JSON.stringify({ ...asset, metadata: { ...asset.metadata, filename: file.name } }) });
       const { id, ...attachment } = saved;
       setData(current => mergeV1Assets(current, [saved]));
@@ -1084,8 +1090,17 @@ export function AdminApp() {
     }
   }
 
-  function editPage(slug = "") {
+  async function editPage(slug = "") {
     if (!canLeaveEditor(() => editPage(slug))) return;
+    if (actionRef.current) return;
+    actionRef.current = true;
+    try {
+      if (slug) {
+        const page = v1PageAdmin(await v1Api(`/api/v1/pages/${encodeURIComponent(slug)}?language=${encodeURIComponent(data.settings.defaultLanguage)}`));
+        setData(current => ({ ...current, pages: [...current.pages.filter(item => item.id !== page.id), page] }));
+      }
+    } catch (error) { setError(error.message); return; }
+    finally { actionRef.current = false; }
     reportDirty(false);
     setNotice("");
     setError("");
@@ -2347,9 +2362,7 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
                   </TableCell>
                   <TableCell data-label="Updated" className="text-muted-foreground">
                     {memory.updatedAt
-                      ? new Date(memory.updatedAt).toLocaleDateString(undefined, {
-                          timeZone: data.settings?.timezone,
-                        })
+                      ? memoryDate(memory.updatedAt, data.settings?.timezone)
                       : "--"}
                   </TableCell>
                   <TableCell className="text-right">

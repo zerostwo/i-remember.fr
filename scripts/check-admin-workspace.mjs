@@ -46,6 +46,13 @@ try {
   const menu = await db.menuItem.create({
     data: { uid: prefix, label: prefix, language: "en", type: "PAGE", targetValue: prefix },
   });
+  const duplicateMenu = await db.menuItem.create({ data: { uid: prefix + "-second", label: prefix, language: "en", type: "PAGE", targetValue: prefix } });
+  await pages.update(prefix, { navigationVisible: false });
+  assert.equal(await db.menuItem.count({ where: { type: "PAGE", targetValue: prefix, isVisible: true } }), 0);
+  await db.menuItem.delete({ where: { id: duplicateMenu.id } });
+  const summaries = await pages.list("en", { limit: 1, summary: true });
+  assert.equal(summaries.length, 1);
+  assert.equal(summaries[0].bodyMarkdown, undefined);
   await pages.update(prefix, { excerpt: "A summary" });
   assert.equal((await pages.update(prefix, pagePatchInput({ excerpt: "" }))).excerpt, "");
   const renamed = `${prefix}-renamed`;
@@ -87,6 +94,21 @@ try {
     1,
     "Detaching a reused asset must preserve other memories",
   );
+  await db.page.createMany({ data: Array.from({ length: 205 }, (_, index) => ({
+    slug: `${prefix}-pagination-${index}`, title: prefix, language: "en", status: "DRAFT",
+    bodyMarkdown: "Full body must not be present in list responses.",
+  })) });
+  let cursor;
+  const listed = [];
+  do {
+    const batch = await pages.list("en", { limit: 40, cursor, summary: true });
+    assert.ok(batch.length <= 40);
+    assert.ok(batch.every(item => item.bodyMarkdown === undefined));
+    listed.push(...batch);
+    cursor = batch.length === 40 ? batch.at(-1).id : undefined;
+  } while (cursor);
+  assert.equal(listed.filter(item => item.slug.startsWith(`${prefix}-pagination-`)).length, 205);
+  assert.equal(new Set(listed.map(item => item.id)).size, listed.length);
   console.log(
     "Admin workspace: transactional publish, concurrent publish, rename/menu integrity, archive/restore, rollback, shared media passed",
   );

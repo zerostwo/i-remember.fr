@@ -9,6 +9,7 @@ import {
 } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import type { Principal, Role, UserRecord } from "./domain.js";
+import type { UserRepository } from "./repositories.js";
 import { ApiError } from "./errors.js";
 
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -33,7 +34,7 @@ function isRole(value: unknown): value is Role {
   return value === "ADMIN" || value === "USER" || value === "ANONYMOUS";
 }
 
-function signedToken(principal: { email: string; role: Role; id?: string }) {
+function signedToken(principal: { email: string; role: Role; id?: string; credential?: string }) {
   const secret = authSecret();
   if (!secret) throw new ApiError(503, "Admin login is not configured", "auth_not_configured");
   const payload = Buffer.from(
@@ -41,6 +42,7 @@ function signedToken(principal: { email: string; role: Role; id?: string }) {
       email: principal.email,
       role: principal.role,
       id: principal.id,
+      credential: principal.credential,
       iat: Math.floor(Date.now() / 1000),
     }),
   ).toString("base64url");
@@ -86,7 +88,27 @@ function verifySignedToken(token: string, secret: string): Principal | null {
   }
 }
 
+const requestPrincipals = new WeakMap<IncomingMessage, Principal>();
+function credentialVersion(user: UserRecord) {
+  return createHmac("sha256", authSecret()).update(user.passwordHash).digest("base64url");
+}
+export async function validateSession(req: IncomingMessage, users: UserRepository) {
+  const principal = authenticate(req);
+  if (principal.role === "ANONYMOUS") return;
+  const user = principal.id ? await users.findById(principal.id) : null;
+  const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  let credential = "";
+  try {
+    const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    if (typeof payload.credential === "string") credential = payload.credential;
+  } catch { /* Invalid credentials fail closed. */ }
+  const valid = user && user.role === principal.role && user.email === principal.email
+    && safeEqual(credential, credentialVersion(user));
+  requestPrincipals.set(req, valid ? principal : { role: "ANONYMOUS" });
+}
 export function authenticate(req: IncomingMessage): Principal {
+  const validated = requestPrincipals.get(req);
+  if (validated) return validated;
   const header = String(req.headers.authorization || "");
   const token = header.match(/^Bearer\s+(.+)$/i)?.[1] || "";
   const secret = authSecret();
@@ -287,7 +309,7 @@ export function assertLoginPassword(input: Record<string, unknown>, user: UserRe
 
 export function loginUser(_input: Record<string, unknown>, user: UserRecord) {
   return {
-    token: signedToken({ email: user.email, role: user.role, id: user.id }),
+    token: signedToken({ email: user.email, role: user.role, id: user.id, credential: credentialVersion(user) }),
     user: publicUser(user),
   };
 }

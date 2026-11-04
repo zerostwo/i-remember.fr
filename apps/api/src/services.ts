@@ -131,10 +131,7 @@ function normalizedRuntimeSettings(values: Record<string, unknown>): RuntimeSett
       typeof values.canonicalUrl === "string" && values.canonicalUrl.trim()
         ? values.canonicalUrl.trim().slice(0, 500)
         : "https://songqi.org",
-    timezone:
-      typeof values.timezone === "string" && values.timezone.trim()
-        ? values.timezone.trim().slice(0, 120)
-        : "Asia/Shanghai",
+    timezone: (() => { try { const zone = String(values.timezone || "Asia/Shanghai").trim(); new Intl.DateTimeFormat("en", { timeZone: zone }); return zone; } catch { return "Asia/Shanghai"; } })(),
     defaultLanguage: ["en", "fr", "zh"].includes(language)
       ? (language as RuntimeSettings["defaultLanguage"])
       : "en",
@@ -458,9 +455,9 @@ export class AuthService {
 export class PageService {
   constructor(private readonly pages: PageRepository) {}
 
-  list(principal: Principal, language?: string) {
+  list(principal: Principal, language?: string, options?: { limit: number; cursor?: string; summary?: boolean }) {
     requireRole(principal, ["ADMIN"]);
-    return this.pages.list(language);
+    return this.pages.list(language, options);
   }
 
   async get(principal: Principal, slug: string, language?: string) {

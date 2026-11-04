@@ -295,11 +295,13 @@ export class PageController {
   constructor(private readonly pages: PageService) {}
 
   async list(context: RequestContext) {
-    const data = await this.pages.list(
-      authenticate(context.req),
-      languageQuery(context.url.searchParams),
-    );
-    return { success: true, data: data.map(pageDto) };
+    const limit = Math.min(200, Math.max(1, Math.floor(Number(context.url.searchParams.get("limit"))) || 40));
+    const rows = await this.pages.list(authenticate(context.req), languageQuery(context.url.searchParams), {
+      limit: limit + 1, cursor: context.url.searchParams.get("cursor") || undefined,
+      summary: context.url.searchParams.get("summary") !== "false",
+    });
+    const data = rows.slice(0, limit);
+    return { success: true, data: data.map(pageDto), pagination: { nextCursor: rows.length > limit ? data.at(-1)?.id : null } };
   }
 
   async get(context: RequestContext) {

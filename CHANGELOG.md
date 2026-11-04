@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Enforce closed anonymous uploads while retaining authenticated owner uploads;
+  remove persistent image buffers so deleted previews disappear immediately.
+- Revoke previous sessions after a password change and validate saved timezones.
+- Initialize search photo particles and consume search pages beyond 200 results;
+  discard stale footer navigation responses without changing the galaxy styling.
+- Hide all navigation entries for a Page when requested; fetch Page list summaries
+  in bounded queries and load full Markdown only for editing or export.
+- Include disposable PostgreSQL and complete media regression checks in the default
+  test command and CI, covering the review's missed edge cases.
+
 - Remove the persistent Live Photo instructions from the public upload circle
   while retaining Live Photo upload and playback support.
 

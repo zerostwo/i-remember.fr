@@ -98,3 +98,7 @@ assert.equal(appended[0], originalGallery[0], "Adding audio retains existing att
 assert.equal(appended[1].metadata.order, 5, "New audio must follow existing gallery items");
 assert.equal(appended[1].metadata.duration, 30);
 assert.equal(appendV1Attachment(attachments, { type: "audio/mpeg" })[2].metadata.order, 2);
+
+const { memoryDate } = await import("./dates.js");
+assert.equal(memoryDate("invalid", "UTC"), "--");
+assert.doesNotThrow(() => memoryDate("2026-11-04T12:00:00Z", "Asia/Shangai"));

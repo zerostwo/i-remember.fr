@@ -597,10 +597,11 @@ export class PrismaUserRepository implements UserRepository {
 export class PrismaPageRepository implements PageRepository {
   constructor(private readonly db = getPrismaClient()) {}
 
-  async list(language = "en") {
+  async list(language = "en", options?: { limit: number; cursor?: string; summary?: boolean }) {
     const rows = await this.db.page.findMany({
-      where: { language },
-      orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+      where: { language, ...(options?.cursor ? { id: { gt: options.cursor } } : {}) },
+      orderBy: { id: "asc" },
+      ...(options ? { take: options.limit, omit: { bodyMarkdown: Boolean(options.summary) } } : {}),
     });
     return rows.map(page);
   }
@@ -659,7 +660,7 @@ export class PrismaPageRepository implements PageRepository {
           await syncMediaReferences(tx, { pageId: saved.id }, saved.bodyMarkdown);
           if (input.navigationVisible !== undefined) {
             const current = await tx.menuItem.findFirst({ where: { language: saved.language, type: "PAGE", targetValue: saved.slug } });
-            if (current) await tx.menuItem.update({ where: { id: current.id }, data: { isVisible: input.navigationVisible } });
+            if (current) await tx.menuItem.updateMany({ where: { language: saved.language, type: "PAGE", targetValue: saved.slug }, data: { isVisible: input.navigationVisible } });
             else if (input.navigationVisible) {
               const last = await tx.menuItem.aggregate({ where: { language: saved.language }, _max: { position: true } });
               await tx.menuItem.create({ data: { uid: `page-${saved.id}`, language: saved.language, label: saved.title, type: "PAGE", targetValue: saved.slug, position: (last._max.position || 0) + 10, isVisible: true } });

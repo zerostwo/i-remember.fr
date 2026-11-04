@@ -65,7 +65,6 @@ const fallbackPostImages = {
   },
 };
 
-const uploadedImages = new Map();
 const rateLimitBuckets = new Map();
 
 function runtimeDataDir() {
@@ -627,15 +626,6 @@ function safeUploadedFileId(fileId) {
   return /^revival-[a-z0-9-]+$/i.test(value) ? value : null;
 }
 
-function runtimeUploadedImageForPath(pathname) {
-  const match = pathname.match(
-    /^\/uploads\/(?:tmp|posts)\/([^/]+)\/(resized|thumb)\.(?:jpg|jpeg|png|gif|webp)$/i,
-  );
-  if (!match) return null;
-  const cached = uploadedImages.get(match[1]);
-  return cached?.[match[2]] || cached?.resized || cached?.original || null;
-}
-
 function legacyImagePath(imageKey, variant = "resized") {
   const safeVariant = ["thumb", "full"].includes(variant) ? variant : "resized";
   return `/uploads/posts/${imageKey || "revival-upload"}/${safeVariant}.jpg`;
@@ -1145,14 +1135,6 @@ class RevivalBackend {
     const full = await encode(source().resize(2400, 2400, { fit: "inside", withoutEnlargement: true }), 90).toBuffer();
     const thumb = await sharp(file.data, { limitInputPixels: maxImagePixels })
       .rotate().resize(220, 220, { fit: "cover" }).jpeg({ quality: 82 }).toBuffer();
-    const mimeType = animated ? "image/gif" : "image/jpeg";
-
-    uploadedImages.set(fileId, {
-      full: { data: full, mimeType },
-      resized: { data: resized, mimeType },
-      thumb: { data: thumb, mimeType: "image/jpeg" },
-    });
-
     const uploadDir = join(process.env.STORAGE_PATH || join(runtimeDataDir(), "uploads"), "posts", fileId);
     mkdirSync(uploadDir, { recursive: true, mode: 0o770 });
     const originalPath = join(uploadDir, "original");
@@ -1232,8 +1214,6 @@ class RevivalBackend {
       }
       return null;
     }
-    const localRuntime = runtimeUploadedImageForPath(pathname);
-    if (localRuntime) return localRuntime;
 
     const match = pathname.match(
       /^\/uploads\/(?:tmp|posts)\/([^/]+)\/(resized|thumb)\.(?:jpg|jpeg|png|gif|webp)$/i,
@@ -1680,6 +1660,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
     memoryShellRequested(pathname) ||
     pathname === "/api/public/menu" ||
     pathname.startsWith("/api/public/menu-target/") ||
+    /^\/api\/(?:upload-|(?:video|audio|live-photo)-uploads)/.test(pathname) ||
     pathname === "/api/post" ||
     pathname.startsWith("/api/related-post-count/") ||
     pathname.startsWith("/api/auto-complete-tags/") ||
@@ -1905,6 +1886,11 @@ async function handleRequest(backend, req, res, next, options = {}) {
   if (pathname === "/img/colorMap.png") {
     setTimeout(() => next(), colorMapStartupDelayMs);
     return;
+  }
+
+  if (/^\/api\/(?:upload-(?:image|video)$|(?:video|audio|live-photo)-uploads(?:\/|$))/.test(pathname) && !siteSettings.anonymousSubmissions) {
+    const account = req.headers.authorization ? await backend.v1Data("/api/v1/auth/account", { headers: { Authorization: req.headers.authorization } }) : null;
+    if (!account || account.role !== "ADMIN") throw new HttpError(403, "Anonymous submissions are closed", "submissions_closed");
   }
 
   if (/^\/api\/(video|audio|live-photo)-uploads(?:\/|$)/.test(pathname)) {

@@ -18,14 +18,14 @@ function pause(ms, signal) {
   });
 }
 
-export async function uploadVideoFile(file, { signal, onProgress = () => {} } = {}) {
+export async function uploadVideoFile(file, { signal, headers = {}, onProgress = () => {} } = {}) {
   const audio = isAudioFile(file);
   const live = isLivePhotoFile(file);
   const endpoint = live ? "/api/live-photo-uploads" : audio ? "/api/audio-uploads" : "/api/video-uploads";
   if (file.size > (live ? 100 * 1024 * 1024 : audio ? audioLimits.maxAudioBytes : videoLimits.maxVideoBytes) || file.size <= 0)
     throw new Error(live ? "Choose a Live Photo of 100 MB or less." : audio ? "Choose audio of 100 MB or less." : "Choose a video of 500 MB or less.");
   async function request(path, options = {}) {
-    const response = await fetch(path, { credentials: "same-origin", signal, ...options });
+    const response = await fetch(path, { credentials: "same-origin", signal, ...options, headers: { ...headers, ...options.headers } });
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload?.success)
       throw new Error(payload?.errorMsg || "Media upload failed. Please try again.");
@@ -48,7 +48,7 @@ export async function uploadVideoFile(file, { signal, onProgress = () => {} } = 
           onProgress({ phase: "uploading", percent: Math.floor(loaded / file.size * 100), loaded, total: file.size });
         },
         method: "PUT",
-        headers: { "Content-Type": "application/octet-stream" },
+        headers: { ...headers, "Content-Type": "application/octet-stream" },
         body: file.slice(offset, end),
       });
       onProgress({ phase: "uploading", percent: Math.floor((end / file.size) * 100), loaded: end, total: file.size });
@@ -70,6 +70,7 @@ export async function uploadVideoFile(file, { signal, onProgress = () => {} } = 
     // Release the temporary session on completion, failure or editor cancellation.
     await fetch(url, {
       method: "DELETE",
+      headers,
       credentials: "same-origin",
       signal: AbortSignal.timeout(10000),
     }).catch(() => {});

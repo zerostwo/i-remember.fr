@@ -54,6 +54,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install media and database test tools
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libimage-exiftool-perl libheif-examples postgresql libpq-dev
+
       - name: Verify source
         run: |
           pnpm lint
