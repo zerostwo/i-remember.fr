@@ -23,6 +23,7 @@ oversized requests fail explicitly instead of silently cutting off the text.
 
 - **Explore memories in 3D.** Drag, orbit, zoom, search, and open individual memories;
   the original galaxy, transitions, typography, and ambient audio are preserved.
+  Search results beyond 200 are available through Previous and Next in the galaxy.
 - **Keep short moments and longer stories.** Write Markdown, attach photos and videos,
   organize tags, and open longer entries with **Read more** directly after the
   excerpt. Long memories and managed pages share the same restrained reading overlay.
@@ -32,8 +33,8 @@ oversized requests fail explicitly instead of silently cutting off the text.
   centered in rows of six. Click a memory photo to view the complete original;
   GIF animation is preserved throughout the gallery.
 - **Keep cards uncluttered.** Photo arrows appear on hover or keyboard focus, with
-  small dots for album navigation. Publication dates and saved locations are not
-  displayed on public cards. Sharing is off by default and can
+  small dots for album navigation. Saved locations and coordinates are private
+  to the owner. The homepage loads excerpts and opening a memory retrieves its complete story. Sharing is off by default and can
   be enabled in **Settings → Site → Show sharing buttons**.
 - **Discover another moment.** Swipe vertically on an opened photo or choose
   either circular side arrow to visit a random memory with a short transition when
@@ -42,7 +43,10 @@ oversized requests fail explicitly instead of silently cutting off the text.
   swipes browse its photos. Admin **Memories** shows sortable view totals;
   opening a memory counts once, while prefetching and changing photos do not.
 - **Invite contributions.** Optional anonymous submissions follow a staged
-  media/text/name/email/terms flow and publish immediately when enabled.
+  media/text/name/email/terms flow and publish immediately when enabled. Closing
+  submissions removes the public entry points. The dialog and `/legal` use the
+  same translated terms. Set the owner name and an optional public contact email
+  or web address under **Settings → Site**.
 - **Manage a personal site.** Dashboard, Memories, Pages, Attachments, and Navigation;
   Site, Account, Security, and Backup settings; keyboard search with ⌘K / Ctrl-K.
 - **Publish Pages from one editor.** Upload media while writing, preview Markdown,
@@ -376,7 +380,8 @@ See [CHANGELOG](CHANGELOG.md), [API documentation](apps/api/README.md),
 This is a source-available restoration with third-party frontend code and assets.
 The repository as a whole is **not offered under MIT, Apache, or GPL**. Restored
 visuals, fonts, audio, and other third-party materials retain their existing rights
-and are not relicensed by this README. See [LICENSE](LICENSE) for the repository notice.
+and are not relicensed by this README. The submission terms cover visitor contributions. Permission to redistribute
+existing third-party materials must be obtained from their rights holders. See [LICENSE](LICENSE).
 
 The default `pnpm test` also runs PostgreSQL, Page workspace, media-library,
 video, audio and Live Photo regressions. Install PostgreSQL (`pg_config` and its

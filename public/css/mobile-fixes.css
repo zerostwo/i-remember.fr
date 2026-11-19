@@ -758,5 +758,12 @@ html body .post-2d-img.has-inline-audio { cursor: default; }
 /* Quiet result feedback preserves the existing search overlay and galaxy. */
 html body .revival-search-feedback { position: fixed; z-index: 12; left: 50%; bottom: 100px; transform: translateX(-50%); width: max-content; max-width: min(320px, 82vw); color: #bbb; font: 13px/1.6 Georgia, serif; text-align: center; pointer-events: auto; }
 html body .revival-search-feedback a { display: block; color: #ddd; padding: 8px 0; text-decoration: underline; text-underline-offset: 4px; }
-html body .revival-search-feedback[hidden], html.revival-memory-mobile-open body .revival-search-feedback { display: none; }
+html body .revival-search-feedback[hidden], html.revival-memory-open body .revival-search-feedback { display: none; }
 @media (max-width: 640px) { html body .revival-search-feedback { bottom: 128px; } }
+
+html body .add-steps-add-options-share[hidden], html body .nav-add-wrapper[hidden] { display: none !important; }
+
+.revival-search-pages { display: flex; justify-content: center; gap: 16px; }
+.revival-search-pages button { border: 0; padding: 7px 4px; background: transparent; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+.revival-search-pages button:disabled { opacity: .4; cursor: default; text-decoration: none; }
+@media (pointer: coarse) { .revival-search-pages button { min-height: 44px; } }

@@ -1,3 +1,4 @@
+import { submissionTerms } from "./submission-terms.js";
 import { uploadAudio } from "./audio.js";
 import { audioLimits } from "../../packages/config/src/media-limits.js";
 import { createVideoUploads, videoChunkBytes } from "./video-uploads.js";
@@ -251,12 +252,6 @@ function routeTag(value = "") {
   return normalizeTag(value).replace(/\s+/g, "-");
 }
 
-function postHaystack(post) {
-  return normalizeTag(
-    `${post.name || ""} ${post.title || ""} ${post.excerpt || ""} ${post.text || ""} ${post.body_markdown || ""}`,
-  );
-}
-
 function numericPostId(post) {
   const id = Number.parseInt(post?.id, 10);
   return Number.isFinite(id) ? id : -1;
@@ -280,13 +275,13 @@ function textTagTokens(value = "", language = "en") {
   });
 }
 
-function autocompleteList(posts, fragment, language = "en") {
+function autocompleteList(memories, fragment, language = "en") {
   const normalized = routeTag(fragment);
   if (!normalized) return [];
 
   const extracted = new Set(curatedTagsByLanguage[normalizeLanguage(language)]);
-  for (const post of posts) {
-    const text = postHaystack(post);
+  for (const memory of memories) {
+    const text = normalizeTag([memory.authorName, memory.title, memory.excerpt, memory.content].join(" "));
     for (const token of text.split(" ")) {
       if (token.length > 1) extracted.add(token);
     }
@@ -696,9 +691,9 @@ function validatedPhotos(fields) {
   });
 }
 
-function v1MemoryToPost(memory, index = 0, language = "en") {
+function v1MemoryToPost(memory, index = 0, language = "en", cardOnly = false) {
   const content = String(memory?.content || "");
-  const preview = memoryPreview(memory);
+  const preview = memory.preview || memoryPreview(memory);
   const excerpt = preview.text + (preview.truncated ? "…" : "");
   const imageKey = v1ImageKey(memory);
   const photos = v1MemoryPhotos(memory);
@@ -721,19 +716,15 @@ function v1MemoryToPost(memory, index = 0, language = "en") {
     img_offset_y: "0",
     text: excerpt,
     excerpt,
-    body_markdown: content,
-    body_html: markdownToHtml(memoryBody(memory) || excerpt),
+    ...(!cardOnly && { body_markdown: content, body_html: markdownToHtml(memoryBody(memory) || excerpt) }),
     is_long_form: isLongForm ? "1" : "0",
     view_count: Number(memory?.viewCount || 0),
     resized_img_width: "600",
     resized_img_height: "600",
-    latitude: memory?.latitude ?? null,
-    longitude: memory?.longitude ?? null,
     has_created_tags: "1",
     is_stared: "0",
     created_at: normalizeLegacyDate(memory?.createdAt),
     published_at: memory?.createdAt || "",
-    location_name: String(memory?.metadata?.locationName || "").trim().slice(0, 160),
     language_id: languageId(language),
     tags: Object.fromEntries((memory?.tags || []).map((tag) => [tag.slug || tag.name, 1])),
   };
@@ -876,6 +867,7 @@ function environmentSiteSettings() {
     ownerAlternateName: process.env.I_REMEMBER_OWNER_ALTERNATE_NAME ?? "段松岐",
     siteName: process.env.I_REMEMBER_SITE_NAME || "I remember,",
     siteTitle: process.env.I_REMEMBER_SITE_TITLE || "Songqi Duan | 段松岐",
+    publicContact: process.env.I_REMEMBER_PUBLIC_CONTACT || "",
     canonicalUrl: process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org",
     timezone: process.env.TZ || "Asia/Shanghai",
     defaultLanguage: normalizeLanguage(process.env.I_REMEMBER_DEFAULT_LANGUAGE || "en"),
@@ -902,6 +894,7 @@ function normalizedSiteSettings(value, fallback) {
     ownerAlternateName: typeof value.ownerAlternateName === "string" ? value.ownerAlternateName : fallback.ownerAlternateName,
     siteName: value.siteName || fallback.siteName,
     siteTitle: value.siteTitle || fallback.siteTitle,
+    publicContact: typeof value.publicContact === "string" ? value.publicContact : fallback.publicContact,
     canonicalUrl: value.canonicalUrl || fallback.canonicalUrl,
     timezone: value.timezone || fallback.timezone,
     defaultLanguage: normalizeLanguage(value.defaultLanguage || fallback.defaultLanguage),
@@ -965,12 +958,12 @@ class RevivalBackend {
   }
 
   async v1PublicMemories(language, query = "", cursor = "", limit = postSearchResultMax) {
-    const params = new URLSearchParams({ limit: String(limit) });
+    const params = new URLSearchParams({ limit: String(limit), view: "card" });
     if (query) params.set("q", normalizeTag(query));
     if (cursor && cursor !== "-1") params.set("cursor", cursor);
     const result = await this.v1Data(`/api/v1/memories?${params}`, { envelope: true });
     if (!Array.isArray(result?.data)) throw new HttpError(503, "Memory service unavailable", "service_unavailable");
-    return Object.assign(uniquePosts(result.data.map((memory, index) => v1MemoryToPost(memory, index, language))), {
+    return Object.assign(uniquePosts(result.data.map((memory, index) => v1MemoryToPost(memory, index, language, true))), {
       total: result.pagination?.total ?? result.data.length,
       nextCursor: result.pagination?.nextCursor || null,
     });
@@ -1081,8 +1074,10 @@ class RevivalBackend {
 
   async autocomplete(language, fragment) {
     if (!normalizeTag(fragment)) return [];
-    const posts = await this.v1PublicMemories(language, fragment, "", 40);
-    return autocompleteList(posts, fragment, language);
+    const query = new URLSearchParams({ q: normalizeTag(fragment), limit: "40" });
+    const memories = await this.v1Data(`/api/v1/memories?${query}`);
+    if (!Array.isArray(memories)) throw new HttpError(503, "Memory service unavailable", "service_unavailable");
+    return autocompleteList(memories, fragment, language);
   }
 
 
@@ -1324,6 +1319,12 @@ function appHtmlUrlForLanguage(language) {
   return htmlUrls[normalizeLanguage(language)] || htmlUrls.en;
 }
 
+function renderTerms(html, language, settings) {
+  const terms = submissionTerms(language, settings);
+  return html.replaceAll("<!-- terms-title -->", () => terms.title)
+    .replace("<!-- terms-body -->", () => terms.body);
+}
+
 function legalPageRequested(pathname) {
   return ["/legal", "/fr/legal", "/en/legal", "/zh/legal"].includes(pathname);
 }
@@ -1438,6 +1439,7 @@ async function renderAppHtml(
   let html = readFileSync(appHtmlUrlForLanguage(normalized), "utf8");
   if (normalized === "zh") html = localizeChineseHtml(html);
   if (backend.production) html = html.replace("/src/public-markdown.js", "/assets/public-markdown.js");
+  html = renderTerms(html, normalized, siteSettings);
   html = versionPublicAssets(html);
   html = html.replace("<head>", () => `<head><script>window.SONGQI_SITE_SETTINGS=${safeScriptJson(siteSettings)};window.SONGQI_UPLOAD_LIMITS=${safeScriptJson({ maxBytes: maxUploadBodyBytes, maxPixels: maxImagePixels, ...videoLimits, ...audioLimits })};</script>`);
 
@@ -1445,6 +1447,10 @@ async function renderAppHtml(
   if (normalized === "zh") html = html.replace('upload<br/><span class="font-light-italic">', '上传<br/><span class="font-light-italic">');
   const uploadHint = normalized === "fr" ? `6 fichiers · Photos ${Math.round(maxUploadBodyBytes / 1048576)} Mo · Vidéos ${videoLimits.maxVideoBytes / 1048576} Mo / ${videoLimits.maxVideoSeconds / 60} min · Audio 100 Mo / 10 min` : normalized === "zh" ? `最多 6 项 · 照片 ${Math.round(maxUploadBodyBytes / 1048576)} MB · 视频 ${videoLimits.maxVideoBytes / 1048576} MB / ${videoLimits.maxVideoSeconds / 60} 分钟 · 音频 100 MB / 10 分钟` : `Up to 6 · Photos ${Math.round(maxUploadBodyBytes / 1048576)} MB · Videos ${videoLimits.maxVideoBytes / 1048576} MB / ${videoLimits.maxVideoSeconds / 60} min · Audio 100 MB / 10 min`;
   html = html.replace(/(class="add-steps-upload-methods-text-size">)[^<]*/g, `$1(${uploadHint})`);
+  if (!siteSettings.anonymousSubmissions) {
+    html = html.replace('class="add-steps-add-options-share ', 'hidden inert class="add-steps-add-options-share ')
+      .replace('class="nav-add-wrapper ', 'hidden inert class="nav-add-wrapper ');
+  }
   if (siteSettings.memorySharing) html = html.replace("<body>", '<body data-memory-sharing="true">');
   html = patchLanguageShell(html, normalized, pathname);
   html = injectTracking(html, siteSettings);
@@ -1466,7 +1472,7 @@ async function renderAppHtml(
 
   return html.replace(
     /var DEFAULT_POST = \(function \(\) \{[\s\S]*?\n\s*\}\(\)\);/,
-    `var DEFAULT_POST = ${safeScriptJson(directPayload)};`,
+    () => `var DEFAULT_POST = ${safeScriptJson(directPayload)};`,
   );
 }
 
@@ -1490,7 +1496,7 @@ function replaceDefaultPosts(html, payload, fadePercent = 100) {
     .replace(/<span class="header-fade-percent-num">\d+<\/span>/, `<span class="header-fade-percent-num">${fadePercent}</span>`)
     .replace(
     /var DEFAULT_POSTS = [\s\S]*?\n\s*var DEFAULT_POST =/,
-    `var REVIVAL_FADING = ${100 - fadePercent};\n    var DEFAULT_POSTS = ${safeScriptJson(payload)};\n    var DEFAULT_POST =`,
+    () => `var REVIVAL_FADING = ${100 - fadePercent};\n    var DEFAULT_POSTS = ${safeScriptJson(payload)};\n    var DEFAULT_POST =`,
   );
 }
 
@@ -1593,14 +1599,7 @@ function localizeChineseHtml(html) {
     output = output.replace(pattern, replacement);
   }
 
-  return output.replace(
-    /<div class="terms-description font-light">[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*<div class="scroll-indicator"><\/div>\s*<\/div>/,
-    `<div class="terms-description font-light"><span class='font-bold'>第 1 条 - 服务说明</span><br/><br/>I-Remember.fr 用于保存和分享与照片相关的个人回忆。提交内容时，请确认你拥有相应权利，并同意该内容可在本服务中展示。<br/><br/><span class='font-bold'>第 2 条 - 内容责任</span><br/><br/>请勿上传违法、侵权、仇恨、色情、骚扰、威胁或包含他人隐私的信息。你需要对自己提交的文字、图片和其他内容负责。<br/><br/><span class='font-bold'>第 3 条 - 数据与删除</span><br/><br/>服务会保存你提交的名字、邮箱、回忆文字和图片，用于展示、检索和维护本项目。若需要删除或更正内容，请联系站点维护者。<br/><br/><span class='font-bold'>第 4 条 - 技术要求</span><br/><br/>本体验需要支持 WebGL 的现代浏览器。</div>
-            </div>
-        </div>
-        <div class="scroll-indicator"></div>
-    </div>`,
-  );
+  return output;
 }
 
 export function createRevivalMiddleware(options = {}) {
@@ -1655,7 +1654,7 @@ async function handleRequest(backend, req, res, next, options = {}) {
   }
   if (pathname.startsWith("/admin") || pathname.startsWith("/api/") || legalPageRequested(pathname)) res.setHeader("X-Robots-Tag", "noindex, nofollow");
   const needsRuntimeSettings =
-    pathname === "/robots.txt" || /^\/sitemap(?:-\d+)?\.xml$/.test(pathname) ||
+    legalPageRequested(pathname) || pathname === "/robots.txt" || /^\/sitemap(?:-\d+)?\.xml$/.test(pathname) ||
     appShellRequested(pathname) ||
     memoryShellRequested(pathname) ||
     pathname === "/api/public/menu" ||
@@ -1807,11 +1806,13 @@ async function handleRequest(backend, req, res, next, options = {}) {
     }
 
     if (legalPageRequested(pathname)) {
-      sendHtml(res, readFileSync(legalHtmlUrl, "utf8"));
+      const language = languageFromRequest(url, pathname, defaultLanguage);
+      const template = readFileSync(legalHtmlUrl, "utf8").replace('<html lang="en">', `<html lang="${language}">`);
+      sendHtml(res, renderTerms(template, language, siteSettings));
       return;
     }
 
-    if ((await backend.needsAdminSetup()) && appShellRequested(pathname)) {
+    if (appShellRequested(pathname) && await backend.needsAdminSetup()) {
       res.statusCode = 302;
       res.setHeader("Location", "/admin/setup");
       res.end();

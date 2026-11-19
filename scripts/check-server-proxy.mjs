@@ -17,6 +17,7 @@ const v1CreatedMemories = [];
 let v1ViewCount = 0;
 let siteDefaultLanguage = "zh";
 let anonymousSubmissions = true;
+let setupStatusReads = 0;
 let v1Ready = true;
 let v1Reachable = true;
 async function freePort() {
@@ -28,6 +29,7 @@ async function freePort() {
 }
 
 const upstream = createServer(async (req, res) => {
+  if (req.url === "/api/v1/auth/status") setupStatusReads++;
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const body = Buffer.concat(chunks).toString("utf8");
@@ -74,13 +76,13 @@ const upstream = createServer(async (req, res) => {
     );
     return;
   }
-  if (req.method === "GET" && (req.url.startsWith("/api/v1/memories?limit=") || req.url.startsWith("/api/v1/public/random?"))) {
+  if (req.method === "GET" && ((req.url.startsWith("/api/v1/memories?") && new URL(req.url, "http://api.test").searchParams.has("limit")) || req.url.startsWith("/api/v1/public/random?"))) {
     const params = new URL(req.url, "http://api.test").searchParams;
     const all = [
           {
             id: v1PublicId,
             title: "Prisma public memory",
-            content: "Rendered from the v1 public memory API.",
+            content: "Rendered from the v1 public memory API. " + "Long story. ".repeat(25) + " Rhododendron.",
             excerpt: "Rendered from the v1 public memory API.",
             authorName: "Prisma",
             visibility: "PUBLIC",
@@ -390,6 +392,8 @@ try {
   assert.equal(homeAfterSetupResponse.status, 200);
   const homeAfterSetupHtml = await homeAfterSetupResponse.text();
   assert.match(homeAfterSetupHtml, /Prisma public memory/);
+  assert.doesNotMatch(homeAfterSetupHtml, /hidden inert class="(?:nav-add-wrapper|add-steps-add-options-share)/);
+  assert.doesNotMatch(homeAfterSetupHtml, /Rhododendron/);
   assert.match(homeAfterSetupHtml, new RegExp(`"public_id":"${v1PublicId}"`));
 
   const englishUiHomeResponse = await fetch(`${baseUrl}/?ln=en`);
@@ -398,6 +402,9 @@ try {
   assert.match(englishUiHomeHtml, /var LANG = 'en';/);
   assert.match(englishUiHomeHtml, /Chinese memory on every UI language/);
   assert.match(englishUiHomeHtml, new RegExp(`"public_id":"${v1ChinesePublicId}"`));
+
+  const completions = await fetch(`${baseUrl}/api/auto-complete-tags/rhodo`);
+  assert.ok((await completions.json()).data.list.includes("rhododendron"), "Suggest words beyond the card excerpt");
 
   const menuResponse = await fetch(`${baseUrl}/api/public/menu`);
   assert.equal(menuResponse.status, 200);
@@ -428,6 +435,20 @@ try {
   );
   assert.equal(directPostPayload.data.text, "Rendered from the v1 direct memory API. A & B.", "Card text is escaped once by the DOM renderer");
   assert.equal(directPostPayload.data.is_long_form, "0");
+  assert.ok(directListPayload.data.posts.every(post => !("body_markdown" in post) && !("body_html" in post)));
+  assert.doesNotMatch(v1PublicMemoryHtml, /Foundation for Medical Research|Fondation pour la Recherche Médicale/);
+  const englishTerms = await (await fetch(`${baseUrl}/en/legal`)).text();
+  assert.match(englishTerms, /lang="en"/);
+  assert.match(englishTerms, /Submission terms and privacy/);
+  assert.match(await (await fetch(`${baseUrl}/fr/legal`)).text(), /Conditions de contribution/);
+  assert.match(await (await fetch(`${baseUrl}/legal`)).text(), /投稿条款与隐私/);
+  const beforeStatic = setupStatusReads;
+  for (const path of ["/css/main.css", "/js/revival-runtime.js", "/img/memory-mark-32.png"]) {
+    const resource = await fetch(baseUrl + path);
+    assert.equal(resource.status, 200);
+    await resource.arrayBuffer();
+  }
+  assert.equal(setupStatusReads, beforeStatic, "Static asset requests must not probe the user table");
   assert.match(directPostPayload.data.body_html, /<strong>A &amp; B<\/strong>/);
   assert.doesNotMatch(directPostPayload.data.body_html, /<h1>/);
   assert.match(v1PublicMemoryHtml, new RegExp(`rel="canonical" href="https://songqi.org/memory/${v1PublicId}"`));
@@ -489,8 +510,8 @@ try {
   const publicSubmissionBody = await publicSubmissionResponse.json();
   assert.equal(publicSubmissionBody.data.public_id, v1SubmittedId);
   assert.equal(publicSubmissionBody.data.status, "NORMAL");
-  assert.equal(publicSubmissionBody.data.latitude, 31.2304);
-  assert.equal(publicSubmissionBody.data.longitude, 121.4737);
+  assert.equal(publicSubmissionBody.data.latitude, undefined);
+  assert.equal(publicSubmissionBody.data.longitude, undefined);
   assert.equal(v1CreateBodies[0].latitude, 31.2304);
   assert.equal(v1CreateBodies[0].longitude, 121.4737);
   assert.equal(v1CreateBodies[0].metadata.language, "zh");
@@ -746,7 +767,10 @@ try {
       assert.equal(response.headers.get("cache-control"), "no-store");
       const cleanResponse = await fetch(`${englishBaseUrl}${response.headers.get("location")}`);
       assert.equal(cleanResponse.status, 200);
-      assert.match(await cleanResponse.text(), /var LANG = 'en';/);
+      const html = await cleanResponse.text();
+      assert.match(html, /var LANG = 'en';/);
+      assert.match(html, /hidden inert class="nav-add-wrapper/);
+      assert.match(html, /hidden inert class="add-steps-add-options-share/);
     }
     const frenchResponse = await fetch(`${englishBaseUrl}/?ln=fr`, { redirect: "manual" });
     assert.equal(frenchResponse.status, 200);

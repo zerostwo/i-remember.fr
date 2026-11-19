@@ -1,3 +1,4 @@
+import { memoryPreview } from "../../../packages/content/src/markdown.js";
 import { authenticate, requireRole } from "./auth.js";
 import type {
   CommentRecord,
@@ -49,6 +50,11 @@ import {
   settingsInput,
 } from "./validation.js";
 
+function publicMemoryMetadata(metadata: MemoryRecord["metadata"]) {
+  const keys = ["language", "languageCode", "source", "imageKey", "isLongForm"];
+  return Object.fromEntries(Object.entries(metadata || {}).filter(([key]) => keys.includes(key)));
+}
+
 function memoryDto(memory: MemoryRecord, includePrivate = false, summary = false) {
   const dto = {
     id: memory.publicId,
@@ -60,10 +66,9 @@ function memoryDto(memory: MemoryRecord, includePrivate = false, summary = false
     authorName: memory.authorName,
     visibility: memory.visibility,
     status: memory.status,
-    latitude: memory.latitude,
-    longitude: memory.longitude,
+    ...(includePrivate ? { latitude: memory.latitude, longitude: memory.longitude } : {}),
     emotion: memory.emotion,
-    metadata: memory.metadata || {},
+    metadata: includePrivate ? memory.metadata || {} : publicMemoryMetadata(memory.metadata),
     attachments: (memory.attachments || []).map((attachment) => ({
       id: attachment.id,
       url: attachment.url,
@@ -177,10 +182,15 @@ export class MemoryController {
     const principal = authenticate(context.req);
     const query = memoryListQuery(context.url.searchParams);
     const page = await this.memories.page(principal, query);
+    const cardView = context.url.searchParams.get("view") === "card";
     return {
       success: true,
       pagination: page.pagination,
-      data: page.data.map((memory) => memoryDto(memory, principal.role === "ADMIN", query.summary)),
+      data: page.data.map(memory => {
+        if (!cardView) return memoryDto(memory, principal.role === "ADMIN", query.summary);
+        const preview = memoryPreview(memory);
+        return { ...memoryDto(memory, false, true), content: preview.text, excerpt: preview.text, preview };
+      }),
     };
   }
 

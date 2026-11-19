@@ -307,10 +307,12 @@ assert.equal(navigation.swipeDirection(10, 100, 2000), 0, "Slow scrolling must n
   mobile.matches = false; breakpointChanged();
   assert.equal(classes.get("revival-memory-mobile-open"), false);
   assert.equal(controlsParent, panel, "Desktop arrows stay at the card edges");
+  assert.equal(classes.get("revival-memory-open"), true, "Keep search paging outside the opened card on desktop");
   mobile.matches = true; breakpointChanged();
   assert.equal(classes.get("revival-memory-mobile-open"), true);
   nav.closed();
   assert.equal(classes.get("revival-memory-mobile-open"), false, "Closing restores the footer and globe");
+  assert.equal(classes.get("revival-memory-open"), false);
   assert.ok(patchedMain.includes('r.particles.visible=!document.documentElement.classList.contains("revival-memory-mobile-open")'));
 }
 // Exercise the actual transition path, including directional and reduced-motion behavior.
@@ -604,7 +606,7 @@ const submissionContext = {
   normalizeSearchTag: runtimeFunction("normalizeSearchTag"),
   localApiUrl: url => new URL(url, "http://local").href,
   appendQueryData: url => url, parseAjaxPayload: JSON.parse,
-  showSearchFeedback: (query, payload, failed) => submittedFeedback.push({ query, total: payload?.total, failed }),
+  showSearchFeedback: (query, payload, failed, paging) => submittedFeedback.push({ query, total: payload?.total, failed, paging }),
   setSearchFallbackNav: () => {},
   showLegacySearchResults: payload => submittedResults.push(payload.data.posts[0].id),
   showSearchFallbackNoResult: query => emptyResults.push(query),
@@ -668,11 +670,28 @@ submittedText = "many"; submitSearch();
 const manyIndex = submittedRequests.length - 1;
 submittedRequests[manyIndex].resolve({ ok: true, status: 200, text: async () => JSON.stringify({ success: true, data: { posts: Array.from({ length: 200 }, (_, i) => ({ id: String(i) })), total: 201, nextCursor: "page-two" } }) });
 await new Promise(resolve => setImmediate(resolve));
+assert.equal(submittedRequests.length, manyIndex + 1, "Fetch only the visible batch until the visitor requests more");
+let pageControls = submittedFeedback.at(-1).paging;
+assert.equal(pageControls.page, 1);
+assert.equal(pageControls.pages, 2);
+assert.equal(pageControls.previous, false);
+assert.equal(pageControls.next, true);
+pageControls.move(1);
 assert.equal(new URL(submittedRequests.at(-1).url).searchParams.get("lastId"), "page-two");
-let finalPosts;
-submissionContext.showLegacySearchResults = payload => { finalPosts = payload.data.posts; };
 await finishSubmitted(submittedRequests.length - 1, [{ id: "200" }], 201);
-assert.equal(finalPosts.length, 201);
+assert.equal(submittedResults.at(-1), "200", "The 201st result is the first target of its own visible batch");
+pageControls = submittedFeedback.at(-1).paging;
+assert.equal(pageControls.page, 2);
+assert.equal(pageControls.pages, 2);
+assert.equal(pageControls.previous, true);
+assert.equal(pageControls.next, false);
+pageControls.move(-1);
+assert.equal(new URL(submittedRequests.at(-1).url).searchParams.get("lastId"), "-1");
+submitSearch();
+const currentRequest = submittedRequests.length - 1;
+await finishSubmitted(currentRequest, [{ id: "new-query" }], 1);
+await finishSubmitted(currentRequest - 1, [{ id: "old-page" }], 201);
+assert.equal(submittedResults.at(-1), "new-query");
 
 const menuTimers = [], menuOpened = [];
 const menuContext = { menuNavigationSequence: 2, showLegacySearchResults: () => true,

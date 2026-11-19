@@ -197,6 +197,7 @@ export function v1SettingsPayload(settings = {}) {
     ownerAlternateName: String(settings.ownerAlternateName ?? "").trim(),
     siteName: String(settings.siteName || "I remember,").trim() || "I remember,",
     siteTitle: String(settings.siteTitle || "Songqi").trim() || "Songqi",
+    publicContact: String(settings.publicContact ?? "").trim(),
     canonicalUrl: String(settings.canonicalUrl || "https://songqi.org").trim(),
     timezone: String(settings.timezone || "Asia/Shanghai").trim() || "Asia/Shanghai",
     defaultLanguage: language(settings.defaultLanguage),

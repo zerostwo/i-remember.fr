@@ -57,6 +57,7 @@ export type RuntimeSettings = {
   siteDescription: string;
   ownerName: string;
   ownerAlternateName: string;
+  publicContact: string;
   canonicalUrl: string;
   timezone: string;
   defaultLanguage: "en" | "fr" | "zh";
@@ -97,6 +98,7 @@ function initialRuntimeSettings(): RuntimeSettings {
     ownerAlternateName: String(process.env.I_REMEMBER_OWNER_ALTERNATE_NAME ?? "段松岐"),
     siteName: String(process.env.I_REMEMBER_SITE_NAME || "I remember,"),
     siteTitle: String(process.env.I_REMEMBER_SITE_TITLE || "Songqi Duan | 段松岐"),
+    publicContact: process.env.I_REMEMBER_PUBLIC_CONTACT || "",
     canonicalUrl: String(process.env.I_REMEMBER_CANONICAL_URL || "https://songqi.org"),
     timezone: String(process.env.TZ || "Asia/Shanghai"),
     defaultLanguage,
@@ -127,6 +129,7 @@ function normalizedRuntimeSettings(values: Record<string, unknown>): RuntimeSett
       typeof values.siteTitle === "string" && values.siteTitle.trim()
         ? values.siteTitle.trim().slice(0, 120)
         : "Songqi Duan | 段松岐",
+    publicContact: typeof values.publicContact === "string" ? values.publicContact.trim() : "",
     canonicalUrl:
       typeof values.canonicalUrl === "string" && values.canonicalUrl.trim()
         ? values.canonicalUrl.trim().slice(0, 500)

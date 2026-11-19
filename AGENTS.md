@@ -394,3 +394,6 @@ Current backend/product decisions:
 - Owner instruction on 2026-11-04: repair the nine findings from the current
   review and close the test coverage gaps, preserving the existing galaxy
   visuals and interactions. Validate the complete local release before delivery.
+
+- On 2026-11-18, the owner requested that the review fixes preserve the current
+  galaxy appearance and interactions and receive a complete local test run.

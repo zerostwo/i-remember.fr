@@ -565,6 +565,16 @@ export function settingsInput(value: Record<string, unknown>) {
     catch { throw new ApiError(400, "Choose a valid timezone", "invalid_timezone"); }
     value = { ...value, timezone: (value.timezone as string).trim() };
   }
+  if (has(value, "publicContact")) {
+    const contact = typeof value.publicContact === "string" ? value.publicContact.trim() : null;
+    const isEmail = contact && /^[^\s@<>:/?#]+@[^\s@<>:/?#]+\.[^\s@<>:/?#]+$/.test(contact);
+    const url = contact && URL.canParse(contact) ? new URL(contact) : null;
+    const isWebPage = url && ["http:", "https:"].includes(url.protocol) && !url.username && !url.password;
+    if (contact === null || contact.length > 500 || (contact && !isEmail && !isWebPage)) {
+      throw new ApiError(400, "Enter a public email address or contact page URL", "invalid_public_contact");
+    }
+    value = { ...value, publicContact: contact };
+  }
   if (has(value, "canonicalUrl")) {
     try {
       const url = new URL(String(value.canonicalUrl));

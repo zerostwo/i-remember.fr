@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep private location labels and coordinates out of public responses and embedded
+  memory data. Load card excerpts for discovery and full text when a memory opens.
+- Page large searches in batches of up to 200 selectable stars. Hide submission
+  controls when contributions are closed, including on the intro screen.
+- Resolve old public IDs in the owner editor. Serve shared localized submission
+  terms with the configured owner and optional public contact.
+- Serve static files without a first-owner database check and update Prisma and
+  its transitive dependencies.
+
+
 - Enforce closed anonymous uploads while retaining authenticated owner uploads;
   remove persistent image buffers so deleted previews disappear immediately.
 - Revoke previous sessions after a password change and validate saved timezones.

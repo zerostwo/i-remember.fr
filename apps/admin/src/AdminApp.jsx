@@ -306,6 +306,7 @@ function settingsFromV1(settings = {}, account = {}) {
     siteDescription: settings.siteDescription ?? "",
     ownerName: settings.ownerName ?? "",
     ownerAlternateName: settings.ownerAlternateName ?? "",
+    publicContact: settings.publicContact || "",
     canonicalUrl: settings.canonicalUrl || "https://songqi.org",
     timezone: settings.timezone || "Asia/Shanghai",
     defaultLanguage: settings.defaultLanguage || "en",
@@ -714,10 +715,18 @@ export function AdminApp() {
     setError("");
     try {
       const payload = await v1Bootstrap();
-      const requested = memoryIdFromLocation();
+      let requested = memoryIdFromLocation();
       if (requested && routeFromLocation() === "memory-editor") {
         // A direct editor route must not depend on the owner's cached list.
         const record = await v1Api(`/api/v1/memories/${encodeURIComponent(requested)}`);
+        if (memoryIdFromLocation() !== requested || routeFromLocation() !== "memory-editor") return;
+        if (record.id !== requested) {
+          requested = record.id;
+          const url = new URL(window.location.href);
+          url.searchParams.set("id", requested);
+          window.history.replaceState(window.history.state, "", url);
+          locationRef.current = url.href;
+        }
         payload.memories = [...payload.memories.filter(item => item.id !== record.id), v1MemoryAdmin(record)];
       }
       if (requested) setSelectedMemoryId(requested);
@@ -2842,6 +2851,7 @@ function SettingsView({
     siteDescription: settings.siteDescription ?? "",
     ownerName: settings.ownerName ?? "",
     ownerAlternateName: settings.ownerAlternateName ?? "",
+    publicContact: settings.publicContact || "",
     canonicalUrl: settings.canonicalUrl || "https://songqi.org",
     timezone: settings.timezone || "Asia/Shanghai",
     defaultLanguage: settings.defaultLanguage || "en",
@@ -2872,6 +2882,7 @@ function SettingsView({
       siteDescription: settings.siteDescription ?? "",
       ownerName: settings.ownerName ?? "",
       ownerAlternateName: settings.ownerAlternateName ?? "",
+      publicContact: settings.publicContact || "",
       canonicalUrl: settings.canonicalUrl || "https://songqi.org",
       timezone: settings.timezone || "Asia/Shanghai",
       defaultLanguage: settings.defaultLanguage || "en",
@@ -2891,6 +2902,7 @@ function SettingsView({
     settings.siteDescription,
     settings.ownerName,
     settings.ownerAlternateName,
+    settings.publicContact,
     settings.canonicalUrl,
     settings.timezone,
     settings.defaultLanguage,
@@ -2959,6 +2971,7 @@ function SettingsView({
                       onChange={(value) => updateSite("canonicalUrl", value)}
                       type="url"
                     />
+                    <TextField label="Public contact" description="Email address or contact page shown in the submission terms for corrections and removal requests." value={siteDraft.publicContact} onChange={value => updateSite("publicContact", value)} maxLength={500} />
                     <p className="admin-settings-section-label">Search engines</p>
                     <TextField label="Site description" description="A concise introduction for search results and shared links." value={siteDraft.siteDescription} onChange={(value) => updateSite("siteDescription", value)} />
                     <TextField label="Owner name" description="Your public name, used in homepage metadata and structured data." value={siteDraft.ownerName} onChange={(value) => updateSite("ownerName", value)} />

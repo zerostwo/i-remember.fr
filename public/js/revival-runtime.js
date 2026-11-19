@@ -820,7 +820,7 @@
       showSearchFeedback("", null, false);
     }
   });
-  function showSearchFeedback(query, payload, failed) {
+  function showSearchFeedback(query, payload, failed, paging) {
     var host = document.body;
     if (!host) return;
     var feedback = document.querySelector(".revival-search-feedback");
@@ -831,6 +831,7 @@
       feedback.setAttribute("aria-live", "polite");
       host.appendChild(feedback);
     }
+    var focusedPage = document.activeElement && feedback.contains(document.activeElement) && document.activeElement.getAttribute("data-page-step");
     feedback.replaceChildren();
     feedback.hidden = !query;
     if (!query) return;
@@ -840,12 +841,35 @@
     var count = payload.total == null ? (payload.posts || []).length : payload.total;
     var status = document.createElement("span");
     status.textContent = lang === "fr" ? count + " souvenir(s)" : lang === "zh" ? count + " 条回忆" : count + (count === 1 ? " memory found" : " memories found");
+    if (paging && paging.pages) status.textContent += " · " + paging.page + "/" + paging.pages;
     feedback.appendChild(status);
     if (payload.posts && payload.posts[0]) {
       var first = payload.posts[0], link = document.createElement("a");
       link.href = window.__REVIVAL_PUBLIC_MEMORY_PATH__(first);
       link.textContent = (lang === "fr" ? "Ouvrir : " : lang === "zh" ? "打开：" : "Open: ") + String(first.title_text || first.name || query).slice(0, 55);
       feedback.appendChild(link);
+    }
+    if (paging) {
+      var labels = lang === "fr" ? ["Précédent", "Suivant"] : lang === "zh" ? ["上一批", "下一批"] : ["Previous", "Next"];
+      var nav = document.createElement("div");
+      nav.className = "revival-search-pages";
+      function pageButton(label, step, disabled) {
+        var button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        button.disabled = disabled;
+        button.setAttribute("data-page-step", String(step));
+        button.__skipPreventDefault = true;
+        button.addEventListener("click", function () { paging.move(step); });
+        nav.appendChild(button);
+      }
+      pageButton(labels[0], -1, !paging.previous);
+      pageButton(labels[1], 1, !paging.next);
+      feedback.appendChild(nav);
+      if (focusedPage) {
+        var focusTarget = nav.querySelector('[data-page-step="' + focusedPage + '"]:enabled') || nav.querySelector("button:enabled");
+        if (focusTarget) focusTarget.focus({ preventScroll: true });
+      }
     }
   }
 
@@ -1528,6 +1552,8 @@
   }
 
   function exitLegacySearch() {
+    ++searchFeedbackSequence;
+    showSearchFeedback("", null, false);
     var ui = legacyModule("uiController"), scene = legacyModule("scene3dController");
     var field = document.querySelector(".search-input");
     if (field) field.blur();
@@ -1651,7 +1677,7 @@
       "html.is-touch-device .base-3d-container{touch-action:none}",
       ".revival-mobile-map-hint{position:fixed;z-index:35;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));max-width:calc(100% - 32px);border:1px solid rgba(255,255,255,.26);border-radius:999px;background:rgba(8,9,11,.9);color:#fff;font:16px/1.35 Helvetica,Arial,sans-serif;padding:12px 16px;text-align:center;transform:translate3d(-50%,12px,0);opacity:0;pointer-events:none;transition:opacity .22s linear,transform .22s ease;white-space:nowrap}",
       ".revival-mobile-map-hint.is-visible{opacity:1;transform:translate3d(-50%,0,0)}",
-      "html.revival-empty-memory .add-steps-add-options-look,html.revival-empty-memory .nav-map-wrapper{display:none!important;pointer-events:none!important}",
+      "html.revival-empty-memory .add-steps-add-options-share:not([hidden]) + .add-steps-add-options-look,html.revival-empty-memory .nav-map-wrapper{display:none!important;pointer-events:none!important}",
       "@media(max-width:760px),(max-width:1024px) and (max-height:500px){.header-description{display:none!important}.header-logo{left:22px!important;top:28px!important;transform:scale(.72)!important;transform-origin:left top!important}.header-fade-container{right:16px!important;top:12px!important;transform:scale(.76)!important;transform-origin:right top!important}.nav{left:8px!important;width:72px!important;margin-top:-78px!important}.nav-map-wrapper{left:0!important;width:62px!important;height:62px!important;margin:8px 0 8px auto!important}.nav-map-btn{width:62px!important;height:62px!important}.nav-search-wrapper,.nav-add-wrapper{margin:8px 0 8px auto!important}.nav-text,.nav-search-item{left:52px!important}.search-center-wrapper{left:20px!important;right:20px!important;width:auto!important;margin-left:0!important;margin-top:-58px!important}.search-input-wrapper,.search-line{width:100%!important}.search-input,.search-input-placeholder{font-size:50px!important;line-height:58px!important;max-width:100%!important;white-space:nowrap!important}.search-not-found{left:0!important;width:100%!important;font-size:15px!important;line-height:22px!important}.search-btn{right:0!important}.footer{height:132px!important}.footer-content{height:132px!important;display:flex!important;align-items:flex-end!important;justify-content:flex-end!important;gap:8px 12px!important;flex-wrap:wrap!important;padding:0 16px 18px 16px!important}.footer-content>*{float:none!important;margin:0!important}.footer-logo-wrapper{order:20;width:46px!important;height:54px!important}.footer-share,.footer-sound-btn{width:24px!important;height:24px!important}.footer-link-item{font-size:9px!important;line-height:14px!important;white-space:nowrap!important}.footer-link-lang-list{bottom:18px!important}.terms-wrapper,.credit-wrapper{width:100vw!important;max-width:100vw!important}.revival-panel-resize{display:none!important}}",
       ".nav{left:0!important;width:100px!important;margin-top:-100px!important}",
       ".nav-map-wrapper{left:19px!important;width:92px!important;height:92px!important;margin:12px 0 12px auto!important}",
@@ -1700,6 +1726,7 @@
     element.setAttribute("data-menu-id", item.id);
     element.setAttribute("data-menu-type", item.type);
     element.setAttribute("data-menu-label", item.label);
+    if (item.type === "SEARCH") element.setAttribute("data-menu-target", item.targetValue || item.label);
     element.setAttribute("data-managed-generated", "true");
     return element;
   }
@@ -2098,9 +2125,9 @@
     search.style.opacity = "1";
   }
 
-  function submitSearchFallback() {
+  function submitSearchFallback(query) {
     ++menuNavigationSequence;
-    var raw = searchInputText();
+    var raw = query || searchInputText();
     var tag = normalizeSearchTag(raw);
     var url;
 
@@ -2121,23 +2148,43 @@
             : [];
         if (posts.length > 0) {
           var sequence = searchFeedbackSequence;
-          var seenCursors = {};
-          function nextPage(cursor) {
-            if (!cursor || seenCursors[cursor] || sequence !== searchFeedbackSequence) return;
-            seenCursors[cursor] = true;
-            localApiAjax({ url: url + "&lastId=" + encodeURIComponent(cursor), type: "GET", success: function (next) {
-              if (sequence !== searchFeedbackSequence) return;
-              var seen = {}; posts.forEach(function (p) { seen[p.id] = true; });
-              (next.data.posts || []).forEach(function (p) { if (!seen[p.id]) { posts.push(p); seen[p.id] = true; } });
-              showLegacySearchResults({ data: { posts: posts } });
-              nextPage(next.data.nextCursor);
-            }, error: function () { if (sequence === searchFeedbackSequence) showSearchFeedback(raw, null, true); } });
+          var cursors = [null], pageIndex = 0, loading = false;
+          function renderPage(data) {
+            var cursor = data.nextCursor;
+            var next = !!cursor && cursors.indexOf(cursor) === -1;
+            var paging = pageIndex || next ? {
+              page: pageIndex + 1, pages: Math.ceil(data.total / posts.length),
+              previous: pageIndex > 0, next: next, move: move
+            } : null;
+            showSearchFeedback(raw, data, false, paging);
+            showLegacySearchResults({ data: data });
+
+            function move(step) {
+              if (loading || sequence !== searchFeedbackSequence || (step > 0 ? !next : !pageIndex)) return;
+              loading = true;
+              var target = pageIndex + step;
+              var after = step > 0 ? cursor : cursors[target];
+              localApiAjax({ url: url + "&lastId=" + encodeURIComponent(after || "-1"), type: "GET",
+                success: function (response) {
+                  if (sequence !== searchFeedbackSequence) return;
+                  loading = false;
+                  cursors = cursors.slice(0, target);
+                  cursors.push(after);
+                  pageIndex = target;
+                  renderPage(response.data);
+                }, error: function () {
+                  loading = false;
+                  if (sequence === searchFeedbackSequence) {
+                    showSearchFeedback(raw, data, false, paging);
+                    var feedback = document.querySelector(".revival-search-feedback");
+                    var lang = siteLanguage();
+                    feedback.appendChild(document.createTextNode(lang === "fr" ? "Échec du chargement. Réessayez." : lang === "zh" ? "加载失败，请重试。" : "Could not load this page. Try again."));
+                  }
+                } });
+            }
           }
-          nextPage(payload.data.nextCursor);
           setSearchFallbackNav(raw || tag);
-          try {
-            showLegacySearchResults({ data: { posts: posts } });
-          } catch (error) {}
+          renderPage(payload.data);
         } else {
           showSearchFallbackNoResult(raw || tag);
         }
@@ -2498,8 +2545,13 @@
           return;
         }
 
+        if (type === "SEARCH") {
+          submitSearchFallback(managedItem.getAttribute("data-menu-target") || managedItem.getAttribute("data-menu-label"));
+          return;
+        }
         var menuSequence = ++menuNavigationSequence;
         ++searchFeedbackSequence;
+        showSearchFeedback("", null, false);
         showFooterSearchToken(managedItem.getAttribute("data-menu-label") || managedItem.textContent);
         fetchJson(
           "/api/public/menu-target/" +

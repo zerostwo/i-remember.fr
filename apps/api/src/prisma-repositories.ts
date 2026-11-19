@@ -43,8 +43,9 @@ const memoryInclude = {
 } as const;
 
 function publicIdConflict(error: any) {
-  const fields = error.meta?.target || error.meta?.driverAdapterError?.cause?.constraint?.fields;
-  return error.code === "P2002" && String(fields).includes("public_id");
+  if (error.code !== "P2002") return false;
+  const constraint = error.meta?.driverAdapterError?.cause?.constraint;
+  return constraint?.index === "memory_links_pkey" || constraint?.index === "memories_public_id_key";
 }
 
 export function createPublicMemoryId() {

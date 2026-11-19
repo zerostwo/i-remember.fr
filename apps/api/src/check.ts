@@ -75,7 +75,8 @@ class MemoryRepo implements MemoryRepository {
       authorName: "Tester",
       visibility: "PUBLIC",
       status: "NORMAL",
-      metadata: {},
+      metadata: { locationName: "Test garden", imageKey: "revival-upload" },
+      latitude: 40, longitude: 11,
       viewCount: 0,
       createdAt: new Date("2026-01-01T00:00:00Z"),
       updatedAt: new Date("2026-01-01T00:00:00Z"),
@@ -650,6 +651,21 @@ assert.equal(oversizedJson.body.error.code, "request_too_large");
 assert.equal((await json("/api/v1/memories")).body.data[0].id, "pub_1");
 assert.equal((await json("/api/v1/search?q=first")).body.data.length, 1);
 assert.equal((await json("/api/v1/memories/pub_1")).body.data.title, "First memory");
+
+const publicDetail = (await json("/api/v1/memories/pub_1")).body.data;
+const cardList = (await json("/api/v1/memories?view=card")).body.data;
+for (const dto of [publicDetail, cardList[0], (await json("/api/v1/search?q=first")).body.data[0]]) {
+  assert.equal(dto.metadata.imageKey, "revival-upload");
+  assert.equal(dto.metadata.locationName, undefined);
+  assert.equal(dto.latitude, undefined);
+  assert.equal(dto.longitude, undefined);
+}
+assert.equal(cardList[0].preview.text, publicDetail.content);
+assert.equal((await json("/api/v1/memories/pub_1", { headers: adminHeaders })).body.data.metadata.locationName, "Test garden");
+
+const contactSetting = await json("/api/v1/settings", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ publicContact: "editor@example.test" }) });
+assert.equal(contactSetting.response.status, 200);
+assert.equal((await json("/api/v1/public/settings")).body.data.publicContact, "editor@example.test");
 
 const invalidMemoryLimit = await json("/api/v1/memories?limit=abc");
 assert.equal(invalidMemoryLimit.response.status, 400);

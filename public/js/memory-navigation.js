@@ -6,6 +6,7 @@
   function syncPresentation() {
     if (!root) return;
     var compact = mobile.matches;
+    document.documentElement.classList.toggle("revival-memory-open", Boolean(current));
     document.documentElement.classList.toggle("revival-memory-mobile-open", Boolean(current && compact));
     // Keep navigation outside the scrolling card on phones, so it never covers
     // the text. Desktop arrows remain anchored to the card's sides.

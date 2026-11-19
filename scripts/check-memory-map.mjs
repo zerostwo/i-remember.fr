@@ -202,6 +202,19 @@ assert.equal(map.nav.particles.some((particle) => particle.visible || particle.i
 search.hide();
 while (finishAnimations.length) finishAnimations.shift()();
 assert.equal(search.visible, false);
+const hits = Array.from({ length: 201 }, (_, index) => record(100 + index));
+const selectable = () => Array.from(search.particvl)
+  .filter(particle => particle.visible && typeof particle.onClick === "function")
+  .map(particle => particle.post.id);
+search.show(hits.slice(0, 200));
+const firstPage = selectable();
+assert.equal(firstPage.length, 200);
+search.show(hits.slice(200));
+while (finishAnimations.length) finishAnimations.shift()();
+assert.deepEqual(selectable(), [300], "Changing pages must replace all previous raycast targets");
+assert.equal(new Set([...firstPage, ...selectable()]).size, hits.length);
+search.hide();
+while (finishAnimations.length) finishAnimations.shift()();
 for (let frame = 0; frame < 5; frame += 1) inspectFrame(5);
 for (const [id, coordinate] of homeCoordinates) assert.equal(coordinates.get(id), coordinate);
 
