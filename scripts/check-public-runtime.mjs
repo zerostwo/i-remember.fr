@@ -86,6 +86,8 @@ assert.ok(!patchedMain.includes("r.width>5e3||r.height>5e3"), "Camera photos mus
 assert.ok(patchedMain.includes("window.SongqiPhotos.showMemory(e)"), "All memory entry paths must initialize the gallery");
 assert.ok(patchedMain.includes("JSON.stringify(r.data.photos)"), "Submission must persist every crop");
 assert.ok(patchedMain.includes("window.SongqiPhotos.createAdjustmentStep"), "The old drag-only editor must be replaced");
+assert.ok(patchedMain.includes("window.__REVIVAL_OPEN_DIRECT_PAGE__(window.DEFAULT_POST.data)"),
+  "A direct Page link must start the full reader with its complete server-rendered content");
 // Direct links bypass both intro stages and the artificial startup/card delays.
 assert.ok(patchedMain.includes('e.SKIP_PRELOADER=!!window.SONGQI_DIRECT_MEMORY||LANG=="zh"'));
 assert.ok(patchedMain.includes('n._appInitFunc=m,u.start()},window.SONGQI_DIRECT_MEMORY?0:1e3)'));
@@ -402,10 +404,13 @@ languageWindow.history = {
     languageWindow.location = new URL(path, languageWindow.location);
   },
 };
+const restoredRoutes = [];
 const languageContext = {
   URL,
   window: languageWindow,
-  refreshMemoryRoute: () => {},
+  menuNavigationSequence: 0,
+  openPageId: "",
+  refreshMemoryRoute: (path, restorePage) => restoredRoutes.push([path, restorePage]),
   applyLanguagePreference: () => {},
 };
 for (const name of ["normalizedLanguage", "defaultRouteLanguage", "languageFromLocation", "siteLanguage", "languageUrl", "setPreferredLanguage"]) {
@@ -428,8 +433,11 @@ assert.equal(languageWindow.location.search, "?ln=fr");
 languageContext.setPreferredLanguage("en");
 assert.equal(languageWindow.location.href, "https://songqi.org/");
 languageWindow.location = new URL("https://songqi.org/memory/m11111111111111111111?ln=fr");
-languageEvents.get("popstate")();
+languageEvents.get("popstate")({ state: null });
 assert.equal(languageWindow.LANG, "fr");
+assert.deepEqual(restoredRoutes.at(-1), [languageWindow.location.pathname, false]);
+languageEvents.get("popstate")({ state: { footerPage: true } });
+assert.deepEqual(restoredRoutes.at(-1), [languageWindow.location.pathname, true]);
 assert.equal(languageContext.languageUrl("/fr?ln=fr#chapter", "fr"), "/fr#chapter");
 assert.equal(languageContext.languageUrl("/fr", "en"), "/fr?ln=en", "A legacy language path must retain an explicit language override");
 assert.equal(languageContext.languageUrl("https://elsewhere.example/?ln=en", "en"), "https://elsewhere.example/?ln=en");

@@ -907,9 +907,10 @@ function PageEditorWorkspace({
   onUploadingChange,
 }) {
   const page = data.pages?.find((item) => item.slug === selectedPageSlug);
+  const footerVisible = Boolean(page && data.menu.some(item => item.type === "PAGE" && item.targetValue === page.slug && item.isVisible));
   const [draft, setDraft] = useState(() =>
     page
-      ? { ...page, navigationVisible: data.menu.some(item => item.type === "PAGE" && item.targetValue === page.slug && item.isVisible) }
+      ? { ...page, navigationVisible: footerVisible }
       : {
           title: "",
           slug: "",
@@ -927,10 +928,10 @@ function PageEditorWorkspace({
   useEffect(() => () => onUploadingChange(false), [onUploadingChange]);
   useEffect(() => {
     if (page) {
-      setDraft({ ...page, navigationVisible: data.menu.some(item => item.type === "PAGE" && item.targetValue === page.slug && item.isVisible) });
+      setDraft({ ...page, navigationVisible: footerVisible });
       slugTouched.current = true;
     }
-  }, [page]);
+  }, [page, footerVisible]);
   const update = (key, value) => {
     reportDirty(true);
     setDraft((current) => ({ ...current, [key]: value }));
@@ -963,7 +964,7 @@ function PageEditorWorkspace({
             setError("Write some content before publishing this page.");
             return;
           }
-          await savePage(page?.slug, draft);
+          await savePage(page?.slug, { ...draft, navigationVisible: draft.navigationVisible === footerVisible ? undefined : draft.navigationVisible });
         }}
       >
         <Card>

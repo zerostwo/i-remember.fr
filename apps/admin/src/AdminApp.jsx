@@ -633,6 +633,7 @@ export function AdminApp() {
   const [selectedMemoryId, setSelectedMemoryId] = useState(memoryIdFromLocation);
   const [selectedPageSlug, setSelectedPageSlug] = useState(() => new URLSearchParams(window.location.search).get("slug") || "");
   const [selectedMenuId, setSelectedMenuId] = useState(null);
+  const [newMenuItem, setNewMenuItem] = useState(null);
   const [settingsTab, setSettingsTab] = useState("site");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -766,6 +767,7 @@ export function AdminApp() {
       setNewDraftVersion((value) => value + 1);
       locationRef.current = window.location.href;
       setRoute(routeFromLocation());
+      setNewMenuItem(null);
       setSelectedMemoryId(memoryIdFromLocation());
       setSelectedPageSlug(new URLSearchParams(window.location.search).get("slug") || "");
       if (routeFromLocation() === "memory-editor" && memoryIdFromLocation()) void refreshData();
@@ -810,6 +812,7 @@ export function AdminApp() {
     setSearch("");
     setNewDraftVersion(value => value + 1);
     const target = routeMap.has(nextRoute) ? nextRoute : "dashboard";
+    if (target !== "menus") setNewMenuItem(null);
     const targetPath = pathForRoute(target);
     if (window.location.pathname !== targetPath) {
       window.history.pushState({ route: target }, "", targetPath);
@@ -823,9 +826,10 @@ export function AdminApp() {
   }
 
   function selectMenu(id) {
-    if (id === selectedMenuId) return;
+    if (!newMenuItem && id === selectedMenuId) return;
     if (!canLeaveEditor(() => selectMenu(id))) return;
     reportDirty(false);
+    setNewMenuItem(null);
     setSelectedMenuId(id);
   }
 
@@ -1125,26 +1129,25 @@ export function AdminApp() {
   async function saveMenuItem(id, payload) {
     return runEditorAction("Menu item saved", async () => {
       const saved = await syncV1MenuItem(v1Api, payload);
+      setNewMenuItem(null);
       setSelectedMenuId(saved.id);
       await refreshData();
       return saved;
     });
   }
 
-  async function createMenuItem() {
+  function createMenuItem() {
     if (!canLeaveEditor(createMenuItem)) return;
     reportDirty(false);
-    await runAction("Menu item created", async () => {
-      const saved = await syncV1MenuItem(v1Api, {
-        uid: `menu-${Date.now().toString(36)}`,
-        label: "New item",
-        type: "PAGE",
-        targetValue: data?.pages?.[0]?.slug || "about",
-        position: (data?.menu?.at(-1)?.position || 0) + 10,
-        isVisible: false,
-      });
-      setSelectedMenuId(saved.id);
-      await refreshData();
+    setNotice("");
+    setError("");
+    setNewMenuItem({
+      uid: `menu-${crypto.randomUUID()}`,
+      label: "",
+      type: "PAGE",
+      targetValue: data.pages[0]?.slug || "",
+      position: (data.menu.at(-1)?.position || 0) + 10,
+      isVisible: false,
     });
   }
 
@@ -1361,6 +1364,7 @@ export function AdminApp() {
                 setSelectedMemoryId={setSelectedMemoryId}
                 selectedPageSlug={selectedPageSlug}
                 setSelectedPageSlug={setSelectedPageSlug}
+                newMenuItem={newMenuItem}
                 selectedMenuId={selectedMenuId}
                 setSelectedMenuId={selectMenu}
                 settingsTab={settingsTab}
@@ -2610,7 +2614,7 @@ function MenusView({
   search,
   selectedMenuId,
   setSelectedMenuId,
-  createMenuItem,
+  newMenuItem,
   saveMenuItem,
   deleteMenuItem,
 }) {
@@ -2619,7 +2623,7 @@ function MenusView({
   const filtered = menu.filter((item) =>
     containsQuery([item.label, item.type, item.targetValue, item.url], search),
   );
-  const selected = menu.find((item) => item.id === selectedMenuId) || filtered[0];
+  const selected = newMenuItem || menu.find((item) => item.id === selectedMenuId) || filtered[0];
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(380px,1fr)]">
@@ -2654,6 +2658,7 @@ function MenusView({
         </CardContent>
       </Card>
       <MenuEditor
+        key={selected?.uid}
         reportDirty={reportDirty}
         saving={savingOther}
         item={selected}
@@ -2730,6 +2735,8 @@ function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 label="Label"
+                autoFocus={!item.id}
+                required
                 value={draft.label}
                 onChange={(value) => update("label", value)}
               />
@@ -2815,14 +2822,14 @@ function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }
             />
           </FieldGroup>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit">
+            <Button type="submit" disabled={!draft.label.trim() || (draft.type === "PAGE" && !draft.targetValue)}>
               <Save data-icon="inline-start" />
               Save menu item
             </Button>
-            <Button variant="destructive" type="button" onClick={() => onDelete(item.id)}>
+            {item.id && <Button variant="destructive" type="button" onClick={() => onDelete(item.id)}>
               <Trash2 data-icon="inline-start" />
               Delete
-            </Button>
+            </Button>}
           </div>
         </form>
       </CardContent>

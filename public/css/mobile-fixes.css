@@ -367,6 +367,13 @@ html body .add-steps-message-input:focus {
 }
 
 @media (max-width: 760px) and (min-height: 501px) {
+  /* Expand the menu above the galaxy controls, leaving both rows tappable. */
+  html body .footer-menu-group .footer-menu-group-list {
+    bottom: 126px !important;
+    max-height: calc(var(--revival-visual-viewport-height, 100dvh) - 230px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
   /* Place the three mobile controls in a horizontal row inside the footer. */
   html body .nav {
     top: auto !important;

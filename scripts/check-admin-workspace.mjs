@@ -5,7 +5,10 @@ import { createPrismaClient } from "../packages/database/dist/index.js";
 import {
   PrismaPageRepository,
   PrismaMemoryRepository,
+  PrismaMenuItemRepository,
 } from "../apps/api/dist/prisma-repositories.js";
+
+import { PublicContentService } from "../apps/api/dist/services.js";
 
 const url = process.env.I_REMEMBER_TEST_DATABASE_URL;
 if (!url || !/(?:test|review)/i.test(new URL(url).pathname))
@@ -50,6 +53,29 @@ try {
   await pages.update(prefix, { navigationVisible: false });
   assert.equal(await db.menuItem.count({ where: { type: "PAGE", targetValue: prefix, isVisible: true } }), 0);
   await db.menuItem.delete({ where: { id: duplicateMenu.id } });
+  const menus = new PrismaMenuItemRepository(db);
+  const publicContent = new PublicContentService(menus, pages, memories);
+  await pages.update(prefix, { navigationVisible: true });
+  const automatic = await db.menuItem.findFirstOrThrow({ where: { uid: `page-${draft.id}` } });
+  assert.equal((await db.menuItem.findUnique({ where: { id: menu.id } })).isVisible, false);
+  await pages.update(prefix, { title: "About", navigationVisible: true });
+  assert.equal((await db.menuItem.findUnique({ where: { id: automatic.id } })).label, "About");
+  assert.equal((await db.menuItem.findUnique({ where: { id: menu.id } })).isVisible, false);
+  const group = await menus.create({ uid: prefix + "-group", type: "GROUP", label: "Information" });
+  await menus.update(automatic.id, { label: "About us", metadata: { parentId: group.id } });
+  await pages.update(prefix, { title: "About us" });
+  await pages.update(prefix, { title: "About the garden" });
+  assert.equal((await db.menuItem.findUnique({ where: { id: automatic.id } })).label, "About us");
+  const publicIds = async () => (await publicContent.menu()).map(item => item.id);
+  assert.ok((await publicIds()).includes(group.id));
+  await pages.archive(prefix);
+  assert.ok(!(await publicIds()).includes(group.id));
+  await assert.rejects(publicContent.target(automatic.id), error => error.statusCode === 404);
+  await pages.update(prefix, { status: "PUBLISHED" });
+  assert.ok((await publicIds()).includes(group.id));
+  await menus.update(group.id, { isVisible: false });
+  assert.ok(!(await publicIds()).includes(automatic.id));
+  await menus.delete(group.id);
   const summaries = await pages.list("en", { limit: 1, summary: true });
   assert.equal(summaries.length, 1);
   assert.equal(summaries[0].bodyMarkdown, undefined);
@@ -113,7 +139,7 @@ try {
     "Admin workspace: transactional publish, concurrent publish, rename/menu integrity, archive/restore, rollback, shared media passed",
   );
 } finally {
-  await db.menuItem.deleteMany({ where: { uid: prefix } });
+  await db.menuItem.deleteMany({ where: { OR: [{ uid: { startsWith: prefix } }, { targetValue: { startsWith: prefix } }] } });
   await db.page.deleteMany({ where: { slug: { startsWith: prefix } } });
   await db.memory.deleteMany({
     where: { OR: [{ id: { in: memoryIds } }, { title: { startsWith: prefix } }] },

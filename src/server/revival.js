@@ -698,10 +698,12 @@ function v1MemoryToPost(memory, index = 0, language = "en", cardOnly = false) {
   const imageKey = v1ImageKey(memory);
   const photos = v1MemoryPhotos(memory);
   const isLongForm = preview.longForm;
+  const managedPage = memory?.metadata?.source === "page";
   return {
     id: v1LegacyPostId(memory, index),
     uid: String(memory?.id || memory?.publicId || `v1_memory_${index}`),
     public_id: String(memory?.id || memory?.publicId || ""),
+    ...(managedPage && { is_managed_page: true }),
     visibility: memory.visibility,
     status: memory.status,
     name: String(memory?.authorName || "I Remember"),
@@ -716,7 +718,7 @@ function v1MemoryToPost(memory, index = 0, language = "en", cardOnly = false) {
     img_offset_y: "0",
     text: excerpt,
     excerpt,
-    ...(!cardOnly && { body_markdown: content, body_html: markdownToHtml(memoryBody(memory) || excerpt) }),
+    ...(!cardOnly && { body_markdown: content, body_html: markdownToHtml(managedPage ? content : memoryBody(memory) || excerpt) }),
     is_long_form: isLongForm ? "1" : "0",
     view_count: Number(memory?.viewCount || 0),
     resized_img_width: "600",
@@ -737,6 +739,7 @@ function legacyImageUrl(imageKey, variant = "thumb") {
 function v1MenuItemToPublic(item = {}) {
   return {
     id: item.id,
+    uid: item.uid,
     label: item.label,
     type: item.type,
     targetValue: item.targetValue || "",

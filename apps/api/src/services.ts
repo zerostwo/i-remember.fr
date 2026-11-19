@@ -519,7 +519,13 @@ export class PublicContentService {
   async menu(language = "en") {
     const [items, pages] = await Promise.all([this.menuItems.list(language), this.pages.list(language)]);
     const published = new Set(pages.filter(page => page.status === "PUBLISHED").map(page => page.slug));
-    return items.filter(item => item.isVisible && (item.type !== "PAGE" || published.has(item.targetValue || item.label)));
+    const visible = items.filter(item => item.isVisible && (item.type !== "PAGE" || published.has(item.targetValue || item.label)));
+    const groups = visible.filter(item => item.type === "GROUP" && !item.metadata?.parentId);
+    const groupIds = new Set(groups.flatMap(group => [group.id, group.uid]));
+    const parents = new Set(visible.filter(item => item.type !== "GROUP").map(item => item.metadata?.parentId));
+    return visible.filter(item => item.type === "GROUP"
+      ? !item.metadata?.parentId && (parents.has(item.id) || parents.has(item.uid))
+      : !item.metadata?.parentId || groupIds.has(String(item.metadata.parentId)));
   }
 
   async target(id: string, language = "en") {

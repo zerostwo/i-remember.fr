@@ -123,9 +123,12 @@
     syncPresentation();
     recent = recent.filter(function (value) { return value !== id; }).concat(id).slice(-50);
     if (status) status.textContent = "";
+    recordView(id);
+  }
+  function recordView(id) {
     // Count displayed memory opens, never prefetches or individual photo changes.
     fetch("/api/v1/memories/" + encodeURIComponent(id) + "/view", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}", keepalive: true }).catch(function () {});
   }
   function closed() { cancel(); current = ""; syncPresentation(); if (status) status.textContent = ""; }
-  window.SongqiMemoryNavigation = { opened: opened, closed: closed, next: next, swipeDirection: swipeDirection };
+  window.SongqiMemoryNavigation = { opened: opened, closed: closed, recordView: recordView, next: next, swipeDirection: swipeDirection };
 }());

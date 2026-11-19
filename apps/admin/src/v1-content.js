@@ -147,7 +147,7 @@ export function v1MenuItemPayload(
     metadata: {
       ...custom,
       ...sourceMetadata(item),
-      ...(item.parentId ? { parentId: item.parentId } : {}),
+      ...(item.parentId !== undefined ? { parentId: item.type === "GROUP" ? "" : item.parentId } : {}),
     },
   };
 }

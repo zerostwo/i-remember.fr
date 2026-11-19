@@ -1,4 +1,4 @@
-import { createHash, randomInt } from "node:crypto";
+import { createHash, randomInt, randomUUID } from "node:crypto";
 import { getPrismaClient } from "@i-remember/database";
 import type {
   AttachmentInput,
@@ -659,12 +659,27 @@ export class PrismaPageRepository implements PageRepository {
             await tx.menuItem.updateMany({ where: { type: "PAGE", language: existing.language, targetValue: existing.slug }, data: { targetValue: saved.slug } });
           }
           await syncMediaReferences(tx, { pageId: saved.id }, saved.bodyMarkdown);
-          if (input.navigationVisible !== undefined) {
-            const current = await tx.menuItem.findFirst({ where: { language: saved.language, type: "PAGE", targetValue: saved.slug } });
-            if (current) await tx.menuItem.updateMany({ where: { language: saved.language, type: "PAGE", targetValue: saved.slug }, data: { isVisible: input.navigationVisible } });
-            else if (input.navigationVisible) {
+          const target = { language: saved.language, type: "PAGE" as const, targetValue: saved.slug };
+          const autoUid = `page-${saved.id}`;
+          const autoLink = { ...target, OR: [{ uid: autoUid }, { uid: { startsWith: autoUid + "-" } }] };
+          if (existing && existing.title !== saved.title) {
+            const automatic = await tx.menuItem.findFirst({ where: autoLink });
+            if (automatic && !menuItem(automatic).metadata?.customPageLabel) {
+              await tx.menuItem.updateMany({
+                where: { id: automatic.id, label: existing.title },
+                data: { label: saved.title },
+              });
+            }
+          }
+          if (input.navigationVisible === false) {
+            await tx.menuItem.updateMany({ where: { ...target, isVisible: true }, data: { isVisible: false } });
+          } else if (input.navigationVisible && !await tx.menuItem.findFirst({ where: { ...target, isVisible: true } })) {
+            const restored = await tx.menuItem.updateMany({ where: autoLink, data: { isVisible: true } });
+            if (!restored.count) {
               const last = await tx.menuItem.aggregate({ where: { language: saved.language }, _max: { position: true } });
-              await tx.menuItem.create({ data: { uid: `page-${saved.id}`, language: saved.language, label: saved.title, type: "PAGE", targetValue: saved.slug, position: (last._max.position || 0) + 10, isVisible: true } });
+              // A former automatic entry can have been repurposed as a different destination.
+              const occupied = await tx.menuItem.findUnique({ where: { language_uid: { language: saved.language, uid: autoUid } } });
+              await tx.menuItem.create({ data: { ...target, uid: occupied ? autoUid + "-" + randomUUID() : autoUid, label: saved.title, position: (last._max.position || 0) + 10 } });
             }
           }
           return page(saved);
@@ -737,7 +752,9 @@ export class PrismaMenuItemRepository implements MenuItemRepository {
           position: input.position,
           isVisible: input.isVisible,
           opensNewTab: input.opensNewTab,
-          metadata: input.metadata as any,
+          metadata: existing.uid.startsWith("page-") && input.label !== undefined && input.label !== existing.label
+            ? { ...(input.metadata ?? menuItem(existing).metadata), customPageLabel: true }
+            : input.metadata as any,
         },
       }),
     );
