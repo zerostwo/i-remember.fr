@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Admin design study · songqi.org</title>
+<style>
+  :root { color-scheme: dark; font-family: -apple-system,BlinkMacSystemFont,Inter,"Segoe UI",sans-serif; color: #f1f2f3; background:#101113; }
+  * { box-sizing:border-box; }
+  body { margin:0; }
+  button { font:inherit; cursor:pointer; }
+  button:focus-visible { outline:2px solid #9ac1ff; outline-offset:3px; }
+  .review { display:flex; align-items:center; justify-content:space-between; gap:16px; max-width:1456px; margin:0 auto; padding:18px 32px; color:#b9bbc1; font-size:13px; }
+  .review strong { font-size:14px; color:#f1f2f3; }
+  .picker { display:flex; gap:2px; padding:3px; background:#242529; border:1px solid #393a40; border-radius:9px; }
+  .picker button { color:#b6b8bf; background:none; border:0; border-radius:6px; padding:6px 13px; }
+  .picker button[aria-pressed=true] { color:#fff; background:#46484e; box-shadow:0 1px 3px #0003; }
+  .frame { max-width:1392px; margin:0 auto 28px; min-height:730px; display:grid; grid-template-columns:211px minmax(0,1fr); background:#1b1c1e; border:1px solid #424348; border-radius:15px; overflow:hidden; }
+  .sidebar { padding:27px 13px 18px; background:#222325; border-right:1px solid #3a3b3e; display:flex; flex-direction:column; gap:24px; }
+  .identity { padding:0 9px; }
+  .identity b { display:block; font:25px/1.15 Georgia,serif; letter-spacing:-1.1px; }
+  .identity small { display:block; margin-top:5px; color:#a1a3a9; font-size:12px; }
+  .search { display:flex; align-items:center; gap:8px; margin:0 3px; padding:9px; background:#1b1b1e; border:1px solid #37383d; border-radius:7px; color:#b1b3bb; font-size:13px; }
+  kbd { margin-left:auto; font:inherit; font-size:11px; color:#a8aab1; }
+  .nav { display:grid; gap:4px; }
+  .nav div { display:flex; align-items:center; gap:11px; min-height:38px; padding:0 12px; color:#c7c8ce; font-size:14px; border-radius:7px; }
+  .nav .active { background:#35383f; color:#fafbff; font-weight:600; }
+  .nav .active svg { color:#99c1ff; }
+  svg { width:17px; height:17px; flex:none; vertical-align:middle; }
+  .owner { display:flex; align-items:center; gap:9px; margin-top:auto; padding:12px 7px 0; border-top:1px solid #38393e; font-size:13px; }
+  .avatar { width:29px; height:29px; display:grid; place-items:center; background:#404349; border-radius:50%; font-size:11px; }
+  .screen[hidden] { display:none; }
+  .toolbar { display:flex; gap:12px; align-items:center; justify-content:space-between; min-height:66px; padding:0 28px; border-bottom:1px solid #343538; }
+  .crumb,.actions,.part { display:flex; align-items:center; gap:9px; }
+  .crumb { font-size:14px; color:#afb1b8; }
+  .crumb b { color:#f2f3f5; font-weight:550; }
+  .crumb svg { width:13px; }
+  .actions { gap:13px; }
+  .muted,.hint,.key { color:#acafb7; font-size:13px; line-height:1.55; }
+  .primary,.secondary { display:inline-flex; justify-content:center; align-items:center; min-height:33px; padding:0 15px; border-radius:7px; font-size:13px; font-weight:600; }
+  .primary { background:#9ac3ff; color:#0d213d; }
+  .secondary { background:#313236; color:#ecedf0; }
+  .content { padding:42px clamp(24px,4vw,68px) 48px; max-width:1050px; margin:auto; }
+  .columns { display:grid; grid-template-columns:minmax(0,1fr) 212px; align-items:start; gap:clamp(24px,4vw,58px); }
+  h1 { font-size:31px; margin:0 0 8px; font-weight:630; line-height:1.18; letter-spacing:-1.1px; }
+  h2 { font-size:14px; font-weight:600; margin:0 0 13px; letter-spacing:-.15px; }
+  .intro { margin:0 0 30px; color:#b1b3bb; line-height:1.5; font-size:14px; }
+  .document { padding:24px clamp(15px,3vw,36px) 40px; background:#1f2022; border:1px solid #37383b; border-radius:10px; min-height:334px; }
+  .document h2 { font:38px/1.2 Georgia,serif; letter-spacing:-1px; margin:0 0 24px; }
+  .document p { font:17px/1.65 Georgia,serif; color:#dbd9d7; margin:0 0 18px; }
+  .document .sub { font:22px/1.4 Georgia,serif; margin-top:23px; }
+  .tools { display:flex; align-items:center; gap:13px; font-size:13px; min-height:39px; margin:0 0 9px; color:#acafb7; }
+  .tools strong { color:#f4f5f6; }
+  .tools .divider { width:1px; height:15px; background:#414249; }
+  .inspector { margin-top:48px; padding-left:18px; border-left:1px solid #38393d; }
+  .row { min-height:46px; padding:11px 0; display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid #353639; font-size:14px; }
+  .row:last-child { border:0; }
+  .value { color:#c0c1c7; text-align:right; }
+  .inspector .hint { margin:14px 0 0; }
+  .toggle { width:32px; height:19px; border-radius:20px; background:#93bcf6; display:inline-flex; align-items:center; justify-content:flex-end; padding:2px; flex:none; }
+  .toggle::after { content:""; background:#fafbfc; width:15px; height:15px; border-radius:50%; }
+  .section { margin:25px 0; }
+  .settings { max-width:710px; }
+  .panel { padding:0 17px; border:1px solid #3b3c40; border-radius:10px; background:#232426; }
+  .tags { display:flex; gap:18px; border-bottom:1px solid #37383b; margin:16px 0 30px; }
+  .tags span { padding:8px 0 11px; font-size:14px; color:#aaaeb6; }
+  .tags .current { border-bottom:2px solid #96bffe; color:#f5f5f8; }
+  .list { margin-top:17px; display:grid; gap:4px; }
+  .list .row { padding:11px 12px; }
+  .list .selected { border-radius:7px; background:#30343c; }
+  .status { color:#b1b3b9; font-size:13px; }
+  .navEditor { padding:21px; border:1px solid #36373c; border-radius:10px; background:#212224; }
+  .menuGrid { display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:start; }
+  .mobileMenu { display:none; }
+  @media(min-width:900px) and (max-width:1456px) { .frame {margin-inline:32px;} }
+  @media(max-width:900px) { .frame { margin:0 12px 14px; grid-template-columns:168px minmax(0,1fr); } .columns { grid-template-columns:1fr; } .inspector { margin:0; border:0; padding:0; } .review {padding-inline:14px;} .menuGrid {grid-template-columns:1fr;} }
+  @media(max-width:640px) { .review {align-items:flex-start; flex-direction:column; gap:11px;} .review strong{font-size:13px;} .picker {align-self:stretch;} .picker button {flex:1;font-size:12px;min-height:38px;padding:5px;} .frame { display:block; margin:0 0 12px; border-radius:0; border-inline:0; min-height:0; } .sidebar {display:none;} .mobileMenu {display:inline-flex;} .toolbar{padding:0 15px;min-height:58px;gap:6px;position:sticky;top:0;background:#1b1c1ef7;z-index:1;} .actions{gap:8px;} .actions .muted {display:none;} .content{padding:26px 16px;} h1{font-size:27px;} .intro{margin-bottom:15px;} .primary,.secondary {min-height:44px;} .document{padding:20px;min-height:0;} .document h2{font-size:33px;} .tools{margin:0 0 5px;} .inspector {margin-top:0;} .row {min-height:48px;} .tags{gap:15px;} .value{overflow-wrap:anywhere;} }
+</style>
+</head>
+<body>
+<header class="review"><span><strong>songqi.org</strong> &nbsp; / &nbsp; Admin design study</span>
+<div class="picker" aria-label="Design views"><button data-view="editor" aria-pressed="true">Page editor</button><button data-view="navigation" aria-pressed="false">Navigation</button><button data-view="settings" aria-pressed="false">Settings</button></div></header>
+<div class="frame">
+<aside class="sidebar">
+<div class="identity"><b>I remember,</b><small>songqi.org</small></div>
+<div class="search"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-search" aria-hidden="true"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg>Search<kbd>⌘ K</kbd></div>
+<div class="nav"><div><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-dashboard" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg>Dashboard</div><div><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-orbit" aria-hidden="true"><path d="M20.341 6.484A10 10 0 0 1 10.266 21.85"></path><path d="M3.659 17.516A10 10 0 0 1 13.74 2.152"></path><circle cx="12" cy="12" r="3"></circle><circle cx="19" cy="5" r="2"></circle><circle cx="5" cy="19" r="2"></circle></svg>Memories</div><div data-nav="editor" class="active"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg>Pages</div><div><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-images" aria-hidden="true"><path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16"></path><path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2"></path><circle cx="13" cy="7" r="1" fill="currentColor"></circle><rect x="8" y="2" width="14" height="14" rx="2"></rect></svg>Attachments</div><div data-nav="navigation"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-list-tree" aria-hidden="true"><path d="M8 5h13"></path><path d="M13 12h8"></path><path d="M13 19h8"></path><path d="M3 10a2 2 0 0 0 2 2h3"></path><path d="M3 5v12a2 2 0 0 0 2 2h3"></path></svg>Navigation</div><div data-nav="settings"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings2 lucide-settings-2" aria-hidden="true"><path d="M14 17H5"></path><path d="M19 7h-9"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg>Settings</div></div>
+<div class="owner"><span class="avatar">SD</span>Songqi Duan</div>
+</aside>
+<main>
+<section class="screen" id="editor">
+<div class="toolbar"><span class="crumb"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left mobileMenu" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path></svg>Pages <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg> <b>About</b></span><span class="actions"><span class="muted">Draft saved</span><span class="primary">Publish…</span></span></div>
+<div class="content"><h1>Edit page</h1><p class="intro">Write and publish a page for your site.</p>
+<div class="columns"><div><div class="tools"><strong>Write</strong><span>Preview</span><span class="divider"></span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bold" aria-hidden="true"><path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-italic" aria-hidden="true"><line x1="19" x2="10" y1="4" y2="4"></line><line x1="14" x2="5" y1="20" y2="20"></line><line x1="15" x2="9" y1="4" y2="20"></line></svg><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-link" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg></div>
+<article class="document"><h2>About</h2><p>I started this archive with a handful of photographs. Most of them were ordinary days I wanted to remember.</p><p class="sub">Keeping a memory</p><p>Some stories begin with a picture. Others are a voice, a date, or a few lines written down before the details slip away.</p></article></div>
+<aside class="inspector"><h2>Publishing</h2><div class="row">Status <span class="value">Draft</span></div><div class="row">Show in footer <span role="img" aria-label="On" class="toggle"></span></div><div class="row">Advanced <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg></div><p class="hint">The footer link appears when the page is published.</p></aside></div></div>
+</section>
+<section class="screen" id="navigation" hidden>
+<div class="toolbar"><span class="crumb"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left mobileMenu" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path></svg>Navigation <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg> <b>About</b></span><span class="actions"><span class="muted">Edited</span><span class="primary">Save changes</span></span></div>
+<div class="content"><h1>Navigation</h1><p class="intro">Arrange the links in your site’s footer.</p><div class="menuGrid">
+<div><h2>Footer links</h2><div class="list"><div class="row selected"><span class="part"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grip-vertical" aria-hidden="true"><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="19" r="1"></circle></svg>About</span><span class="status">Page</span></div><div class="row"><span class="part"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grip-vertical" aria-hidden="true"><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="5" r="1"></circle><circle cx="9" cy="19" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="5" r="1"></circle><circle cx="15" cy="19" r="1"></circle></svg>Information</span><span class="status">Group</span></div></div><p><span class="secondary">Add link</span></p></div>
+<div class="navEditor"><h2>Link details</h2><div class="row">Label <span class="value">About</span></div><div class="row">Page <span class="part value">About <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevrons-up-down" aria-hidden="true"><path d="m7 15 5 5 5-5"></path><path d="m7 9 5-5 5 5"></path></svg></span></div><div class="row">Group <span class="value">Top level</span></div><div class="row">Visible <span role="img" aria-label="On" class="toggle"></span></div></div></div></div>
+</section>
+<section class="screen" id="settings" hidden>
+<div class="toolbar"><span class="crumb"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-panel-left mobileMenu" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18"></path></svg>Settings <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg> <b>Site</b></span><span class="actions"><span class="muted">Edited</span><span class="primary">Save changes</span></span></div>
+<div class="content"><h1>Settings</h1><p class="intro">Manage your site and owner account.</p>
+<div class="settings"><div class="tags"><span class="current">Site</span><span>Account</span><span>Security</span><span>Backup</span></div>
+<div class="section"><h2>Site identity</h2><div class="panel"><div class="row">Site name <span class="value">I remember,</span></div><div class="row">Homepage title <span class="value">Songqi Duan | 段松岐</span></div><div class="row">Site address <span class="value">https://songqi.org</span></div></div></div>
+<div class="section"><h2>Submissions</h2><div class="panel"><div class="row">Allow anonymous submissions <span role="img" aria-label="On" class="toggle"></span></div><div class="row">Public contact <span class="value">duan@songqi.org</span></div></div></div></div></div>
+</section>
+</main></div>
+<script>
+const controls = document.querySelectorAll('[data-view]');
+function show(view) {
+  const selected = [...controls].find(control => control.dataset.view === view) || controls[0];
+  for (const control of controls) control.setAttribute('aria-pressed', String(control === selected));
+  for (const screen of document.querySelectorAll('.screen')) screen.hidden = screen.id !== selected.dataset.view;
+  for (const row of document.querySelectorAll('[data-nav]')) row.classList.toggle('active', row.dataset.nav === selected.dataset.view);
+}
+for (const button of controls) button.addEventListener('click', () => { location.hash = button.dataset.view; });
+addEventListener('hashchange', () => show(location.hash.slice(1)));
+show(location.hash.slice(1));
+</script>
+</body>
+</html>
