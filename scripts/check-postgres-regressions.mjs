@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { createPrismaClient } from "../packages/database/dist/index.js";
 import {
   PrismaMemoryRepository,
@@ -7,8 +7,8 @@ import {
   tagSlug,
 } from "../apps/api/dist/prisma-repositories.js";
 import { MemoryService } from "../apps/api/dist/services.js";
-import { memoryPatchInput } from "../apps/api/dist/validation.js";
-import { v1MemoryPayload } from "../apps/admin/src/v1-memory.js";
+import { memoryInput, memoryPatchInput } from "../apps/api/dist/validation.js";
+import { syncV1Memory, v1MemoryPayload } from "../apps/admin/src/v1-memory.js";
 // Explicit opt-in: this suite writes disposable records and must use a test database.
 const databaseUrl = process.env.I_REMEMBER_TEST_DATABASE_URL;
 if (!databaseUrl || !/(?:test|review)/i.test(new URL(databaseUrl).pathname))
@@ -28,6 +28,71 @@ const attachments = [
   { url: `/${prefix}/note.pdf`, type: "application/pdf" },
 ];
 try {
+  const editor = {
+    draftKey: randomUUID(), title: prefix, bodyMarkdown: "First text", status: "pending",
+    visibility: "UNLISTED", defaultLanguage: "en", attachments: [],
+  };
+  let loseReply = true;
+  const draftApi = async (path, options = {}) => {
+    const input = options.body && JSON.parse(options.body);
+    const id = path.split("/").pop();
+    let saved;
+    if (options.method === "POST") {
+      saved = await service.create(admin, memoryInput(input));
+      if (loseReply) { loseReply = false; throw new Error("Response lost"); }
+    } else if (options.method === "PATCH") {
+      saved = await service.update(admin, id, memoryPatchInput(input));
+    } else {
+      saved = await service.get(admin, id);
+    }
+    return { ...saved, id: saved.publicId, createdAt: saved.createdAt.toISOString(), updatedAt: saved.updatedAt.toISOString() };
+  };
+  await assert.rejects(syncV1Memory(draftApi, editor), /Response lost/);
+  const beforeRetry = await service.get(admin, `draft_${editor.draftKey}`);
+  assert.match(beforeRetry.publicId, /^[A-Za-z][A-Za-z0-9]{7}$/);
+  const chosen = `t${randomBytes(6).toString("hex")}`;
+  const resumed = await syncV1Memory(draftApi, { ...editor, linkId: chosen, bodyMarkdown: "Edited while offline" });
+  assert.equal(resumed.id, chosen);
+  assert.equal(resumed.mapId, beforeRetry.mapId);
+  assert.equal(resumed.content, "Edited while offline");
+  assert.equal(await service.get(anonymous, chosen), null);
+  assert.equal((await service.get(admin, beforeRetry.publicId)).publicId, chosen);
+  assert.equal(await db.memory.count({ where: { title: prefix } }), 1);
+  await assert.rejects(syncV1Memory(draftApi, { ...editor, draftKey: randomUUID(), linkId: chosen }), error => error.code === "public_id_taken");
+  await service.update(admin, chosen, { content: "Saved in another session" });
+  await assert.rejects(syncV1Memory(draftApi, editor), error => error.code === "memory_changed" && error.recordId === chosen);
+  assert.equal((await service.get(admin, chosen)).content, "Saved in another session");
+  loseReply = true;
+  const firstPublish = { ...editor, draftKey: randomUUID(), status: "published" };
+  await assert.rejects(syncV1Memory(draftApi, firstPublish), /Response lost/);
+  await assert.rejects(syncV1Memory(draftApi, { ...firstPublish, status: "pending" }), error => error.code === "memory_changed");
+  assert.equal((await service.get(admin, `draft_${firstPublish.draftKey}`)).status, "NORMAL");
+
+  const draft = await service.create(admin, memoryInput({
+    title: prefix, content: "", status: "PENDING", visibility: "UNLISTED",
+  }));
+  assert.equal(await service.get(anonymous, draft.publicId), null);
+  await assert.rejects(
+    service.update(admin, draft.publicId, { status: "NORMAL" }),
+    error => error.code === "missing_content",
+  );
+  const competing = await Promise.allSettled(["One", "Two"].map(content =>
+    service.update(admin, draft.publicId, memoryPatchInput({
+      content, status: "NORMAL", expectedUpdatedAt: draft.updatedAt.toISOString(),
+    })),
+  ));
+  assert.equal(competing.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal(competing.find(result => result.status === "rejected").reason.code, "memory_changed");
+  const published = await service.get(anonymous, draft.publicId);
+  const viewed = await service.view(draft.publicId);
+  assert.equal(viewed.updatedAt.toISOString(), published.updatedAt.toISOString());
+  const cleared = await service.update(admin, draft.publicId, memoryPatchInput({
+    status: "PENDING", content: "", expectedUpdatedAt: published.updatedAt.toISOString(),
+  }));
+  assert.equal(cleared.excerpt, "");
+  assert.equal(cleared.viewCount, 1);
+  assert.equal(await service.get(anonymous, draft.publicId), null);
+
   const legacyId = `m${randomBytes(10).toString("hex")}`;
   const linkMemory = await repository.create({ publicId: legacyId, title: prefix, content: "Link identity", attachments });
   const firstSlug = `s${randomBytes(6).toString("hex")}`;

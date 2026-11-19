@@ -409,3 +409,8 @@ Current backend/product decisions:
   controls and writing surface. Autosave private drafts, publish explicitly,
   and use Save changes for live content and settings. Validate desktop and
   mobile touch workflows locally and preserve the public galaxy.
+
+- On 2026-11-19 the owner extended the approved November admin design to
+  the Memory editor and Attachments. Use the same distinction between
+  saving a private draft, publishing it, and saving changes to a published
+  memory. Make upload, preview and reuse accessible on desktop and touch.

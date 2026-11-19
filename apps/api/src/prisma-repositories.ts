@@ -332,6 +332,9 @@ export class PrismaMemoryRepository implements MemoryRepository {
   }
 
   async create(input: MemoryInput) {
+    // A retried editor POST shares one internal identity. Public links stay independently allocated.
+    const draftId = input.draftKey ? `draft_${input.draftKey}` : undefined;
+    const createdAt = new Date();
     for (let attempt = 0; attempt < 5; attempt++) {
       const publicId = input.publicId || createPublicMemoryId();
       try {
@@ -341,6 +344,7 @@ export class PrismaMemoryRepository implements MemoryRepository {
           }
           const saved = await tx.memory.create({
             data: {
+              ...(draftId ? { id: draftId, createdAt, updatedAt: createdAt } : {}),
               publicId,
               mapKey: publicId,
               links: { create: { publicId } },
@@ -367,6 +371,9 @@ export class PrismaMemoryRepository implements MemoryRepository {
           return memory(saved);
         });
       } catch (error: any) {
+        if (draftId && error.code === "P2002" && await this.db.memory.findUnique({ where: { id: draftId }, select: { id: true } })) {
+          throw new ApiError(409, "This draft was already created.", "draft_already_saved");
+        }
         if (!publicIdConflict(error)) throw error;
         if (input.publicId) throw new ApiError(409, "This public ID is already in use. Choose another.", "public_id_taken");
       }
@@ -375,25 +382,42 @@ export class PrismaMemoryRepository implements MemoryRepository {
   }
 
   async incrementView(id: string) {
-    const existing = await this.get(id);
-    if (!existing || existing.status !== "NORMAL" || !["PUBLIC", "UNLISTED"].includes(existing.visibility)) {
-      throw new ApiError(404, "Memory not found", "not_found");
-    }
-    return memory(
-      await this.db.memory.update({
-        where: { id: existing.id },
-        data: { viewCount: { increment: 1 } },
-        include: memoryInclude, omit: { searchText: true },
-      }),
-    );
+    return this.db.$transaction(async (tx) => {
+      // Reading a memory must not change the revision used by the editor.
+      const [viewed] = await tx.$queryRaw<{ id: string }[]>`
+        UPDATE memories SET view_count = view_count + 1
+        WHERE status = 'NORMAL' AND visibility IN ('PUBLIC', 'UNLISTED')
+          AND (id = ${id} OR public_id = ${id} OR id = (SELECT memory_id FROM memory_links WHERE public_id = ${id}))
+        RETURNING id
+      `;
+      if (!viewed) throw new ApiError(404, "Memory not found", "not_found");
+      return memory(await tx.memory.findUniqueOrThrow({
+        where: { id: viewed.id }, include: memoryInclude, omit: { searchText: true },
+      }));
+    });
   }
 
   async update(id: string, input: MemoryUpdateInput) {
-    const existing = await this.get(id);
-    if (!existing) throw new ApiError(404, "Memory not found", "not_found");
     try {
       return await this.db.$transaction(async (tx) => {
+        const [locked] = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id FROM memories WHERE id = ${id} OR public_id = ${id}
+          OR id = (SELECT memory_id FROM memory_links WHERE public_id = ${id})
+          FOR UPDATE
+        `;
+        if (!locked) throw new ApiError(404, "Memory not found", "not_found");
+        const existing = memory(await tx.memory.findUniqueOrThrow({
+          where: { id: locked.id }, include: memoryInclude, omit: { searchText: true },
+        }));
         await this.assertEditable(tx, existing);
+        if (input.expectedUpdatedAt !== undefined && existing.updatedAt.toISOString() !== input.expectedUpdatedAt) {
+          throw new ApiError(409, "This memory changed in another session. Copy your edits and reopen it before saving.", "memory_changed");
+        }
+        const content = input.content ?? existing.content;
+        const title = input.title ?? existing.title;
+        const published = (input.status ?? existing.status) === "NORMAL";
+        if (!title && (published || !content)) throw new ApiError(400, "Enter a title for this memory.", "missing_title");
+        if (published && !content) throw new ApiError(400, "Write some content before publishing this memory.", "missing_content");
         if (input.publicId && input.publicId !== existing.publicId) {
           const reserved = await tx.memoryLink.findUnique({ where: { publicId: input.publicId } });
           const internal = await tx.memory.findUnique({ where: { id: input.publicId } });
@@ -403,10 +427,11 @@ export class PrismaMemoryRepository implements MemoryRepository {
           if (!reserved) await tx.memoryLink.create({ data: { publicId: input.publicId, memoryId: existing.id } });
         }
         const data: any = {
+          updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)),
           publicId: input.publicId,
           title: input.title,
           content: input.content,
-          excerpt: input.content ? input.content.slice(0, 220) : undefined,
+          excerpt: input.content?.slice(0, 220),
           authorId: input.authorId,
           authorName: input.authorName,
           visibility: input.visibility,

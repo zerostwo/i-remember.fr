@@ -1,11 +1,12 @@
+import { randomUuid } from "./random-id.js";
 import { EditorialLayout, ToolbarTarget } from "./EditorialLayout.jsx";
 import { memoryDate } from "./dates.js";
-import { isAudioFile, mediaAccept } from "../../../packages/config/src/media-limits.js";
+import { isAudioFile } from "../../../packages/config/src/media-limits.js";
 import { uploadRequest } from "../../../packages/content/src/upload-request.js";
 import { uploadVideoFile } from "../../../packages/content/src/video-upload.js";
-import { groupLivePhotos, isLivePhotoFile } from "../../../packages/content/src/live-photo-upload.js";
-import { MemoryCard } from "../../../packages/content/src/MemoryCard.jsx";
-import { MediaLibrary, EditorAttachments, WritingField, PagesWorkspace, LeaveDraftDialog } from "./workspace.jsx";
+import { isLivePhotoFile } from "../../../packages/content/src/live-photo-upload.js";
+import { MemoryEditor } from "./MemoryEditor.jsx";
+import { MediaLibrary, PagesWorkspace, LeaveDraftDialog } from "./workspace.jsx";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   Download,
@@ -21,7 +22,6 @@ import {
   Search,
   Settings,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
@@ -66,7 +66,7 @@ import {
   syncV1Page,
   syncV1Settings,
 } from "./v1-content.js";
-import { appendV1Attachment, archiveV1Memory, syncV1Memory } from "./v1-memory.js";
+import { syncV1Memory } from "./v1-memory.js";
 import { collectPages } from "./pagination.js";
 
 const routes = [
@@ -150,7 +150,6 @@ const menuTypes = [
   "SHARE",
   "LOGO",
 ];
-const memoryStatuses = ["published", "pending", "archived"];
 const v1TokenKey = "i-remember:v1-admin-token";
 
 function normalizeRouteId(value = "") {
@@ -195,6 +194,7 @@ async function api(path, options = {}) {
         `Request failed: ${response.status}`,
     );
     error.status = response.status;
+    error.code = payload.error?.code;
     throw error;
   }
   return envelope ? payload : payload.data;
@@ -662,13 +662,13 @@ export function AdminApp() {
   const [pendingNavigation, setPendingNavigation] = useState(null);
   const [newDraftVersion, setNewDraftVersion] = useState(0);
   const [savingMemory, setSavingMemory] = useState(false);
-  const [uploadingMemory, setUploadingMemory] = useState(false);
+  const [newMemoryAttachment, setNewMemoryAttachment] = useState(null);
   const [savingPage, setSavingPage] = useState(false);
   const [savingOther, setSavingOther] = useState(false);
   const dirtyRef = useRef(false);
   const actionRef = useRef(false);
   const uploadRef = useRef(false);
-  const reportUpload = useCallback(value => { uploadRef.current = value; setUploadingMemory(value); }, []);
+  const reportUpload = useCallback(value => { uploadRef.current = value; }, []);
   const locationRef = useRef(window.location.href);
   const reportDirty = useCallback((dirty) => {
     dirtyRef.current = dirty;
@@ -727,44 +727,50 @@ export function AdminApp() {
   }, []);
 
   const refreshData = useCallback(async () => {
+    const target = new URL(window.location.href);
+    const targetRoute = routeFromLocation();
     setLoading(true);
     setError("");
     try {
       const payload = await v1Bootstrap();
-      let requested = memoryIdFromLocation();
-      if (requested && routeFromLocation() === "memory-editor") {
-        // A direct editor route must not depend on the owner's cached list.
-        const record = await v1Api(`/api/v1/memories/${encodeURIComponent(requested)}`);
-        if (memoryIdFromLocation() !== requested || routeFromLocation() !== "memory-editor") return;
-        if (record.id !== requested) {
-          requested = record.id;
-          const url = new URL(window.location.href);
-          url.searchParams.set("id", requested);
-          window.history.replaceState(window.history.state, "", url);
-          locationRef.current = url.href;
-        }
+      let selectedId = targetRoute === "memory-editor" ? target.searchParams.get("id") : null;
+      let selectedSlug = targetRoute === "page-editor" ? target.searchParams.get("slug") : null;
+      let replacement = null;
+      if (selectedId) {
+        // Direct links and browser history can point outside the cached list.
+        const record = await v1Api(`/api/v1/memories/${encodeURIComponent(selectedId)}`);
         payload.memories = [...payload.memories.filter(item => item.id !== record.id), v1MemoryAdmin(record)];
+        const ownerPage = payload.pages.find(page => page.linkedMemoryId === record.id || page.slug === record.metadata?.pageSlug);
+        if (ownerPage) {
+          selectedSlug = ownerPage.slug;
+          replacement = `/admin/pages/editor?slug=${encodeURIComponent(selectedSlug)}`;
+        } else if (selectedId !== record.id) {
+          const canonical = new URL(target);
+          canonical.searchParams.set("id", record.id);
+          replacement = canonical.href;
+        }
+        selectedId = record.id;
       }
-      if (requested) setSelectedMemoryId(requested);
-      const requestedMemory = payload.memories.find(item => item.id === requested);
-      const ownerPage = payload.pages.find(page => page.linkedMemoryId === requested || page.slug === requestedMemory?.metadata?.pageSlug);
-      if (requested && ownerPage && routeFromLocation() === "memory-editor") {
-        window.history.replaceState({}, "", `/admin/pages/editor?slug=${encodeURIComponent(ownerPage.slug)}`);
-        locationRef.current = window.location.href;
-        setSelectedPageSlug(ownerPage.slug);
-        setRoute("page-editor");
-      }
-      const pageSlug = new URLSearchParams(window.location.search).get("slug");
-      if (routeFromLocation() === "page-editor" && pageSlug) {
-        const page = v1PageAdmin(await v1Api(`/api/v1/pages/${encodeURIComponent(pageSlug)}?language=${encodeURIComponent(payload.settings.defaultLanguage)}`));
+      if (selectedSlug) {
+        const page = v1PageAdmin(await v1Api(`/api/v1/pages/${encodeURIComponent(selectedSlug)}?language=${encodeURIComponent(payload.settings.defaultLanguage)}`));
         payload.pages = [...payload.pages.filter(item => item.id !== page.id), page];
       }
+      if (window.location.href !== target.href) return false;
+      if (replacement) {
+        window.history.replaceState(window.history.state, "", replacement);
+        locationRef.current = window.location.href;
+        setRoute(routeFromLocation());
+      }
+      if (selectedId) setSelectedMemoryId(selectedId);
+      if (selectedSlug) setSelectedPageSlug(selectedSlug);
       setData({ ...payload });
       setSelectedMenuId((current) =>
         payload.menu.some((item) => item.id === current) ? current : payload.menu[0]?.id || null,
       );
+      return true;
     } catch (apiError) {
-      setError(apiError.message);
+      if (window.location.href === target.href) setError(apiError.message);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -777,7 +783,14 @@ export function AdminApp() {
         window.history.pushState({}, "", locationRef.current);
         return;
       }
-      if (routeFromLocation() === "page-editor") await refreshData();
+      const targetRoute = routeFromLocation();
+      if (targetRoute === "page-editor" || (targetRoute === "memory-editor" && memoryIdFromLocation())) {
+        if (!(await refreshData())) {
+          if (window.location.href === targetUrl) window.history.replaceState({}, "", locationRef.current);
+          return;
+        }
+      }
+      setNewMemoryAttachment(null);
       reportDirty(false);
       setNewDraftVersion((value) => value + 1);
       locationRef.current = window.location.href;
@@ -785,7 +798,6 @@ export function AdminApp() {
       setNewMenuItem(null);
       setSelectedMemoryId(memoryIdFromLocation());
       setSelectedPageSlug(new URLSearchParams(window.location.search).get("slug") || "");
-      if (routeFromLocation() === "memory-editor" && memoryIdFromLocation()) void refreshData();
     };
     window.addEventListener("popstate", handleLocation);
     window.addEventListener("hashchange", handleLocation);
@@ -817,8 +829,9 @@ export function AdminApp() {
 
   useEffect(() => {
     // A new admin screen starts below its own top bar, not at the old page's scroll offset.
+    if (route === "memory-editor" && new URLSearchParams(window.location.search).get("section") === "settings") return;
     window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [route, selectedMemoryId]);
+  }, [route, newDraftVersion]);
 
   function navigate(nextRoute, nextSettingsTab = "site") {
     if (nextRoute === route && (nextRoute !== "settings" || nextSettingsTab === settingsTab)) {
@@ -955,34 +968,48 @@ export function AdminApp() {
     } finally { actionRef.current = false; setSavingOther(false); }
   }
 
-  async function saveMemory(id, payload) {
-    if (actionRef.current) return null;
+  async function saveMemory(previous, payload) {
+    if (actionRef.current) throw new Error("Another operation is in progress. Try again.");
     actionRef.current = true;
     setSavingMemory(true);
     try {
-      return await runAction("Memory saved", async () => {
-        const saved = await syncV1Memory(v1Api, payload);
-        setData(current => ({ ...current, memories: [v1MemoryAdmin(saved), ...current.memories.filter(item => item.id !== saved.id && item.id !== id)] }));
-        reportDirty(false);
-        setSelectedMemoryId(saved.id);
-        window.history.replaceState(
-          { route: "memory-editor" },
-          "",
-          `/admin/memory/editor?id=${encodeURIComponent(saved.id)}`,
-        );
-        locationRef.current = window.location.href;
-        setRoute("memory-editor");
-        await refreshData();
-        return saved;
+      const saved = v1MemoryAdmin(await syncV1Memory(v1Api, {
+        ...payload,
+        publicId: previous?.publicId,
+        expectedUpdatedAt: previous?.updatedAt,
+        defaultLanguage: data.settings.defaultLanguage,
+      }));
+      setData(current => {
+        const counts = { ...current.counts };
+        if (!previous) counts.totalMemory++;
+        if (previous?.status !== saved.status) {
+          if (previous) counts[`${previous.status}Memory`]--;
+          counts[`${saved.status}Memory`]++;
+        }
+        return {
+          ...current, counts,
+          memories: [saved, ...current.memories.filter(item => item.id !== saved.id && item.id !== previous?.id)],
+        };
       });
+      if (previous?.id !== saved.id) {
+        setSelectedMemoryId(saved.id);
+        window.history.replaceState({ route: "memory-editor" }, "", `/admin/memory/editor?id=${encodeURIComponent(saved.id)}`);
+        locationRef.current = window.location.href;
+      }
+      return saved;
     } finally {
       actionRef.current = false;
       setSavingMemory(false);
     }
   }
 
-  function createMemory() {
-    if (!canLeaveEditor(createMemory)) return;
+  function createMemory(attachment = null) {
+    if (!canLeaveEditor(() => createMemory(attachment))) return;
+    setNewMemoryAttachment(attachment);
+    setError("");
+    setNotice("");
+    setSpotlightOpen(false);
+    setMobileNavOpen(false);
     setNewDraftVersion((value) => value + 1);
     reportDirty(false);
     setSelectedMemoryId(null);
@@ -1010,6 +1037,7 @@ export function AdminApp() {
     reportDirty(false);
     setNewDraftVersion((value) => value + 1);
     setSelectedMemoryId(id);
+    setNewMemoryAttachment(null);
     window.history.pushState(
       { route: "memory-editor" },
       "",
@@ -1039,57 +1067,6 @@ export function AdminApp() {
     setData(current => mergeV1Assets(current, [payload.data]));
     const { id, ...attachment } = payload.data;
     return { ...attachment, mediaId: id, metadata: { ...attachment.metadata, filename: file.name || attachment.metadata?.filename } };
-  }
-
-  async function deleteMemory(id) {
-    if (actionRef.current) return;
-    const memory = data?.memories?.find((item) => item.id === id);
-    if (
-      !memory ||
-      !window.confirm(
-        `Archive "${memory.title || memory.excerpt || "this memory"}"?${dirtyRef.current ? " Unsaved changes will be discarded." : ""}`,
-      )
-    )
-      return;
-    actionRef.current = true;
-    setSavingMemory(true);
-    try {
-      await runAction("Memory archived", async () => {
-        await archiveV1Memory(v1Api, memory);
-        reportDirty(false);
-        await refreshData();
-      });
-    } finally {
-      actionRef.current = false;
-      setSavingMemory(false);
-    }
-  }
-
-  async function uploadAttachment(files, memoryId, signal, onProgress) {
-    if (!files?.length || actionRef.current) return;
-    actionRef.current = true;
-    try {
-      for (const [index, file] of groupLivePhotos(files).entries()) {
-        const attachment = await uploadEditorFile(file, signal, progress => onProgress?.({ ...progress, index: index + 1 }));
-        if (!memoryId) continue;
-        const path = `/api/v1/memories/${encodeURIComponent(memoryId)}`;
-        const current = await v1Api(path);
-        await v1Api(path, { method: "PATCH", body: JSON.stringify({ attachments: appendV1Attachment(current.attachments, attachment) }) });
-      }
-    } finally {
-      try { await refreshData(); } finally { actionRef.current = false; }
-    }
-  }
-
-  async function detachAttachment(attachment, memoryId) {
-    const result = await runAction("Attachment removed from memory", async () => {
-      const path = `/api/v1/memories/${encodeURIComponent(memoryId)}`;
-      const current = await v1Api(path);
-      await v1Api(path, { method: "PATCH", body: JSON.stringify({ attachments: current.attachments.filter(item => item.url !== attachment.url) }) });
-      await refreshData();
-      return true;
-    });
-    return result;
   }
 
   const queryMedia = useCallback((params, signal) => v1Api(`/api/v1/assets?${new URLSearchParams({ limit: "40", ...params })}`, { envelope: true, signal }), []);
@@ -1167,7 +1144,7 @@ export function AdminApp() {
     setNotice("");
     setError("");
     setNewMenuItem({
-      uid: `menu-${crypto.randomUUID()}`,
+      uid: `menu-${randomUuid()}`,
       label: "",
       type: "PAGE",
       targetValue: data.pages[0]?.slug || "",
@@ -1292,7 +1269,7 @@ export function AdminApp() {
   }
 
   const currentRoute = routeMap.get(route) || routeMap.get("dashboard");
-  const editorial = ["page-editor", "menus", "settings"].includes(route);
+  const editorial = ["memory-editor", "page-editor", "attachments", "menus", "settings"].includes(route);
   const activeRoute = route === "memory-editor" ? "memory" : route === "page-editor" ? "pages" : route;
 
   if (checkingSession) {
@@ -1331,37 +1308,17 @@ export function AdminApp() {
             >
               <MenuIcon />
             </button>
-            {editorial ? <div className="editorial-toolbar" ref={setToolbarTarget} /> : <>
-            <div className="admin-page-heading min-w-0">
-              <h1>
-                {route === "memory-editor"
-                  ? selectedMemoryId
-                    ? "Edit memory"
-                    : "New memory"
-                  : currentRoute.title}
-              </h1>
-              <p>
-                {route === "memory-editor"
-                  ? savingMemory
-                    ? "Saving…"
-                    : editorDirty
-                      ? "Unsaved changes"
-                      : selectedMemoryId
-                        ? "Changes saved"
-                        : "Ready to write"
-                  : editorDirty ? "Unsaved changes" : currentRoute.description}
-              </p>
-            </div>
-            <TopBarAction
-              key={route}
-              selectedMemoryId={selectedMemoryId}
-              saving={savingMemory || savingPage || savingOther || uploadingMemory}
-              uploading={uploadingMemory}
-              route={route}
-              createMemory={createMemory}
-              createPage={createPage}
-            />
-            </>}
+            {editorial ? (
+              <div className="editorial-toolbar" ref={setToolbarTarget} />
+            ) : (
+              <>
+                <div className="admin-page-heading min-w-0">
+                  <h1>{currentRoute.title}</h1>
+                  <p>{editorDirty ? "Unsaved changes" : currentRoute.description}</p>
+                </div>
+                <TopBarAction route={route} createMemory={createMemory} createPage={createPage} />
+              </>
+            )}
           </header>
 
           <div className="admin-content">
@@ -1382,6 +1339,7 @@ export function AdminApp() {
                 savingOther={savingOther}
                 editPage={editPage}
                 newDraftVersion={newDraftVersion}
+                initialAttachment={newMemoryAttachment}
                 route={route}
                 data={data}
                 search={search}
@@ -1400,9 +1358,6 @@ export function AdminApp() {
                 createMemory={createMemory}
                 editMemory={editMemory}
                 saveMemory={saveMemory}
-                deleteMemory={deleteMemory}
-                uploadAttachment={uploadAttachment}
-                detachAttachment={detachAttachment}
                 loadMedia={loadMedia}
                 queryMedia={queryMedia}
                 deleteMedia={deleteMedia}
@@ -1626,41 +1581,7 @@ function SetupScreen({ loading, onSetup }) {
   );
 }
 
-function TopBarAction({
-  selectedMemoryId,
-  saving,
-  uploading,
-  route,
-  createMemory,
-  createPage,
-}) {
-  if (route === "memory-editor") {
-    return (
-      <div className="admin-topbar-actions">
-        {!selectedMemoryId ? (
-          <Button
-            disabled={saving}
-            variant="outline"
-            form="memory-editor-form"
-            name="intent"
-            value="draft"
-            type="submit"
-          >
-            Save draft
-          </Button>
-        ) : null}
-        <Button
-          disabled={saving}
-          form="memory-editor-form"
-          name="intent"
-          value={selectedMemoryId ? "save" : "publish"}
-          type="submit"
-        >
-          {uploading ? "Uploading…" : saving ? "Saving…" : selectedMemoryId ? "Save changes" : "Publish memory"}
-        </Button>
-      </div>
-    );
-  }
+function TopBarAction({ route, createMemory, createPage }) {
   if (route === "pages") {
     return (
       <Button onClick={createPage}>
@@ -1669,9 +1590,8 @@ function TopBarAction({
       </Button>
     );
   }
-  if (route === "attachments") return null;
   return (
-    <Button onClick={createMemory}>
+    <Button onClick={() => createMemory()}>
       <Plus data-icon="inline-start" />
       New memory
     </Button>
@@ -2044,7 +1964,18 @@ function AdminRoute(props) {
     case "page-editor":
       return <PagesWorkspace key={`${props.route}-${props.newDraftVersion}`} {...props} />;
     case "attachments":
-      return <MediaLibrary assets={props.data.attachments} queryMedia={props.queryMedia} onUpload={props.uploadAttachment} loadMedia={props.loadMedia} deleteMedia={props.deleteMedia} scanMedia={props.scanMedia} editMemory={props.editMemory} editPage={props.editPage} />;
+      return <MediaLibrary
+        assets={props.data.attachments}
+        queryMedia={props.queryMedia}
+        onUpload={props.uploadEditorFile}
+        onUploadingChange={props.onUploadingChange}
+        onUseInMemory={props.createMemory}
+        loadMedia={props.loadMedia}
+        deleteMedia={props.deleteMedia}
+        scanMedia={props.scanMedia}
+        editMemory={props.editMemory}
+        editPage={props.editPage}
+      />;
     case "menus":
       return <MenusView {...props} />;
     case "settings":
@@ -2167,7 +2098,7 @@ function DashboardView({ data, navigate, createMemory, createPage, editMemory })
               <CardTitle>Quick actions</CardTitle>
             </CardHeader>
             <CardContent className="admin-quick-actions">
-              <button type="button" onClick={createMemory}>
+              <button type="button" onClick={() => createMemory()}>
                 <span>Write a memory</span>
                 <small>New entry</small>
               </button>
@@ -2420,59 +2351,19 @@ function MemoryView({ data, search, setSearch, memoryFilter, setMemoryFilter, ed
   );
 }
 
-function MemoryEditorView({
-  data,
-  selectedMemoryId,
-  saveMemory,
-  deleteMemory,
-  navigate,
-  reportDirty,
-  uploadEditorFile,
-  queryMedia,
-  savingMemory,
-  onUploadingChange,
-  newDraftVersion,
-}) {
-  const memory = (data.memories || []).find((item) => item.id === selectedMemoryId);
-  const isNew = !selectedMemoryId;
-  const draft = useMemo(
-    () =>
-      memory ||
-      (isNew
-        ? {
-            id: null,
-            title: "",
-            author: "Songqi Duan",
-            locationName: "",
-            excerpt: "",
-            bodyMarkdown: "",
-            status: "published",
-            imageKey: "",
-            attachments: [],
-            visibility: "PUBLIC",
-            metadata: { language: data.settings?.defaultLanguage || "en" },
-            metadataJson: JSON.stringify({ language: data.settings?.defaultLanguage || "en" }),
-            publicUrl: "",
-          }
-        : null),
-    [memory, isNew, data.settings?.defaultLanguage],
-  );
+function MemoryEditorView({ data, selectedMemoryId, newDraftVersion, navigate, ...props }) {
+  const memory = data.memories.find(item => item.id === selectedMemoryId);
+  if (selectedMemoryId && !memory) {
+    return (
+      <div className="admin-workspace-empty">
+        <h2>Memory not found</h2>
+        <Button onClick={() => navigate("memory")}>Back to memories</Button>
+      </div>
+    );
+  }
   return (
-    <MemoryEditor
-      key={`${selectedMemoryId || "new"}-${newDraftVersion}`}
-      reportDirty={reportDirty}
-      siteSettings={data.settings}
-      assets={data.attachments}
-      queryMedia={queryMedia}
-      onUpload={uploadEditorFile}
-      saving={savingMemory}
-      onUploadingChange={onUploadingChange}
-      memory={draft}
-      isNew={isNew}
-      onSave={saveMemory}
-      onDelete={deleteMemory}
-      navigate={navigate}
-    />
+    <MemoryEditor key={newDraftVersion} memory={memory} siteSettings={data.settings}
+      assets={data.attachments} navigate={navigate} {...props} />
   );
 }
 
@@ -2492,119 +2383,6 @@ function MemoryListItem({ memory, compact = false }) {
       </div>
       {!compact ? <StatusBadge value={memory.status} /> : null}
     </div>
-  );
-}
-
-function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, reportDirty, onUpload, saving, assets, queryMedia, onUploadingChange }) {
-  const [draft, setDraft] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  useEffect(() => () => onUploadingChange(false), [onUploadingChange]);
-  const scrolledToSection = useRef(false);
-  useEffect(() => {
-    if (!draft || scrolledToSection.current) return;
-    scrolledToSection.current = true;
-    if (new URLSearchParams(window.location.search).get("section") === "settings") document.getElementById("memory-publishing")?.scrollIntoView({ block: "start" });
-  }, [draft]);
-
-  useEffect(() => {
-    setDraft(memory ? { ...memory } : null);
-  }, [memory]);
-
-  if (!memory || !draft) {
-    return (
-      <Card className="rounded-lg">
-        <CardContent className="py-10 text-sm text-muted-foreground">
-          No memory selected.
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const update = (key, value) => {
-    if (saving) return;
-    reportDirty(true);
-    setDraft((current) => ({ ...current, [key]: value }));
-  };
-
-  return (
-    <form
-      id="memory-editor-form"
-      className="admin-editor-grid"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (uploading || saving) return;
-        const intent = event.nativeEvent.submitter?.value;
-        onSave(memory.id, {
-          ...draft,
-          status:
-            intent === "draft" ? "pending" : intent === "publish" ? "published" : draft.status,
-        });
-      }}
-    >
-      <Card className="admin-editor-form">
-        <CardHeader>
-          <CardTitle>Content</CardTitle>
-          <CardAction>
-            <span className="admin-card-meta">Markdown</span>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="grid gap-5" inert={saving}>
-          <FieldGroup>
-            <TextField
-              label="Title"
-              description="Shown in admin lists and search results."
-              value={draft.title}
-              onChange={(value) => update("title", value)}
-            />
-            <WritingField label="Body" value={draft.bodyMarkdown} onChange={value => update("bodyMarkdown", value)} />
-          </FieldGroup>
-          <EditorAttachments attachments={draft.attachments || []} assets={assets} queryMedia={queryMedia} onUpload={onUpload}
-            disabled={saving} onBusy={value => { setUploading(value); onUploadingChange(value); }} onDirty={() => reportDirty(true)}
-            onChange={attachments => { reportDirty(true); setDraft(current => ({ ...current, attachments, attachmentsDirty: true })); }} />
-          <div className="admin-editor-actions">
-            {!isNew ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  memory.status === "archived"
-                    ? onSave(memory.id, { ...draft, status: "published" })
-                    : onDelete(memory.id)
-                }
-                disabled={saving || uploading}
-              >
-                <Trash2 data-icon="inline-start" />
-                {memory.status === "archived" ? "Restore memory" : "Archive memory"}
-              </Button>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
-      <aside className="admin-editor-rail">
-        <Card id="memory-publishing"><CardHeader><CardTitle>Publishing</CardTitle></CardHeader>
-          <CardContent className="grid gap-4" inert={saving}>
-            <div className="admin-publishing-primary">
-              <Field><FieldLabel>Status</FieldLabel><AdminSelect ariaLabel="Status" value={draft.status} onValueChange={value => update("status", value)}
-                options={memoryStatuses.map(value => ({ value, label: {published: "Published", pending: "Draft", archived: "Archived", rejected: "Rejected"}[value] || value }))} /></Field>
-              <Field><FieldLabel>Visibility</FieldLabel><AdminSelect ariaLabel="Visibility" value={draft.visibility || "PUBLIC"} onValueChange={value => update("visibility", value)}
-                options={[{value: "PUBLIC", label: "Public"}, {value: "UNLISTED", label: "Unlisted"}, {value: "PRIVATE", label: "Private"}]} /></Field>
-            </div>
-            <p className="admin-field-help">{draft.status !== "published" ? "Hidden from visitors until published." : draft.visibility === "UNLISTED" ? "Anyone with the link can read it. Hidden from the galaxy and search." : draft.visibility === "PRIVATE" ? "Only you can read it in admin." : "Visible in the galaxy and site search."}</p>
-            <details className="admin-secondary-fields"><summary>Author and advanced options</summary>
-              <TextField label="Author display name" value={draft.author} onChange={value => update("author", value)} />
-              <TextField label="Public ID" value={draft.linkId ?? draft.publicId ?? ""} onChange={value => update("linkId", value)} placeholder="Generated automatically"
-                description="4–32 letters, numbers or hyphens; start with a letter. Old links keep working."
-                pattern="[A-Za-z][A-Za-z0-9-]{3,31}" minLength={4} maxLength={32} required={Boolean(draft.publicId)} autoCapitalize="none" spellCheck={false} />
-              <TextField label="Location" description="Saved privately; not displayed on the card." value={draft.locationName || ""} maxLength={160} onChange={value => update("locationName", value)} />
-            </details>
-            {memory.publicId && memory.status === "published" && memory.visibility !== "PRIVATE" ? <Button asChild variant="outline"><a href={memory.publicUrl} target="_blank" rel="noreferrer">Open on site <ExternalLink size={16} /></a></Button> : null}
-            <Button type="submit" disabled={saving || uploading}>{saving ? "Saving…" : uploading ? "Uploading…" : isNew ? (draft.status === "pending" ? "Save draft" : "Publish memory") : "Save changes"}</Button>
-          </CardContent>
-        </Card>
-        <details className="admin-public-preview admin-secondary-fields"><summary>Card preview</summary><p className="admin-field-help">Text and cover. Play media in Attachments.</p><MemoryCard memory={draft} settings={siteSettings} /></details>
-
-      </aside>
-    </form>
   );
 }
 

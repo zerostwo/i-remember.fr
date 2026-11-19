@@ -9,7 +9,7 @@ A November 19 walkthrough found two visible **Save page** buttons in the desktop
 - Put the current editing action in one stable toolbar position. In the proposed editor, a private draft can save in the background, with **Draft saved** shown only after a successful write. **Publish** explicitly changes what visitors can see. Editing published content, Navigation and Site settings uses **Save changes**. Preserve unsaved work and offer retry on failure.
 - Keep writing in the main column and place publication status, footer visibility and advanced options in the inspector. On phones, keep the action visible and place the inspector in the normal page flow.
 - Use one sidebar selection treatment, one control height per input mode and the same grouped rows for settings. Reserve the serif face for the archive identity and authored text. Use text as well as color to identify status.
-- After visual approval, validate the same draft, publish, failure, cancel and archive workflows with keyboard and touch. Apply the approved controls to Memories and Attachments next.
+- The owner extended this design to the Memory editor and Attachments. Use the shared toolbar for Memory publishing and library uploads. Previewing media from either route should make it possible to reuse the file. Validate with a local API, desktop input and touch.
 
 The hierarchy and button roles draw on the [Apple button guidance](https://developer.apple.com/design/human-interface-guidelines/buttons) and [toolbar guidance](https://developer.apple.com/design/human-interface-guidelines/toolbars).
 

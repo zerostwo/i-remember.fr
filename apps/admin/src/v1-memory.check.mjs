@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { appendV1Attachment, archiveV1Memory, syncV1Memory, v1MemoryPayload } from "./v1-memory.js";
+import { appendV1Attachment, syncV1Memory, v1MemoryPayload } from "./v1-memory.js";
 import { collectPages } from "./pagination.js";
 const id = "m11111111111111111111";
 const attachments = [
@@ -69,11 +69,14 @@ assert.deepEqual(
   [undefined, "PATCH"],
   "A failed update must never create a new record",
 );
-const archiveCalls = [];
-await archiveV1Memory(async (path, options) => archiveCalls.push({ path, ...options }), {
-  publicId: id,
+const versionCalls = [];
+await syncV1Memory(async (path, options) => versionCalls.push({ path, ...options }), {
+  publicId: id, title: "Draft title", bodyMarkdown: "", status: "pending", defaultLanguage: "en",
+  expectedUpdatedAt: "2026-11-19T12:00:00.000Z",
 });
-assert.deepEqual(archiveCalls, [{ path: `/api/v1/memories/${id}`, method: "DELETE" }]);
+assert.equal(versionCalls.length, 1);
+assert.equal(JSON.parse(versionCalls[0].body).expectedUpdatedAt, "2026-11-19T12:00:00.000Z");
+assert.equal(JSON.parse(versionCalls[0].body).status, "PENDING");
 const all = Array.from({ length: 405 }, (_, i) => ({ id: String(i) }));
 let pages = 0;
 const loaded = await collectPages(async (path) => {

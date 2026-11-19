@@ -1,18 +1,10 @@
+import { randomUuid } from "./random-id.js";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
-import { EditorialLayout } from "./EditorialLayout.jsx";
-import { Dialog } from "radix-ui";
 import {
-  ArrowLeft,
   ArrowRight,
   File,
-  Film,
   Image,
-  Music2,
-  Play,
   Search,
-  Upload,
-  X,
-  Plus,
   Eye,
   Pencil,
   Bold,
@@ -20,641 +12,39 @@ import {
   Heading2,
   Link,
   List,
-  Download,
   ExternalLink,
 } from "lucide-react";
-import {
-  Button,
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  Input,
-} from "@i-remember/ui";
+import { Button, Input } from "@i-remember/ui";
 import { markdownToHtml } from "../../../packages/content/src/markdown.js";
-import { mediaAccept } from "../../../packages/config/src/media-limits.js";
-import { groupLivePhotos } from "../../../packages/content/src/live-photo-upload.js";
-import { appendV1Attachment } from "./v1-memory.js";
+import { EditorialLayout } from "./EditorialLayout.jsx";
+import { assetName, mediaKind, MediaPicker } from "./MediaWorkspace.jsx";
 import { v1AssetPreviewUrls } from "./v1-assets.js";
+import { Modal } from "./WorkspaceDialog.jsx";
+export { MediaLibrary, EditorAttachments, assetName, mediaKind } from "./MediaWorkspace.jsx";
 
-export function mediaKind(asset = {}) {
-  if (asset.metadata?.livePhoto) return "live";
-  const type = asset.type || asset.mimeType || "";
-  return type.startsWith("image/")
-    ? "image"
-    : type.startsWith("video/")
-      ? "video"
-      : type.startsWith("audio/")
-        ? "audio"
-        : "file";
-}
-const kindLabels = {
-  image: "Photo",
-  video: "Video",
-  audio: "Audio",
-  live: "Live Photo",
-  file: "File",
-};
-const kindIcons = { image: Image, video: Film, audio: Music2, live: Play, file: File };
-export function assetName(asset = {}) {
-  return (
-    asset.metadata?.filename ||
-    asset.metadata?.originalName ||
-    (asset.url || asset.resizedUrl || asset.imageKey || "Attachment").split("/").pop()
-  );
-}
-function mediaUrl(asset) {
-  return asset.url || asset.resizedUrl;
-}
-function durationLabel(seconds) {
-  return Number.isFinite(seconds) && seconds > 0
-    ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`
-    : "";
-}
-function MediaThumbnail({ asset }) {
-  const kind = mediaKind(asset),
-    Icon = kindIcons[kind];
-  const src = kind === "image" || kind === "live" ? mediaUrl(asset) : asset.metadata?.posterUrl;
-  const [failed, setFailed] = useState(false);
-  return (
-    <div className={`admin-media-thumb is-${kind}`}>
-      {src && !failed ? (
-        <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} />
-      ) : (
-        <Icon size={32} strokeWidth={1} />
-      )}
-      <span className="admin-media-kind">
-        <Icon size={13} />
-        {kindLabels[kind]}
-        {["video", "audio", "live"].includes(kind) && durationLabel(asset.metadata?.duration)
-          ? ` · ${durationLabel(asset.metadata.duration)}`
-          : ""}
-      </span>
-    </div>
-  );
-}
-function MediaPlayer({ asset }) {
-  const kind = mediaKind(asset),
-    [error, setError] = useState(false);
-  const [livePlaying, setLivePlaying] = useState(false);
-  const urls = v1AssetPreviewUrls(asset);
-  const url = urls.preview;
-  if (error)
-    return (
-      <div className="admin-workspace-empty">
-        <File />
-        <p>Preview unavailable. You can still download the original file.</p>
-      </div>
-    );
-  if (kind === "image")
-    return (
-      <img
-        className="admin-media-full-image"
-        src={url}
-        alt={assetName(asset)}
-        onError={() => setError(true)}
-      />
-    );
-  if (kind === "video")
-    return (
-      <video
-        className="admin-media-player"
-        src={url}
-        poster={asset.metadata?.posterUrl}
-        controls
-        playsInline
-        preload="metadata"
-        onError={() => setError(true)}
-      />
-    );
-  if (kind === "live")
-    return (
-      <div className="admin-live-preview">
-        {livePlaying ? (
-          <video
-            className="admin-media-player"
-            src={urls.video}
-            controls
-            playsInline
-            autoPlay
-            onEnded={() => setLivePlaying(false)}
-            onError={() => setError(true)}
-          />
-        ) : (
-          <>
-            <img className="admin-media-full-image" src={url} alt={assetName(asset)} />
-            <Button type="button" onClick={() => setLivePlaying(true)}>
-              <Play size={16} />
-              Play Live Photo{asset.metadata.hasAudio ? " with sound" : ""}
-            </Button>
-          </>
-        )}
-      </div>
-    );
-  if (kind === "audio")
-    return (
-      <div className="admin-audio-preview">
-        <Music2 size={48} strokeWidth={1} />
-        <p>{assetName(asset)}</p>
-        <audio src={url} controls preload="metadata" onError={() => setError(true)} />
-      </div>
-    );
-  return (
-    <div className="admin-workspace-empty">
-      <File />
-      <p>No preview for this file type.</p>
-    </div>
-  );
-}
-function Modal({ title, description, children, open, onClose, className = "" }) {
-  return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(value) => {
-        if (!value) onClose();
-      }}
-    >
-      <Dialog.Portal>
-        <Dialog.Overlay className="admin-workspace-scrim" />
-        <Dialog.Content className={`i-remember-admin dark admin-workspace-dialog ${className}`}>
-          <header>
-            <div>
-              <Dialog.Title>{title}</Dialog.Title>
-              <Dialog.Description>{description}</Dialog.Description>
-            </div>
-            <Dialog.Close asChild>
-              <Button variant="ghost" type="button" aria-label="Close dialog">
-                <X size={20} />
-              </Button>
-            </Dialog.Close>
-          </header>
-          {children}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
-  );
-}
-function MediaDialog({ asset, onClose, loadMedia, deleteMedia, editMemory, editPage }) {
-  const [detail, setDetail] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    if (loadMedia && asset.id) loadMedia(asset.id).then(value => { if (active) setDetail(value); }).catch(err => { if (active) setError(err.message); });
-    return () => { active = false; };
-  }, [asset.id, loadMedia]);
-  return <Modal open title={assetName(asset)} description={kindLabels[mediaKind(asset)]} onClose={() => { if (!busy) onClose(); }}>
-    <div className="admin-media-stage"><MediaPlayer asset={asset} /></div>
-    <div className="admin-media-detail">
-      <Button asChild variant="outline"><a href={v1AssetPreviewUrls(asset).download} download target="_blank" rel="noreferrer"><Download size={16} />{asset.metadata?.livePhoto ? "Download photo + MOV" : "Download file"}</a></Button>
-      {loadMedia && !detail && !error ? <p role="status">Checking file usage…</p> : null}
-      {detail ? <section><h3>{detail.usage.length ? `Used in ${detail.usage.length} ${detail.usage.length === 1 ? "place" : "places"}` : "Not used in any saved memory or page"}</h3>
-        {detail.usage.map(item => <div className="admin-media-usage" key={item.kind + item.id}>
-          <button type="button" onClick={() => { onClose(); if (item.kind === "page") editPage?.(item.slug); else editMemory?.(item.id); }}>
-            {item.title}<small>{item.kind === "page" ? "Page" : "Memory"} · {item.status.toLowerCase()}</small>
-          </button>
-        </div>)}
-        {!detail.usage.length ? <p className="admin-field-help">Kept in your library for reuse. Deleting also removes the stored file and its media variants.</p> : null}
-        {!detail.usage.length && detail.canDelete && deleteMedia ? <Button variant="outline" disabled={busy} onClick={async () => {
-          if (!window.confirm("Permanently delete this unused file and its media variants? This cannot be undone.")) return;
-          setBusy(true); setError("");
-          try { await deleteMedia(asset.id); onClose(); } catch (err) { setError(err.message); } finally { setBusy(false); }
-        }}>{busy ? "Deleting…" : "Delete unused file"}</Button> : null}
-      </section> : null}
-      {error ? <p role="alert">{error}</p> : null}
-    </div>
-  </Modal>;
-}
-
-function MediaGrid({ assets, onSelect, selectLabel = "Preview", selected = [] }) {
-  return (
-    <div className="admin-media-grid">
-      {assets.map((asset) => (
-        <button
-          type="button"
-          className="admin-media-tile"
-          key={mediaUrl(asset)}
-          onClick={() => onSelect(asset)}
-          disabled={selected.includes(mediaUrl(asset))}
-          aria-label={`${selectLabel} ${assetName(asset)}`}
-        >
-          <MediaThumbnail asset={asset} />
-          <span className="admin-media-filename">{assetName(asset)}</span>
-          <span className="admin-media-caption">
-            {selected.includes(mediaUrl(asset))
-              ? "Already attached"
-              : asset.usageCount !== undefined
-                ? asset.usageCount ? `Used in ${asset.usageCount} ${asset.usageCount === 1 ? "place" : "places"}` : "Unused · kept in library"
-                : kindLabels[mediaKind(asset)]}
-          </span>
-        </button>
-      ))}
-    </div>
-  );
-}
-function LibraryFilter({ query, setQuery, kind, setKind, count }) {
-  return (
-    <div className="admin-workspace-toolbar">
-      <label className="admin-workspace-search">
-        <Search size={17} />
-        <Input
-          type="search"
-          aria-label="Search media"
-          placeholder="Search files or their owners…"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </label>
-      <select
-        aria-label="Media type"
-        value={kind}
-        onChange={(event) => setKind(event.target.value)}
-      >
-        <option value="all">All media</option>
-        <option value="image">Photos</option>
-        <option value="video">Videos</option>
-        <option value="audio">Audio</option>
-        <option value="live">Live Photos</option>
-        <option value="file">Files</option>
-        <option value="unused">Unused</option>
-      </select>
-      <span className="admin-workspace-count">{count} items</span>
-    </div>
-  );
-}
-function useMediaPage(queryMedia, query, kind, enabled, revision) {
-  const [result, setResult] = useState({ assets: [], total: 0, cursor: null, loading: false, error: "" });
-  const request = useRef(null), generation = useRef(0);
-  const load = async (cursor, version) => {
-    request.current?.abort();
-    const controller = new AbortController(); request.current = controller;
-    setResult(current => ({ ...current, loading: true, error: "" }));
-    try {
-      const payload = await queryMedia({ q: query.trim(), ...(kind === "unused" ? { unused: "true" } : { kind }), ...(cursor ? { cursor } : {}) }, controller.signal);
-      if (controller.signal.aborted || generation.current !== version) return;
-      setResult(current => ({ assets: cursor ? [...current.assets, ...payload.data] : payload.data, total: payload.pagination.total, cursor: payload.pagination.nextCursor, loading: false, error: "" }));
-    } catch (error) {
-      if (!controller.signal.aborted && generation.current === version) setResult(current => ({ ...current, loading: false, error: error.message }));
-    }
-  };
-  useEffect(() => {
-    const version = ++generation.current;
-    setResult({ assets: [], total: 0, cursor: null, loading: Boolean(enabled), error: "" });
-    if (!enabled || !queryMedia) return;
-    const timer = setTimeout(() => load(null, version), query.trim() ? 180 : 0);
-    return () => { clearTimeout(timer); request.current?.abort(); generation.current++; };
-  }, [queryMedia, query, kind, enabled, revision]);
-  return { ...result, more: () => load(result.cursor, generation.current), retry: () => load(null, generation.current) };
-}
-function MediaPagination({ library }) {
-  return <div className="admin-media-pagination">
-    {library.loading ? <p role="status">Loading media…</p> : null}
-    {library.error ? <p role="alert">{library.error} <Button variant="ghost" onClick={library.retry}>Retry</Button></p> : null}
-    {library.cursor ? <Button type="button" variant="outline" disabled={library.loading} onClick={library.more}>Load more media</Button> : null}
-  </div>;
-}
-function UploadStatus({ progress, onCancel }) {
-  return (
-    <div className="admin-upload-status" role="status">
-      <span>
-        {progress?.phase === "uploading" ? "Uploading" : "Processing media"}
-        {progress?.index ? ` · File ${progress.index}` : ""}
-        {progress?.percent != null ? ` · ${progress.percent}%` : ""}
-      </span>
-      <progress aria-label="Upload progress" max="100" value={progress?.percent ?? undefined} />
-      <Button type="button" variant="ghost" onClick={onCancel}>
-        Cancel upload
-      </Button>
-    </div>
-  );
-}
-export function MediaLibrary({ assets = [], queryMedia, onUpload, loadMedia, deleteMedia, scanMedia, editMemory, editPage }) {
-  const [query, setQuery] = useState(""),
-    [kind, setKind] = useState("all"),
-    [selected, setSelected] = useState(null),
-    [uploadOpen, setUploadOpen] = useState(false);
-  const [busy, setBusy] = useState(false),
-    [progress, setProgress] = useState(null),
-    [error, setError] = useState("");
-  const controller = useRef(null);
-  useEffect(() => () => controller.current?.abort(), []);
-  const library = useMediaPage(queryMedia, query, kind, true, assets);
-  const filtered = library.assets;
-  return (
-    <div className="admin-media-workspace">
-      <div className="admin-section-heading">
-        <div>
-          <h2>Media library</h2>
-          <p>Preview files, find their memories, and reuse them while writing.</p>
-        </div>
-        <div className="admin-media-library-actions"><Button variant="ghost" disabled={busy} onClick={async () => { setBusy(true); setError(""); try { await scanMedia(); } catch (err) { setError(err.message); } finally { setBusy(false); } }}>Find stored files</Button><Button onClick={() => setUploadOpen(true)}>
-          <Upload size={16} />
-          Upload media
-        </Button></div>
-      </div>
-      {error && !uploadOpen ? <p role="alert">{error}</p> : null}
-      <LibraryFilter {...{ query, setQuery, kind, setKind }} count={library.total} />
-      {filtered.length ? (
-        <MediaGrid assets={filtered} onSelect={setSelected} />
-      ) : !library.loading && !library.error ? (
-        <div className="admin-workspace-empty">
-          <Image size={32} />
-          <h3>{query || kind !== "all" ? "No matching media" : "Your media library is empty"}</h3>
-          <p>
-            {query || kind !== "all"
-              ? "Try another search or media type."
-              : "Upload media here or while writing a memory or page."}
-          </p>
-          {query || kind !== "all" ? (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setQuery("");
-                setKind("all");
-              }}
-            >
-              Clear filters
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-      <MediaPagination library={library} />
-      {selected ? (
-        <MediaDialog
-          key={mediaUrl(selected)}
-          asset={selected}
-          onClose={() => setSelected(null)}
-          {...{ loadMedia, deleteMedia, editMemory, editPage }}
-        />
-      ) : null}
-      <Modal
-        open={uploadOpen}
-        title="Upload media"
-        description="Upload once, then use the file in any memory or page."
-        onClose={() => {
-          if (!busy) setUploadOpen(false);
-        }}
-      >
-        <div className="admin-upload-dialog-body">
-          <label className="admin-upload-dropzone">
-            <Upload size={26} />
-            <strong>Choose photos, audio or video</strong>
-            <span>Live Photos: select both the photo and matching MOV.</span>
-            <input
-              aria-label="Choose media files"
-              type="file"
-              accept={mediaAccept}
-              multiple
-              disabled={busy}
-              onChange={async (event) => {
-                const files = Array.from(event.target.files || []);
-                event.target.value = "";
-                if (!files.length) return;
-                const abort = new AbortController();
-                controller.current = abort;
-                setBusy(true);
-                setError("");
-                setProgress({ phase: "uploading", percent: 0 });
-                try {
-                  await onUpload(files, null, abort.signal, setProgress);
-                  if (!abort.signal.aborted) setUploadOpen(false);
-                } catch (err) {
-                  setError(
-                    abort.signal.aborted
-                      ? "Upload cancelled. Completed files remain in the library."
-                      : err.message,
-                  );
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            />
-          </label>
-          {busy ? (
-            <UploadStatus progress={progress} onCancel={() => controller.current?.abort()} />
-          ) : null}
-          {error ? <p role="alert">{error}</p> : null}
-        </div>
-      </Modal>
-    </div>
-  );
-}
-export function EditorAttachments({
-  attachments,
-  assets = [],
+export function WritingField({
+  titleField,
+  previewTitle,
+  label,
+  value = "",
+  onChange,
+  assets,
   queryMedia,
   onUpload,
-  onChange,
-  onDirty,
-  onBusy,
-  disabled,
+  onBusy = () => {},
 }) {
-  const [preview, setPreview] = useState(null),
-    [picker, setPicker] = useState(false),
-    [busy, setBusy] = useState(false),
-    [progress, setProgress] = useState(null),
-    [error, setError] = useState("");
-  const [query, setQuery] = useState(""),
-    [kind, setKind] = useState("all");
-  const library = useMediaPage(queryMedia, query, kind, picker, assets);
-  const controller = useRef(null),
-    currentAttachments = useRef(attachments);
-  currentAttachments.current = attachments;
-  useEffect(() => () => controller.current?.abort(), []);
-  const reorder = (index, direction) => {
-    const next = [...attachments],
-      to = index + direction;
-    [next[index], next[to]] = [next[to], next[index]];
-    onChange(next.map((asset, order) => ({ ...asset, metadata: { ...asset.metadata, order } })));
-  };
-  return (
-    <section className="admin-editor-media">
-      <div className="admin-section-heading">
-        <div>
-          <h2>
-            Attachments <span>{attachments.length}</span>
-          </h2>
-          <p>The first file is the cover. Changes apply when you save.</p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || busy}
-          onClick={() => setPicker(true)}
-        >
-          <Plus size={16} />
-          From library
-        </Button>
-      </div>
-      <label className="admin-upload-dropzone compact">
-        <Upload size={20} />
-        <strong>{busy ? "Upload in progress…" : "Upload photos, audio or video"}</strong>
-        <input
-          aria-label="Upload attachments"
-          type="file"
-          multiple
-          accept={mediaAccept}
-          disabled={disabled || busy}
-          onChange={async (event) => {
-            let files;
-            try {
-              files = groupLivePhotos(event.target.files);
-            } catch (err) {
-              setError(err.message);
-              event.target.value = "";
-              return;
-            }
-            event.target.value = "";
-            if (!files.length) return;
-            const abort = new AbortController();
-            controller.current = abort;
-            setBusy(true);
-            onBusy(true);
-            onDirty();
-            setError("");
-            try {
-              for (const [index, file] of files.entries()) {
-                const update = (value) => setProgress({ ...value, index: index + 1 });
-                update({ phase: "uploading", percent: 0 });
-                const asset = await onUpload(file, abort.signal, update);
-                if (abort.signal.aborted) break;
-                const next = appendV1Attachment(currentAttachments.current, asset);
-                currentAttachments.current = next;
-                onChange(next);
-              }
-            } catch (err) {
-              setError(
-                abort.signal.aborted
-                  ? "Upload cancelled. Completed files are kept in this draft."
-                  : err.message,
-              );
-            } finally {
-              setBusy(false);
-              onBusy(false);
-            }
-          }}
-        />
-      </label>
-      <details className="admin-media-help">
-        <summary>Formats and Live Photos</summary>
-        <p>
-          Photos: JPEG, PNG, WebP, GIF. Video: up to 500 MB / 10 minutes. Audio: up to 100 MB / 10
-          minutes. For a Live Photo, select the photo and matching MOV together, or a .livp / .zip
-          archive.
-        </p>
-      </details>
-      {busy ? (
-        <UploadStatus progress={progress} onCancel={() => controller.current?.abort()} />
-      ) : null}
-      {error ? <p role="alert">{error}</p> : null}
-      <div className="admin-editor-media-grid">
-        {attachments.map((asset, index) => (
-          <div className="admin-editor-media-item" key={`${mediaUrl(asset)}-${index}`}>
-            <button
-              type="button"
-              onClick={() => setPreview(asset)}
-              aria-label={`Preview ${assetName(asset)}`}
-            >
-              <MediaThumbnail asset={asset} />
-            </button>
-            <div className="admin-media-item-info">
-              <strong>
-                {index === 0 ? "Cover · " : `${index + 1} · `}
-                {assetName(asset)}
-              </strong>
-              <div className="admin-media-item-actions">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  aria-label={`Move attachment ${index + 1} earlier`}
-                  disabled={disabled || busy || index === 0}
-                  onClick={() => reorder(index, -1)}
-                >
-                  <ArrowLeft size={16} />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  aria-label={`Move attachment ${index + 1} later`}
-                  disabled={disabled || busy || index === attachments.length - 1}
-                  onClick={() => reorder(index, 1)}
-                >
-                  <ArrowRight size={16} />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  aria-label={`Remove attachment ${index + 1}`}
-                  disabled={disabled || busy}
-                  onClick={() =>
-                    onChange(
-                      attachments
-                        .filter((_, i) => i !== index)
-                        .map((item, order) => ({ ...item, metadata: { ...item.metadata, order } })),
-                    )
-                  }
-                >
-                  <X size={16} />
-                </Button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      {preview ? (
-        <MediaDialog key={mediaUrl(preview)} asset={preview} onClose={() => setPreview(null)} />
-      ) : null}
-      <Modal
-        open={picker}
-        title="Add from library"
-        description="Reuse a file without uploading it again."
-        onClose={() => setPicker(false)}
-      >
-        <div className="admin-library-picker">
-          <LibraryFilter
-            {...{ query, setQuery, kind, setKind }}
-            count={library.total}
-          />
-          <MediaGrid
-            assets={library.assets}
-            selected={attachments.map(mediaUrl)}
-            selectLabel="Attach"
-            onSelect={(asset) => {
-              onChange(
-                appendV1Attachment(attachments, {
-                  url: mediaUrl(asset),
-                  type: asset.type || asset.mimeType,
-                  metadata: asset.metadata,
-                }),
-              );
-              setPicker(false);
-            }}
-          />
-          <MediaPagination library={library} />
-          {!library.loading && !library.error && !library.total ? (
-            <p className="admin-workspace-empty">
-              No saved media yet. Upload a file to this memory.
-            </p>
-          ) : null}
-        </div>
-      </Modal>
-    </section>
-  );
-}
-export function WritingField({ titleField, previewTitle, label, value = "", onChange, assets, queryMedia, onUpload, onBusy = () => {} }) {
   const [mediaOpen, setMediaOpen] = useState(false);
-  const [query, setQuery] = useState(""), [kind, setKind] = useState("all");
-  const library = useMediaPage(queryMedia, query, kind, mediaOpen, assets);
-  const [uploading, setUploading] = useState(false), [progress, setProgress] = useState(null), [uploadError, setUploadError] = useState("");
-  const uploadController = useRef(null), valueRef = useRef(value);
+  const insertionRange = useRef(null);
+  const valueRef = useRef(value);
   valueRef.current = value;
   const [preview, setPreview] = useState(false),
     textarea = useRef(null),
     id = useId();
-  useEffect(() => () => uploadController.current?.abort(), []);
   useEffect(() => {
     if (!textarea.current) return;
     textarea.current.style.height = "auto";
-    textarea.current.style.height = Math.min(420, Math.max(180, textarea.current.scrollHeight)) + "px";
+    textarea.current.style.height =
+      Math.min(420, Math.max(180, textarea.current.scrollHeight)) + "px";
   }, [value, preview]);
   const tools = [
     [Bold, "Bold", "**", "**", "bold text"],
@@ -663,18 +53,19 @@ export function WritingField({ titleField, previewTitle, label, value = "", onCh
     [Link, "Link", "[", "](https://)", "link text"],
     [List, "List", "\n- ", "", "List item"],
   ];
-  const insert = (before, after, fallback, collapse = false) => {
+  const insert = (before, after, fallback) => {
     const field = textarea.current;
     if (!field) return;
     const start = field.selectionStart,
       end = field.selectionEnd,
       text = valueRef.current.slice(start, end) || fallback;
-    valueRef.current = valueRef.current.slice(0, start) + before + text + after + valueRef.current.slice(end);
+    valueRef.current =
+      valueRef.current.slice(0, start) + before + text + after + valueRef.current.slice(end);
     onChange(valueRef.current);
     requestAnimationFrame(() => {
       field.focus();
-      const position = start + before.length + text.length + (collapse ? after.length : 0);
-      field.setSelectionRange(collapse ? position : start + before.length, position);
+      const position = start + before.length + text.length;
+      field.setSelectionRange(start + before.length, position);
     });
   };
   return (
@@ -724,7 +115,11 @@ export function WritingField({ titleField, previewTitle, label, value = "", onCh
                 variant="ghost"
                 aria-label="Insert media"
                 title="Insert media"
-                onClick={() => setMediaOpen(true)}
+                onClick={() => {
+                  const field = textarea.current;
+                  insertionRange.current = [field.selectionStart, field.selectionEnd];
+                  setMediaOpen(true);
+                }}
               >
                 <Image size={16} />
               </Button>
@@ -743,7 +138,9 @@ export function WritingField({ titleField, previewTitle, label, value = "", onCh
         </>
       ) : (
         <div className="markdown-preview admin-writing-preview" aria-label={`${label} preview`}>
-          {titleField && <h2 className="editorial-preview-title">{previewTitle || "Page title"}</h2>}
+          {titleField && (
+            <h2 className="editorial-preview-title">{previewTitle || "Page title"}</h2>
+          )}
           {value.trim() ? (
             <div dangerouslySetInnerHTML={{ __html: markdownToHtml(value) }} />
           ) : (
@@ -754,57 +151,24 @@ export function WritingField({ titleField, previewTitle, label, value = "", onCh
       <div className="admin-writing-footer">
         {value.length.toLocaleString()} characters{!titleField && " · Full content is preserved"}
       </div>
-      <Modal
-        open={mediaOpen}
-        title="Insert media"
-        description="Photos appear inline. Other files are inserted as links."
-        onClose={() => { if (!uploading) setMediaOpen(false); }}
-      >
-        <div className="admin-library-picker">
-          {onUpload ? <label className="admin-upload-dropzone compact">
-            <Upload size={20} /><strong>Upload and insert media</strong>
-            <input type="file" aria-label="Upload page media" accept={mediaAccept} multiple disabled={uploading}
-              onChange={async event => {
-                let files;
-                try { files = groupLivePhotos(event.target.files); } catch (err) { setUploadError(err.message); return; }
-                event.target.value = "";
-                if (!files.length) return;
-                const controller = new AbortController(); uploadController.current = controller;
-                setUploading(true); onBusy(true); setUploadError("");
-                try {
-                  for (const file of files) {
-                    const asset = await onUpload(file, controller.signal, setProgress);
-                    const image = ["image", "live"].includes(mediaKind(asset));
-                    insert(image ? "\n![" : "\n[", `](<${v1AssetPreviewUrls(asset).preview}>)\n`, assetName(asset).replace(/[\[\]]/g, ""), true);
-                  }
-                  setMediaOpen(false);
-                } catch (err) { setUploadError(controller.signal.aborted ? "Upload cancelled. Completed files stay in your library." : err.message); }
-                finally { setUploading(false); onBusy(false); }
-              }} />
-          </label> : null}
-          {uploading ? <UploadStatus progress={progress} onCancel={() => uploadController.current?.abort()} /> : null}
-          {uploadError ? <p role="alert">{uploadError}</p> : null}
-          <LibraryFilter {...{ query, setQuery, kind, setKind }} count={library.total} />
-          <MediaGrid
-            assets={library.assets}
-            selectLabel="Insert"
-            onSelect={(asset) => {
-              if (uploading) return;
-              const image = ["image", "live"].includes(mediaKind(asset));
-              insert(
-                image ? "\n![" : "\n[",
-                `](<${v1AssetPreviewUrls(asset).preview}>)\n`,
-                assetName(asset).replace(/[\[\]]/g, ""), true,
-              );
-              setMediaOpen(false);
-            }}
-          />
-          <MediaPagination library={library} />
-          {!library.loading && !library.error && !library.total ? (
-            <p>No saved media yet. Upload a file here to start your library.</p>
-          ) : null}
-        </div>
-      </Modal>
+      {mediaOpen && (
+        <MediaPicker
+          {...{ assets, queryMedia, onUpload, onBusy }}
+          onClose={() => setMediaOpen(false)}
+          onSelect={(asset) => {
+            const [start, end] = insertionRange.current;
+            const text = valueRef.current;
+            const caption = (text.slice(start, end) || assetName(asset)).replace(/[\[\]\r\n]/g, "");
+            const image = ["image", "live"].includes(mediaKind(asset));
+            const insertion = `\n${image ? "!" : ""}[${caption}](<${v1AssetPreviewUrls(asset).preview}>)\n`;
+            valueRef.current = text.slice(0, start) + insertion + text.slice(end);
+            const cursor = start + insertion.length;
+            insertionRange.current = [cursor, cursor];
+            onChange(valueRef.current);
+            requestAnimationFrame(() => textarea.current?.setSelectionRange(cursor, cursor));
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1132,7 +496,7 @@ function PageEditorWorkspace({
                         .slice(0, 120)
                         .replace(/-$/, "") ||
                       (title.trim()
-                        ? editing.current.slug || `page-${crypto.randomUUID().slice(0, 8)}`
+                        ? editing.current.slug || `page-${randomUuid().slice(0, 8)}`
                         : "");
                   }
                   update(fields);

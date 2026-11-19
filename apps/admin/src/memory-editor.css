@@ -1,0 +1,18 @@
+.memory-editor .editorial-inspector select {
+  max-width: 55%;
+  min-height: 44px;
+  background: var(--background);
+  color: var(--foreground);
+  text-align: right;
+  cursor: pointer;
+}
+.memory-editor .editorial-inspector {
+  scroll-margin-top: 80px;
+}
+.memory-editor .editorial-document > .admin-editor-media,
+.memory-card-preview {
+  margin-top: 20px;
+}
+.memory-card-preview[open] iframe {
+  margin-top: 12px;
+}

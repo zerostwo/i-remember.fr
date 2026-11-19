@@ -92,8 +92,16 @@ two-factor secrets; it is not itself an API bearer token. The single-image
 entrypoint generates and persists this secret when the deployment does not
 supply one.
 
+An admin can create a `PENDING` draft with a title or body. Publishing requires
+both. The editor sends one UUIDv4 `draftKey` per new memory. If a create
+response is lost, retrying with the same key returns `409 draft_already_saved`
+for a committed draft. The owner can recover it with
+`GET /api/v1/memories/draft_<draftKey>`. Its public link uses the normal public ID.
+
 `PATCH /api/v1/memories/:id` is admin-only and accepts partial edits, including
-moderation status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`.
+status changes to `NORMAL`, `PENDING`, `ARCHIVED`, or `REJECTED`. Pass the
+saved `updatedAt` as `expectedUpdatedAt` to reject stale edits with
+`409 memory_changed`. Visitor views preserve the editing revision.
 
 `GET /api/v1/memories` defaults to public `NORMAL` memories. Admin clients can
 pass `status=PENDING`, `status=REJECTED`, `status=ARCHIVED`, `status=all`,

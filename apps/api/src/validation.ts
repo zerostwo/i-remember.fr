@@ -199,11 +199,19 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
   }
   const title = text(value.title, "", 180);
   const content = bodyText(value.content ?? value.bodyMarkdown ?? value.text);
+  const draftKey = value.draftKey === undefined ? undefined : String(value.draftKey);
+  if (draftKey !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(draftKey)) {
+    throw new ApiError(400, "Invalid draft key", "invalid_draft_key");
+  }
   const visibility = text(value.visibility, "PUBLIC", 20).toUpperCase();
   const status = has(value, "status") ? text(value.status, "NORMAL", 20).toUpperCase() : "";
 
-  if (!title) throw new ApiError(400, "Title is required", "missing_title");
-  if (!content) throw new ApiError(400, "Content is required", "missing_content");
+  if (!title && (status !== "PENDING" || !content)) {
+    throw new ApiError(400, "Enter a title for this memory.", "missing_title");
+  }
+  if (!content && status !== "PENDING") {
+    throw new ApiError(400, "Write some content before publishing this memory.", "missing_content");
+  }
   if (!visibilityValues.has(visibility)) {
     throw new ApiError(400, "Invalid visibility", "invalid_visibility");
   }
@@ -212,6 +220,7 @@ export function memoryInput(value: Record<string, unknown>): MemoryInput {
   }
 
   return {
+    draftKey,
     title,
     content,
     publicId: publicMemoryId(value.publicId ?? value.public_id),
@@ -271,9 +280,9 @@ export function memoryListQuery(searchParams: URLSearchParams): MemoryListQuery 
 export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateInput {
   const input: MemoryUpdateInput = {};
 
+  if (has(value, "expectedUpdatedAt")) input.expectedUpdatedAt = String(value.expectedUpdatedAt);
   if (has(value, "title")) {
     input.title = text(value.title, "", 180);
-    if (!input.title) throw new ApiError(400, "Title is required", "missing_title");
   }
   if (has(value, "legacyId") || has(value, "legacy_id")) {
     throw new ApiError(400, "Legacy memory ids are not supported", "unsupported_legacy_id");
@@ -285,7 +294,6 @@ export function memoryPatchInput(value: Record<string, unknown>): MemoryUpdateIn
 
   if (has(value, "content") || has(value, "bodyMarkdown") || has(value, "text")) {
     input.content = bodyText(value.content ?? value.bodyMarkdown ?? value.text);
-    if (!input.content) throw new ApiError(400, "Content is required", "missing_content");
   }
 
   if (has(value, "authorName") || has(value, "author")) {

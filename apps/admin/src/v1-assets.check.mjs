@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mergeV1Assets, v1AssetUploadPayload, v1AssetPreviewUrls } from "./v1-assets.js";
+import { mergeV1Assets, v1AssetUploadPayload, v1AssetPreviewUrls, v1AssetIdentity, v1LibraryAttachment } from "./v1-assets.js";
 
 const merged = mergeV1Assets(
   {
@@ -59,6 +59,13 @@ assert.equal(shared.attachments[0].type, "video/mp4");
 const photo = { url: "/uploads/posts/revival-abc-123/crop-123.gif", type: "image/gif" };
 assert.equal(v1AssetPreviewUrls(photo).preview, "/uploads/posts/revival-abc-123/full.jpg");
 assert.equal(v1AssetPreviewUrls(photo).download, "/uploads/posts/revival-abc-123/full.jpg");
+assert.equal(v1AssetIdentity(photo), v1AssetIdentity({ url: "/uploads/posts/revival-abc-123/full.jpg?v=2" }),
+  "Different crops of the same stored file must not be attached twice via the picker");
+assert.notEqual(v1AssetIdentity(photo), v1AssetIdentity({ url: "/uploads/posts/revival-other/full.jpg" }));
+const libraryRecord = { ...photo, id: "media-record-1", metadata: { crop: { x: 4, y: 9 } } };
+assert.deepEqual(v1LibraryAttachment(libraryRecord), {
+  url: photo.url, type: photo.type, mediaId: libraryRecord.id, metadata: libraryRecord.metadata,
+}, "Reusing an asset preserves its crop and keeps the media ID distinct from a memory attachment ID");
 assert.deepEqual(v1AssetPreviewUrls({ ...photo, metadata: { livePhoto: true } }), {
   preview: "/uploads/posts/revival-abc-123/full.jpg",
   video: "/uploads/posts/revival-abc-123/video.mp4",

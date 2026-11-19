@@ -86,6 +86,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Use the shared publishing toolbar in the Memory editor. Drafts save
+  automatically, publishing requires confirmation, and live edits take
+  effect on **Save changes**.
+- Preview files in Attachments or while writing. An existing file can be
+  attached to another memory or used to start a new one.
 - Give the Page editor, Navigation and Settings a shared action toolbar. Private
   Page drafts save automatically. Publishing and archiving require confirmation,
   and live edits take effect on Save changes.

@@ -59,8 +59,8 @@ export function v1MemoryPayload(memory = {}, defaultLanguage = memory.defaultLan
 }
 
 export async function syncV1Memory(v1Api, memory) {
-  const settings = await v1Api("/api/v1/settings");
-  const payload = v1MemoryPayload(memory, settings.defaultLanguage);
+  const language = memory.defaultLanguage || (await v1Api("/api/v1/settings")).defaultLanguage;
+  const payload = v1MemoryPayload(memory, language);
   const id = String(memory.publicId || "").trim();
   delete payload.publicId;
   const requestedId = memory.linkId === undefined ? id : String(memory.linkId).trim();
@@ -68,15 +68,40 @@ export async function syncV1Memory(v1Api, memory) {
   if (id) {
     return v1Api(`/api/v1/memories/${encodeURIComponent(id)}`, {
       method: "PATCH",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...payload, expectedUpdatedAt: memory.expectedUpdatedAt }),
     });
   }
-  return v1Api("/api/v1/memories", { method: "POST", body: JSON.stringify(payload) });
-}
+  try {
+    return await v1Api("/api/v1/memories", {
+      method: "POST", body: JSON.stringify({ ...payload, draftKey: memory.draftKey }),
+    });
+  } catch (error) {
+    if (error.code !== "draft_already_saved" || !memory.draftKey) throw error;
+  }
 
-export function archiveV1Memory(v1Api, memory) {
-  if (!memory.publicId) throw new Error("No memory selected");
-  return v1Api(`/api/v1/memories/${encodeURIComponent(memory.publicId)}`, { method: "DELETE" });
+  // The original POST committed but its response was lost. Only the editor that
+  // supplied this key can reach this branch. A public ID collision never qualifies.
+  const original = await v1Api(`/api/v1/memories/draft_${encodeURIComponent(memory.draftKey)}`);
+  if (original.status === "NORMAL" && payload.status !== "NORMAL") {
+    const error = new Error("This memory was already published. Reopen it before changing its publication status.");
+    error.code = "memory_changed";
+    error.recordId = original.id;
+    throw error;
+  }
+  if (payload.attachments) {
+    const owned = new Map(original.attachments.map(item => [item.url, item.id]));
+    payload.attachments = payload.attachments.map(item => ({ ...item, id: owned.get(item.url) }));
+  }
+  try {
+    return await v1Api(`/api/v1/memories/${encodeURIComponent(original.id)}`, {
+      method: "PATCH",
+      // The create revision protects subsequent edits in other sessions, including status changes.
+      body: JSON.stringify({ ...payload, expectedUpdatedAt: original.createdAt }),
+    });
+  } catch (error) {
+    error.recordId = original.id;
+    throw error;
+  }
 }
 
 export function appendV1Attachment(attachments = [], attachment) {

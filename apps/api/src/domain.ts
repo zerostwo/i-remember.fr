@@ -55,6 +55,7 @@ export type AttachmentInput = {
 };
 
 export type MemoryInput = {
+  draftKey?: string;
   title: string;
   content: string;
   publicId?: string;
@@ -73,8 +74,8 @@ export type MemoryInput = {
   tags?: string[];
 };
 
-export type MemoryUpdateInput = Partial<MemoryInput> & {
-  status?: MemoryStatus;
+export type MemoryUpdateInput = Partial<Omit<MemoryInput, "draftKey">> & {
+  expectedUpdatedAt?: string;
 };
 
 export type UserRecord = {

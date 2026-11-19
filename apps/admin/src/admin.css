@@ -2598,7 +2598,7 @@ html.admin-keyboard-open .admin-spotlight-scrim {
 @media (max-width: 640px) {
   .admin-editor-grid { display: flex; flex-direction: column; align-items: stretch; }
   .admin-editor-rail { display: contents; }
-  #memory-publishing, .admin-page-editor .admin-editor-rail > [data-slot="card"]:first-child { order: -1; }
+  .admin-page-editor .admin-editor-rail > [data-slot="card"]:first-child { order: -1; }
   .admin-public-preview, .admin-page-navigation-help { order: 2; }
   #memory-publishing [data-slot="card-header"], #page-publishing [data-slot="card-header"] { display: none; }
   #memory-publishing [data-slot="card-content"] > button[type="submit"], #page-publishing [data-slot="card-content"] > button[type="submit"] { display: none; }

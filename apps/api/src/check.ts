@@ -1144,6 +1144,13 @@ const userSpoofedAuthor = await json("/api/v1/memories", {
 });
 assert.equal(userSpoofedAuthor.response.status, 403);
 
+const userDraftKey = await json("/api/v1/memories", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${userLogin.body.data.token}` },
+  body: JSON.stringify({ title: "Reader", content: "A memory", draftKey: "a00b282a-32b9-4b3e-a280-82bf51539491" }),
+});
+assert.equal(userDraftKey.response.status, 403);
+
 const userLegacyId = await json("/api/v1/memories", {
   method: "POST",
   headers: { Authorization: `Bearer ${userLogin.body.data.token}` },

@@ -1,3 +1,4 @@
+import { randomUuid } from "./random-id.js";
 function assetKey(asset = {}) {
   const url = String(asset.url || "");
   const fallback = String(asset.id || "asset");
@@ -22,6 +23,22 @@ export function v1AssetPreviewUrls(asset = {}) {
   };
 }
 
+export function v1AssetIdentity(asset = {}) {
+  return asset.identity || String(asset.url || asset.resizedUrl || "")
+    .replace(/[?#].*$/, "")
+    .replace(/^(.*\/posts\/revival-[a-z0-9-]+)\/[^/]+$/i, "$1");
+}
+
+export function v1LibraryAttachment(asset) {
+  // The library record and the attachment on a memory have separate IDs.
+  return {
+    url: asset.url || asset.resizedUrl,
+    type: asset.type || asset.mimeType,
+    mediaId: asset.id,
+    metadata: { ...asset.metadata },
+  };
+}
+
 function adminAttachment(asset = {}) {
   const url = String(asset.url || "");
   return {
@@ -41,7 +58,7 @@ function adminAttachment(asset = {}) {
   };
 }
 
-export function v1AssetKey(file = {}, stamp = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`) {
+export function v1AssetKey(file = {}, stamp = `${Date.now()}-${randomUuid().slice(0, 8)}`) {
   const name =
     String(file.name || "upload.bin")
       .replace(/\\/g, "/")

@@ -222,6 +222,7 @@ export class MemoryController {
       input.aiSummary !== undefined ||
       input.knowledgeGraph !== undefined;
     const includePrivate = principal.role === "ADMIN";
+    if (input.draftKey) requireRole(principal, ["ADMIN"]);
     if (input.authorId || input.publicId !== undefined || hasAiFields) {
       if (input.publicId !== undefined) {
         requireRole(principal, ["ADMIN"]);
