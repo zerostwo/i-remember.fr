@@ -2,7 +2,7 @@
 
 ## November design study
 
-The [current visual proposal](admin-design-study-2026-11.html) has Page editor, Navigation and Settings views. It uses illustrative content and adapts to a phone viewport. The live admin still uses the existing layout.
+The owner approved the [responsive design study](admin-design-study-2026-11.html) on November 19. The local implementation connects the Page editor, Navigation and Settings to the existing API.
 
 A November 19 walkthrough found two visible **Save page** buttons in the desktop Page editor and two **Save changes** buttons under Site settings. Navigation puts **New item** in the toolbar and **Save menu item** beneath the form. The first implementation pass should address these three workflows together.
 

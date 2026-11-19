@@ -126,7 +126,7 @@ export async function syncV1Page(v1Api, page) {
   if (!page.originalSlug && !page.id) {
     return v1Api("/api/v1/pages", { method: "POST", body: JSON.stringify(payload) });
   }
-  return v1Api(path, { method: "PATCH", body: JSON.stringify(payload) });
+  return v1Api(path, { method: "PATCH", body: JSON.stringify({ ...payload, expectedUpdatedAt: page.expectedUpdatedAt }) });
 }
 
 export function v1MenuItemPayload(

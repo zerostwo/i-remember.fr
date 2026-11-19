@@ -1,3 +1,4 @@
+import { EditorialLayout, ToolbarTarget } from "./EditorialLayout.jsx";
 import { memoryDate } from "./dates.js";
 import { isAudioFile, mediaAccept } from "../../../packages/config/src/media-limits.js";
 import { uploadRequest } from "../../../packages/content/src/upload-request.js";
@@ -17,14 +18,12 @@ import {
   PanelLeftOpen,
   Paperclip,
   Plus,
-  Save,
   Search,
   Settings,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
-import QRCode from "qrcode";
 import { DropdownMenu } from "radix-ui";
 import {
   Badge,
@@ -487,20 +486,33 @@ function ToggleField({ label, description, checked, onCheckedChange, className }
 function TotpQrCode({ value }) {
   const canvasRef = useRef(null);
 
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     if (!canvasRef.current || !value) return;
-    QRCode.toCanvas(
-      canvasRef.current,
-      value,
-      {
-        width: 192,
-        margin: 2,
-        color: { dark: "#111827", light: "#ffffff" },
-      },
-      () => {},
-    );
+    let active = true;
+    import("qrcode")
+      .then(({ default: qr }) => {
+        if (active && canvasRef.current)
+          return qr.toCanvas(canvasRef.current, value, {
+            width: 192,
+            margin: 2,
+            color: { dark: "#111827", light: "#ffffff" },
+          });
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
   }, [value]);
 
+  if (failed)
+    return (
+      <p className="admin-field-help">
+        Use the setup key to add this account to your authenticator.
+      </p>
+    );
   return (
     <div className="w-fit rounded-lg border bg-white p-3">
       <canvas ref={canvasRef} width="192" height="192" aria-label="Two-factor QR code" />
@@ -622,6 +634,7 @@ function useDialogFocusTrap(open, containerRef, initialFocusRef, onClose) {
 export function AdminApp() {
   const [authenticated, setAuthenticated] = useState(false);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [toolbarTarget, setToolbarTarget] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [route, setRoute] = useState(routeFromLocation);
   const [data, setData] = useState(null);
@@ -654,6 +667,8 @@ export function AdminApp() {
   const [savingOther, setSavingOther] = useState(false);
   const dirtyRef = useRef(false);
   const actionRef = useRef(false);
+  const uploadRef = useRef(false);
+  const reportUpload = useCallback(value => { uploadRef.current = value; setUploadingMemory(value); }, []);
   const locationRef = useRef(window.location.href);
   const reportDirty = useCallback((dirty) => {
     dirtyRef.current = dirty;
@@ -661,7 +676,7 @@ export function AdminApp() {
     if (dirty) setNotice("");
   }, []);
   function canLeaveEditor(retry) {
-    if (actionRef.current) {
+    if (actionRef.current || uploadRef.current) {
       setNotice("Please wait for the current operation to finish.");
       return false;
     }
@@ -673,7 +688,7 @@ export function AdminApp() {
   }
   useEffect(() => {
     const preventUnload = (event) => {
-      if (!dirtyRef.current && !actionRef.current) return;
+      if (!dirtyRef.current && !actionRef.current && !uploadRef.current) return;
       event.preventDefault();
       event.returnValue = "";
     };
@@ -806,7 +821,10 @@ export function AdminApp() {
   }, [route, selectedMemoryId]);
 
   function navigate(nextRoute, nextSettingsTab = "site") {
-    if (nextRoute === route && (nextRoute !== "settings" || nextSettingsTab === settingsTab)) return;
+    if (nextRoute === route && (nextRoute !== "settings" || nextSettingsTab === settingsTab)) {
+      setMobileNavOpen(false);
+      return;
+    }
     if (!canLeaveEditor(() => navigate(nextRoute, nextSettingsTab))) return;
     reportDirty(false);
     setSearch("");
@@ -831,12 +849,16 @@ export function AdminApp() {
     reportDirty(false);
     setNewMenuItem(null);
     setSelectedMenuId(id);
+    setError("");
+    setNotice("");
   }
 
   function selectSettingsTab(tab) {
     if (!canLeaveEditor(() => selectSettingsTab(tab))) return;
     reportDirty(false);
     setSettingsTab(tab);
+    setError("");
+    setNotice("");
   }
 
   function toggleSidebar() {
@@ -1082,21 +1104,24 @@ export function AdminApp() {
     setNotice(`Storage scan complete. ${result.found} files checked.`);
   }
 
-  async function savePage(slug, payload) {
-    if (actionRef.current) return null;
+  async function savePage(previous, payload) {
+    if (actionRef.current) throw new Error("Another operation is in progress. Try again.");
     actionRef.current = true;
     setSavingPage(true);
     try {
-      return await runAction("Page saved", async () => {
-        const saved = await syncV1Page(v1Api, { ...payload, originalSlug: slug || undefined });
-        setData(current => ({ ...current, pages: [v1PageAdmin(saved), ...current.pages.filter(item => item.id !== saved.id)] }));
-        reportDirty(false);
-        setSelectedPageSlug(saved.slug);
-        window.history.replaceState({}, "", `/admin/pages/editor?slug=${encodeURIComponent(saved.slug)}`);
-        locationRef.current = window.location.href;
-        await refreshData();
-        return saved;
+      const saved = await syncV1Page(v1Api, {
+        ...payload, originalSlug: previous?.slug, expectedUpdatedAt: previous?.updatedAt,
       });
+      setData(current => ({ ...current, pages: [v1PageAdmin(saved), ...current.pages.filter(item => item.id !== saved.id)] }));
+      setSelectedPageSlug(saved.slug);
+      window.history.replaceState({}, "", `/admin/pages/editor?slug=${encodeURIComponent(saved.slug)}`);
+      locationRef.current = window.location.href;
+      // Refresh related lists only for changes that can affect them.
+      if (payload.navigationVisible !== undefined || previous?.status === "PUBLISHED" ||
+          saved.status === "PUBLISHED" || (previous && (previous.slug !== saved.slug || previous.title !== saved.title))) {
+        await refreshData();
+      }
+      return saved;
     } finally {
       actionRef.current = false;
       setSavingPage(false);
@@ -1127,7 +1152,7 @@ export function AdminApp() {
   function createPage() { editPage(); }
 
   async function saveMenuItem(id, payload) {
-    return runEditorAction("Menu item saved", async () => {
+    return runEditorAction("Changes saved", async () => {
       const saved = await syncV1MenuItem(v1Api, payload);
       setNewMenuItem(null);
       setSelectedMenuId(saved.id);
@@ -1152,9 +1177,9 @@ export function AdminApp() {
   }
 
   async function deleteMenuItem(id) {
-    if (!canLeaveEditor(() => deleteMenuItem(id)) || !window.confirm("Delete this navigation item? The page or memory it points to is kept.")) return;
+    if (actionRef.current || !window.confirm("Delete this navigation item and its unsaved edits? The destination is kept.")) return;
     const item = data?.menu?.find((candidate) => candidate.id === id);
-    await runAction("Menu item deleted", async () => {
+    await runEditorAction("Link deleted", async () => {
       if (item) await deleteV1MenuItem(v1Api, item);
       reportDirty(false);
       setSelectedMenuId(null);
@@ -1163,7 +1188,7 @@ export function AdminApp() {
   }
 
   async function saveSettings(payload) {
-    return runEditorAction("Settings saved", async () => {
+    return runEditorAction("Changes saved", async () => {
       const settings = await syncV1Settings(v1Api, payload);
       setData((current) =>
         current ? { ...current, settings: { ...current.settings, ...settings } } : current,
@@ -1173,7 +1198,7 @@ export function AdminApp() {
   }
 
   async function saveAccount(payload) {
-    return runEditorAction("Account updated", async () => {
+    return runEditorAction("Changes saved", async () => {
       const result = await v1Api("/api/v1/auth/account", {
         method: "PATCH",
         body: JSON.stringify(payload),
@@ -1198,7 +1223,7 @@ export function AdminApp() {
   }
 
   async function exportBackup() {
-    await runAction("Backup exported", async () => {
+    await runEditorAction("Content exported", async () => {
       const bundle = {
         generatedAt: new Date().toISOString(),
         format: "i-remember-v1-export",
@@ -1210,7 +1235,7 @@ export function AdminApp() {
   }
 
   async function setupTwoFactor(payload) {
-    return runAction("Two-factor setup created", () =>
+    return runEditorAction("Two-factor setup created", () =>
       v1Api("/api/v1/auth/2fa/setup", {
         method: "POST",
         body: JSON.stringify(payload || {}),
@@ -1219,7 +1244,7 @@ export function AdminApp() {
   }
 
   async function enableTwoFactor(payload) {
-    return runAction("Two-factor enabled", async () => {
+    return runEditorAction("Two-factor enabled", async () => {
       const result = await v1Api("/api/v1/auth/2fa/enable", {
         method: "POST",
         body: JSON.stringify(payload),
@@ -1243,7 +1268,7 @@ export function AdminApp() {
   }
 
   async function disableTwoFactor(payload) {
-    return runAction("Two-factor disabled", async () => {
+    return runEditorAction("Two-factor disabled", async () => {
       const result = await v1Api("/api/v1/auth/2fa/disable", {
         method: "POST",
         body: JSON.stringify(payload),
@@ -1267,6 +1292,7 @@ export function AdminApp() {
   }
 
   const currentRoute = routeMap.get(route) || routeMap.get("dashboard");
+  const editorial = ["page-editor", "menus", "settings"].includes(route);
   const activeRoute = route === "memory-editor" ? "memory" : route === "page-editor" ? "pages" : route;
 
   if (checkingSession) {
@@ -1285,7 +1311,7 @@ export function AdminApp() {
   }
 
   return (
-    <main className="i-remember-admin dark min-h-screen bg-background text-foreground">
+    <main className={cn("i-remember-admin dark min-h-screen bg-background text-foreground", editorial && "admin-editorial")}>
       <div className={cn("admin-shell", sidebarCollapsed && "is-collapsed")}>
         <AdminSidebar
           route={activeRoute}
@@ -1305,21 +1331,22 @@ export function AdminApp() {
             >
               <MenuIcon />
             </button>
+            {editorial ? <div className="editorial-toolbar" ref={setToolbarTarget} /> : <>
             <div className="admin-page-heading min-w-0">
               <h1>
                 {route === "memory-editor"
                   ? selectedMemoryId
                     ? "Edit memory"
                     : "New memory"
-                  : route === "page-editor" ? (selectedPageSlug ? "Edit page" : "New page") : currentRoute.title}
+                  : currentRoute.title}
               </h1>
               <p>
-                {route === "memory-editor" || route === "page-editor"
-                  ? savingMemory || savingPage
+                {route === "memory-editor"
+                  ? savingMemory
                     ? "Saving…"
                     : editorDirty
                       ? "Unsaved changes"
-                      : (route === "page-editor" ? selectedPageSlug : selectedMemoryId)
+                      : selectedMemoryId
                         ? "Changes saved"
                         : "Ready to write"
                   : editorDirty ? "Unsaved changes" : currentRoute.description}
@@ -1331,25 +1358,26 @@ export function AdminApp() {
               saving={savingMemory || savingPage || savingOther || uploadingMemory}
               uploading={uploadingMemory}
               route={route}
-              settingsTab={settingsTab}
               createMemory={createMemory}
               createPage={createPage}
-              createMenuItem={createMenuItem}
-              exportBackup={exportBackup}
             />
+            </>}
           </header>
 
           <div className="admin-content">
             {error ? <StatusMessage variant="error" message={error} /> : null}
-            {notice ? <StatusMessage message={notice} /> : null}
+            {notice && !(editorial && ["Changes saved", "Content exported"].includes(notice)) ? <StatusMessage message={notice} /> : null}
             {loading && !data ? <LoadingState /> : null}
             {data ? (
-              <AdminRoute
+              <ToolbarTarget.Provider value={toolbarTarget}><AdminRoute
+                editorDirty={editorDirty}
+                notice={notice}
                 refreshData={refreshData}
                 reportDirty={reportDirty}
                 uploadEditorFile={uploadEditorFile}
                 savingMemory={savingMemory}
-                onUploadingChange={setUploadingMemory}
+                navigationPending={Boolean(pendingNavigation)}
+                onUploadingChange={reportUpload}
                 savingPage={savingPage}
                 savingOther={savingOther}
                 editPage={editPage}
@@ -1391,7 +1419,7 @@ export function AdminApp() {
                 disableTwoFactor={disableTwoFactor}
                 exportBackup={exportBackup}
                 navigate={navigate}
-              />
+              /></ToolbarTarget.Provider>
             ) : null}
           </div>
         </section>
@@ -1603,11 +1631,8 @@ function TopBarAction({
   saving,
   uploading,
   route,
-  settingsTab,
   createMemory,
   createPage,
-  createMenuItem,
-  exportBackup,
 }) {
   if (route === "memory-editor") {
     return (
@@ -1636,7 +1661,6 @@ function TopBarAction({
       </div>
     );
   }
-  if (route === "page-editor") return <Button disabled={saving} form="page-editor-form" type="submit">{saving ? "Saving…" : "Save page"}</Button>;
   if (route === "pages") {
     return (
       <Button onClick={createPage}>
@@ -1645,32 +1669,7 @@ function TopBarAction({
       </Button>
     );
   }
-  if (route === "menus") {
-    return (
-      <Button onClick={createMenuItem}>
-        <Plus data-icon="inline-start" />
-        New item
-      </Button>
-    );
-  }
   if (route === "attachments") return null;
-  if (route === "settings") {
-    if (settingsTab === "backup") {
-      return (
-        <Button variant="outline" type="button" onClick={exportBackup}>
-          <Download data-icon="inline-start" />
-          Export content
-        </Button>
-      );
-    }
-    if (settingsTab === "security") return null;
-    return (
-      <Button disabled={saving} variant="outline" form={`settings-${settingsTab}-form`} type="submit">
-        <Save data-icon="inline-start" />
-        {settingsTab === "account" ? "Save account" : "Save changes"}
-      </Button>
-    );
-  }
   return (
     <Button onClick={createMemory}>
       <Plus data-icon="inline-start" />
@@ -2043,7 +2042,7 @@ function AdminRoute(props) {
       return <MemoryEditorView {...props} />;
     case "pages":
     case "page-editor":
-      return <PagesWorkspace key={`${props.route}-${props.selectedPageSlug}-${props.newDraftVersion}`} {...props} />;
+      return <PagesWorkspace key={`${props.route}-${props.newDraftVersion}`} {...props} />;
     case "attachments":
       return <MediaLibrary assets={props.data.attachments} queryMedia={props.queryMedia} onUpload={props.uploadAttachment} loadMedia={props.loadMedia} deleteMedia={props.deleteMedia} scanMedia={props.scanMedia} editMemory={props.editMemory} editPage={props.editPage} />;
     case "menus":
@@ -2052,6 +2051,8 @@ function AdminRoute(props) {
       return (
         <SettingsView
           key={props.settingsTab}
+          editorDirty={props.editorDirty}
+          notice={props.notice}
           reportDirty={props.reportDirty}
           saving={props.savingOther}
           data={props.data}
@@ -2607,71 +2608,112 @@ function MemoryEditor({ memory, siteSettings, isNew = false, onSave, onDelete, r
   );
 }
 
+const displayType = (value) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+
 function MenusView({
   data,
   reportDirty,
   savingOther,
+  editorDirty,
+  notice,
   search,
   selectedMenuId,
   setSelectedMenuId,
   newMenuItem,
+  createMenuItem,
   saveMenuItem,
   deleteMenuItem,
 }) {
-  // Language remains supported internally, but has no public navigation control.
-  const menu = (data.menu || []).filter((item) => item.type !== "LANGUAGE");
-  const filtered = menu.filter((item) =>
+  const menu = data.menu.filter((item) => item.type !== "LANGUAGE");
+  const groups = new Map(menu.filter((item) => item.type === "GROUP").map((item) => [item.id, []]));
+  const roots = [];
+  for (const item of menu) (groups.get(item.parentId) || roots).push(item);
+  const ordered = roots.flatMap((item) => [item, ...(groups.get(item.id) || [])]);
+  const filtered = ordered.filter((item) =>
     containsQuery([item.label, item.type, item.targetValue, item.url], search),
   );
   const selected = newMenuItem || menu.find((item) => item.id === selectedMenuId) || filtered[0];
-
+  const details = useRef(null);
+  const list = useRef(null);
+  const [complete, setComplete] = useState(false);
+  function revealDetails() {
+    if (window.matchMedia("(max-width: 760px)").matches)
+      details.current?.scrollIntoView({ block: "start" });
+  }
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(380px,1fr)]">
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Footer menu</CardTitle>
-          <CardDescription>Controls the public home page lower-right navigation.</CardDescription>
-
-        </CardHeader>
-        <CardContent className="grid gap-2">
+    <EditorialLayout
+      section="Navigation"
+      detail={selected?.label || (newMenuItem ? "New link" : "Footer links")}
+      title="Navigation"
+      description="Arrange the links in your site’s footer."
+      status={
+        savingOther ? "Saving…" : editorDirty ? "Edited" : notice === "Changes saved" ? notice : ""
+      }
+      action={
+        <Button form="navigation-form" type="submit" disabled={!editorDirty || !complete || savingOther}>
+          Save changes
+        </Button>
+      }
+    >
+      <div className="editorial-nav-grid">
+        <section className="editorial-nav-list" ref={list}>
+          <h2>Footer links</h2>
           {filtered.map((item) => (
             <button
               key={item.id}
-              className={cn(
-                "rounded-lg border bg-background/40 p-3 text-left transition hover:bg-muted/50",
-                selected?.id === item.id && "bg-muted",
-              )}
-              onClick={() => setSelectedMenuId(item.id)}
               type="button"
+              aria-pressed={selected?.id === item.id}
+              className={cn("editorial-nav-row", item.parentId && "is-child")}
+              onClick={() => {
+                setSelectedMenuId(item.id);
+                revealDetails();
+              }}
             >
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-medium">{item.label}</p>
-                <Badge variant={item.isVisible ? "default" : "outline"}>
-                  {item.isVisible ? "visible" : "hidden"}
-                </Badge>
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {item.type} · {item.type === "EXTERNAL" ? item.url : item.targetValue || "built in"}
-              </p>
+              <strong>{item.label}</strong>
+              <span>
+                {displayType(item.type)}
+                {!item.isVisible && " · Hidden"}
+              </span>
             </button>
           ))}
-        </CardContent>
-      </Card>
-      <MenuEditor
-        key={selected?.uid}
-        reportDirty={reportDirty}
-        saving={savingOther}
-        item={selected}
-        pages={data.pages || []}
-        menu={menu}
-        onSave={saveMenuItem}
-        onDelete={deleteMenuItem}
-      />
-    </div>
+          <Button
+            variant="ghost"
+            type="button"
+            onClick={() => {
+              createMenuItem();
+              revealDetails();
+            }}
+          >
+            <Plus size={16} />
+            Add link
+          </Button>
+        </section>
+        <section ref={details} className="editorial-nav-detail">
+          <button
+            type="button"
+            className="editorial-back-to-list"
+            onClick={() => list.current?.scrollIntoView()}
+          >
+            ↑ Footer links
+          </button>
+          <MenuEditor
+            reportComplete={setComplete}
+            key={selected?.uid}
+            reportDirty={reportDirty}
+            saving={savingOther}
+            item={selected}
+            pages={data.pages}
+            menu={menu}
+            onSave={saveMenuItem}
+            onDelete={deleteMenuItem}
+          />
+        </section>
+      </div>
+    </EditorialLayout>
   );
 }
 
-function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }) {
+function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, reportComplete, saving }) {
   const [draft, setDraft] = useState(null);
 
   useEffect(() => {
@@ -2688,6 +2730,13 @@ function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }
         (item.type === "TERMS" ? "terms" : item.type === "CREDITS" ? "credits" : ""),
     });
   }, [item]);
+
+  const complete = Boolean(draft?.label.trim()) && (
+    draft.type === "EXTERNAL" ? Boolean(draft.url?.trim()) :
+    draft.type === "PAGE" ? pages.some(page => page.slug === draft.targetValue) :
+    ["SEARCH", "MEMORY"].includes(draft.type) ? Boolean(draft.targetValue?.trim()) : true
+  );
+  useEffect(() => reportComplete(complete), [complete, reportComplete]);
 
   if (!item || !draft) {
     return (
@@ -2717,18 +2766,15 @@ function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }
   return (
     <Card className="rounded-lg">
       <CardHeader>
-        <CardTitle>Navigation item</CardTitle>
-        <CardDescription>
-          Page targets can point to About, Terms, Credits, or custom pages.
-        </CardDescription>
+        <CardTitle>Link details</CardTitle>
       </CardHeader>
       <CardContent>
         <form
-          inert={saving}
+          id="navigation-form" inert={saving}
           className="grid gap-5"
           onSubmit={(event) => {
             event.preventDefault();
-            onSave(item.id, draft);
+            if (complete && !saving) onSave(item.id, draft);
           }}
         >
           <FieldGroup>
@@ -2736,6 +2782,7 @@ function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }
               <TextField
                 label="Label"
                 autoFocus={!item.id}
+                pattern=".*\S.*"
                 required
                 value={draft.label}
                 onChange={(value) => update("label", value)}
@@ -2759,12 +2806,12 @@ function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }
                       ...current,
                       type: value,
                       targetValue:
-                        value === "PAGE" && !current.targetValue
+                        value === "PAGE" && !pages.some(page => page.slug === current.targetValue)
                           ? pageOptions[0]?.value || ""
                           : current.targetValue,
                     }));
                   }}
-                  options={menuTypes}
+                  options={menuTypes.map(value => ({ value, label: displayType(value) }))}
                 />
               </Field>
               {draft.type === "PAGE" && pageOptions.length ? (
@@ -2772,20 +2819,21 @@ function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }
                   <FieldLabel>Page</FieldLabel>
                   <AdminSelect
                     ariaLabel="Page"
-                    value={draft.targetValue || pageOptions[0]?.value || ""}
+                    value={draft.targetValue || ""}
                     onValueChange={(value) => update("targetValue", value)}
                     options={pageOptions}
                   />
                 </Field>
               ) : ["MEMORY", "SEARCH"].includes(draft.type) ? (
-                <TextField
-                  label="Target value"
+                <TextField required
+                  label={draft.type === "MEMORY" ? "Memory ID" : "Search query"}
                   value={draft.targetValue}
                   onChange={(value) => update("targetValue", value)}
                   placeholder="Memory ID or search query"
                 />
               ) : null}
             </div>
+            {draft.type === "PAGE" && !pageOptions.length && <p role="status">Create a page before adding a page link.</p>}
             {draft.type === "EXTERNAL" ? <TextField
               type="url"
               required
@@ -2814,18 +2862,13 @@ function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }
               checked={Boolean(draft.isVisible)}
               onCheckedChange={(value) => update("isVisible", value)}
             />
-            <ToggleField
+            {draft.type === "EXTERNAL" && <ToggleField
               label="Open in new tab"
-              description="Applies to external links."
               checked={Boolean(draft.opensNewTab)}
               onCheckedChange={(value) => update("opensNewTab", value)}
-            />
+            />}
           </FieldGroup>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={!draft.label.trim() || (draft.type === "PAGE" && !draft.targetValue)}>
-              <Save data-icon="inline-start" />
-              Save menu item
-            </Button>
             {item.id && <Button variant="destructive" type="button" onClick={() => onDelete(item.id)}>
               <Trash2 data-icon="inline-start" />
               Delete
@@ -2837,22 +2880,17 @@ function MenuEditor({ item, pages, menu, onSave, onDelete, reportDirty, saving }
   );
 }
 
-function SettingsView({
-  data,
-  reportDirty,
-  saving,
-  saveSettings,
-  saveAccount,
-  setupTwoFactor,
-  enableTwoFactor,
-  disableTwoFactor,
-  settingsTab,
-  setSettingsTab,
-  exportBackup,
-}) {
-  const settings = data.settings || {};
-  const account = settings.account || {};
-  const [siteDraft, setSiteDraft] = useState(() => ({
+function SettingsGroup({ title, children }) {
+  return (
+    <section className="editorial-settings-group">
+      <h2>{title}</h2>
+      <div className="editorial-rows">{children}</div>
+    </section>
+  );
+}
+
+function editableSiteSettings(settings) {
+  return {
     siteName: settings.siteName || "I remember,",
     siteTitle: settings.siteTitle || "Songqi",
     siteDescription: settings.siteDescription ?? "",
@@ -2870,7 +2908,27 @@ function SettingsView({
       umamiSrc: settings.tracking?.umamiSrc || "",
       umamiWebsiteId: settings.tracking?.umamiWebsiteId || "",
     },
-  }));
+  };
+}
+
+function SettingsView({
+  data,
+  notice,
+  editorDirty,
+  reportDirty,
+  saving,
+  saveSettings,
+  saveAccount,
+  setupTwoFactor,
+  enableTwoFactor,
+  disableTwoFactor,
+  settingsTab,
+  setSettingsTab,
+  exportBackup,
+}) {
+  const settings = data.settings || {};
+  const account = settings.account || {};
+  const [siteDraft, setSiteDraft] = useState(() => editableSiteSettings(settings));
   const [accountDraft, setAccountDraft] = useState({
     email: account.email || "",
     currentPassword: "",
@@ -2881,44 +2939,6 @@ function SettingsView({
   const [disableCode, setDisableCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState([]);
   const [securityPassword, setSecurityPassword] = useState("");
-
-  useEffect(() => {
-    setSiteDraft({
-      siteName: settings.siteName || "I remember,",
-      siteTitle: settings.siteTitle || "Songqi",
-      siteDescription: settings.siteDescription ?? "",
-      ownerName: settings.ownerName ?? "",
-      ownerAlternateName: settings.ownerAlternateName ?? "",
-      publicContact: settings.publicContact || "",
-      canonicalUrl: settings.canonicalUrl || "https://songqi.org",
-      timezone: settings.timezone || "Asia/Shanghai",
-      defaultLanguage: settings.defaultLanguage || "en",
-      memorySharing: settings.memorySharing === true,
-      memoryNavigation: settings.memoryNavigation === true,
-      anonymousSubmissions: Boolean(settings.anonymousSubmissions),
-      tracking: {
-        enabled: Boolean(settings.tracking?.enabled),
-        umamiSrc: settings.tracking?.umamiSrc || "",
-        umamiWebsiteId: settings.tracking?.umamiWebsiteId || "",
-      },
-    });
-    setAccountDraft((current) => ({ ...current, email: account.email || "" }));
-  }, [
-    settings.siteName,
-    settings.siteTitle,
-    settings.siteDescription,
-    settings.ownerName,
-    settings.ownerAlternateName,
-    settings.publicContact,
-    settings.canonicalUrl,
-    settings.timezone,
-    settings.defaultLanguage,
-    settings.memorySharing,
-    settings.memoryNavigation,
-    settings.anonymousSubmissions,
-    settings.tracking,
-    account.email,
-  ]);
 
   const updateSite = (key, value) => { reportDirty(true); setSiteDraft((current) => ({ ...current, [key]: value })); };
   const updateTracking = (key, value) => {
@@ -2931,6 +2951,10 @@ function SettingsView({
   const updateAccount = (key, value) => { reportDirty(true); setAccountDraft((current) => ({ ...current, [key]: value })); };
 
   return (
+    <EditorialLayout section="Settings" detail={displayType(settingsTab)} title="Settings" description="Manage your site and owner account."
+      status={saving ? (settingsTab === "backup" ? "Exporting…" : "Saving…") : editorDirty ? "Edited" : ["Changes saved", "Content exported"].includes(notice) ? notice : ""}
+      action={settingsTab === "backup" ? <Button disabled={saving} onClick={exportBackup}>Export content</Button> :
+        ["site", "account"].includes(settingsTab) ? <Button form={`settings-${settingsTab}-form`} disabled={saving || !editorDirty} type="submit">Save changes</Button> : null}>
     <div className="admin-settings">
       <Tabs value={settingsTab} onValueChange={setSettingsTab} className="admin-settings-tabs">
         <TabsList className="w-full justify-start">
@@ -2942,23 +2966,18 @@ function SettingsView({
         <TabsContent value={settingsTab}>
           {settingsTab === "site" ? (
             <Card className="admin-settings-card admin-site-settings-card">
-              <CardHeader>
-                <CardTitle>Site</CardTitle>
-                <CardDescription>
-                  Your public identity, search metadata, and publishing defaults.
-                </CardDescription>
-              </CardHeader>
               <CardContent>
                 <form
                   inert={saving}
                   id="settings-site-form"
                   className="grid gap-5"
-                  onSubmit={(event) => {
+                  onSubmit={async (event) => {
                     event.preventDefault();
-                    saveSettings(siteDraft);
+                    const result = await saveSettings(siteDraft);
+                    if (result) setSiteDraft(editableSiteSettings({ ...settings, ...result }));
                   }}
                 >
-                  <FieldGroup>
+                  <SettingsGroup title="Site identity">
                     <TextField
                       label="Site name"
                       description="The preferred name above your URL in search results."
@@ -2978,12 +2997,23 @@ function SettingsView({
                       onChange={(value) => updateSite("canonicalUrl", value)}
                       type="url"
                     />
+                  </SettingsGroup>
+                  <SettingsGroup title="Submissions">
                     <TextField label="Public contact" description="Email address or contact page shown in the submission terms for corrections and removal requests." value={siteDraft.publicContact} onChange={value => updateSite("publicContact", value)} maxLength={500} />
-                    <p className="admin-settings-section-label">Search engines</p>
+                    <ToggleField
+                      className="admin-settings-toggle"
+                      label="Allow visitors to publish memories"
+                      description="No sign-in required. New submissions publish immediately."
+                      checked={siteDraft.anonymousSubmissions}
+                      onCheckedChange={(value) => updateSite("anonymousSubmissions", value)}
+                    />
+                  </SettingsGroup>
+                  <SettingsGroup title="Search engines">
                     <TextField label="Site description" description="A concise introduction for search results and shared links." value={siteDraft.siteDescription} onChange={(value) => updateSite("siteDescription", value)} />
                     <TextField label="Owner name" description="Your public name, used in homepage metadata and structured data." value={siteDraft.ownerName} onChange={(value) => updateSite("ownerName", value)} />
                     <TextField label="Alternate name" description="Another name or spelling, such as your Chinese name. Leave blank if unused." value={siteDraft.ownerAlternateName} onChange={(value) => updateSite("ownerAlternateName", value)} />
-                    <div className="grid gap-4 sm:grid-cols-2">
+                  </SettingsGroup>
+                  <SettingsGroup title="Language and region">
                       <Field>
                         <FieldLabel>Default language</FieldLabel>
                         <AdminSelect
@@ -3004,8 +3034,8 @@ function SettingsView({
                         value={siteDraft.timezone}
                         onChange={(value) => updateSite("timezone", value)}
                       />
-                    </div>
-                    <p className="admin-settings-section-label">Memory cards</p>
+                  </SettingsGroup>
+                  <SettingsGroup title="Memory cards">
                     <ToggleField
                       className="admin-settings-toggle"
                       label="Show sharing buttons"
@@ -3020,15 +3050,8 @@ function SettingsView({
                       checked={siteDraft.memoryNavigation}
                       onCheckedChange={(value) => updateSite("memoryNavigation", value)}
                     />
-                    <p className="admin-settings-section-label">Public submissions</p>
-                    <ToggleField
-                      className="admin-settings-toggle"
-                      label="Allow visitors to publish memories"
-                      description="No sign-in required. New submissions publish immediately."
-                      checked={siteDraft.anonymousSubmissions}
-                      onCheckedChange={(value) => updateSite("anonymousSubmissions", value)}
-                    />
-                    <p className="admin-settings-section-label">Umami analytics</p>
+                  </SettingsGroup>
+                  <SettingsGroup title="Umami analytics">
                     <div className="admin-umami-settings">
                       <ToggleField
                         className="admin-umami-toggle"
@@ -3055,10 +3078,7 @@ function SettingsView({
                         </div>
                       ) : null}
                     </div>
-                  </FieldGroup>
-                  <div className="admin-settings-actions">
-                    <Button type="submit">Save changes</Button>
-                  </div>
+                  </SettingsGroup>
                 </form>
               </CardContent>
             </Card>
@@ -3066,12 +3086,6 @@ function SettingsView({
 
           {settingsTab === "account" ? (
             <Card className="admin-settings-card admin-account-settings-card">
-              <CardHeader>
-                <CardTitle>Account</CardTitle>
-                <CardDescription>
-                  The email and password used by the single owner account.
-                </CardDescription>
-              </CardHeader>
               <CardContent>
                 <form
                   inert={saving}
@@ -3089,7 +3103,7 @@ function SettingsView({
                     }
                   }}
                 >
-                  <FieldGroup>
+                  <SettingsGroup title="Owner account">
                     <TextField
                       label="Admin email"
                       value={accountDraft.email}
@@ -3114,16 +3128,13 @@ function SettingsView({
                       autoComplete="new-password"
                       placeholder="Leave blank to keep the current password"
                     />
-                  </FieldGroup>
+                  </SettingsGroup>
                   <div className="admin-session-note">
                     <strong>Your current session stays active</strong>
                     <p>
                       A password change signs out other sessions. Recovery codes are managed in
                       Security.
                     </p>
-                  </div>
-                  <div className="admin-settings-actions">
-                    <Button type="submit">Save account</Button>
                   </div>
                 </form>
               </CardContent>
@@ -3146,7 +3157,7 @@ function SettingsView({
                     </Badge>
                   </CardAction>
                 </CardHeader>
-                <CardContent className="grid gap-5">
+                <CardContent className="grid gap-5" inert={saving}>
                   {account.twoFactorEnabled ? (
                     <form
                       className="grid max-w-md gap-4"
@@ -3166,13 +3177,13 @@ function SettingsView({
                         inputMode="text"
                         autoComplete="one-time-code"
                       />
-                      <Button variant="outline" className="w-fit" type="submit">
+                      <Button disabled={!disableCode.trim()} variant="outline" className="w-fit" type="submit">
                         Disable 2FA
                       </Button>
                     </form>
                   ) : (
                     <>
-                      <form
+                      {!twoFactor && <form
                         className="grid gap-4"
                         onSubmit={async (event) => {
                           event.preventDefault();
@@ -3193,10 +3204,10 @@ function SettingsView({
                           autoComplete="current-password"
                           placeholder="Confirm your identity"
                         />
-                        <Button className="w-fit" variant="outline" type="submit">
+                        <Button disabled={!securityPassword} className="w-fit" variant="outline" type="submit">
                           Start 2FA setup
                         </Button>
-                      </form>
+                      </form>}
                       {!twoFactor ? (
                         <ol className="admin-security-steps" aria-label="Two-factor setup steps">
                           <li>Confirm your password.</li>
@@ -3236,7 +3247,7 @@ function SettingsView({
                             inputMode="numeric"
                             autoComplete="one-time-code"
                           />
-                          <Button className="w-fit" type="submit">
+                          <Button disabled={!twoFactorCode.trim()} className="w-fit" type="submit">
                             Enable 2FA
                           </Button>
                         </form>
@@ -3278,14 +3289,15 @@ function SettingsView({
               </Card>
             </div>
           ) : null}
-          {settingsTab === "backup" ? <BackupsView exportBackup={exportBackup} /> : null}
+          {settingsTab === "backup" ? <BackupsView /> : null}
         </TabsContent>
       </Tabs>
     </div>
+    </EditorialLayout>
   );
 }
 
-function BackupsView({ exportBackup }) {
+function BackupsView() {
   return (
     <div className="admin-backup-grid">
       <Card className="admin-settings-card">
@@ -3316,12 +3328,6 @@ function BackupsView({ exportBackup }) {
               Read the backup guide <ExternalLink className="ml-2 size-4" />
             </a>
           </details>
-          <div className="admin-settings-actions">
-            <Button type="button" onClick={exportBackup}>
-              <Download data-icon="inline-start" />
-              Export content
-            </Button>
-          </div>
         </CardContent>
       </Card>
     </div>

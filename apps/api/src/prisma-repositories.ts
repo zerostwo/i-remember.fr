@@ -622,13 +622,16 @@ export class PrismaPageRepository implements PageRepository {
           }
           const existing = slug ? await tx.page.findUnique({ where: { language_slug: { language, slug } } }) : null;
           if (slug && !existing) throw new ApiError(404, "Page not found", "not_found");
+          if (existing && "expectedUpdatedAt" in input && existing.updatedAt.toISOString() !== input.expectedUpdatedAt) {
+            throw new ApiError(409, "This page changed in another session. Copy your edits and reopen it before saving.", "page_changed");
+          }
           const values = {
             slug: input.slug, language: input.language, title: input.title,
             excerpt: input.excerpt, bodyMarkdown: input.bodyMarkdown, status: input.status,
             linkedMemoryId: input.linkedMemoryId, metadata: input.metadata as any,
           };
           let saved = existing
-            ? await tx.page.update({ where: { id: existing.id }, data: values })
+            ? await tx.page.update({ where: { id: existing.id }, data: { ...values, updatedAt: new Date(Math.max(Date.now(), existing.updatedAt.getTime() + 1)) } })
             : await tx.page.create({ data: { ...values, slug: input.slug!, title: input.title! } });
           if (saved.status === "PUBLISHED" && !saved.bodyMarkdown.trim()) {
             throw new ApiError(400, "Write some content before publishing this page.", "empty_page_content");
@@ -653,7 +656,7 @@ export class PrismaPageRepository implements PageRepository {
               title: saved.title, content: saved.bodyMarkdown, excerpt: saved.excerpt || saved.bodyMarkdown.slice(0, 220),
               status, visibility: "PUBLIC", authorName: "Songqi", metadata,
             } });
-            saved = await tx.page.update({ where: { id: saved.id }, data: { linkedMemoryId: mirror.publicId } });
+            saved = await tx.page.update({ where: { id: saved.id }, data: { linkedMemoryId: mirror.publicId, updatedAt: saved.updatedAt } });
           }
           if (existing && existing.slug !== saved.slug) {
             await tx.menuItem.updateMany({ where: { type: "PAGE", language: existing.language, targetValue: existing.slug }, data: { targetValue: saved.slug } });

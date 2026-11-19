@@ -27,6 +27,14 @@ try {
     status: "DRAFT",
   });
   assert.equal(draft.linkedMemoryId, null, "Drafts must not create phantom memories");
+  const draftVersion = draft.updatedAt.toISOString();
+  const edited = await pages.update(prefix, pagePatchInput({ expectedUpdatedAt: draftVersion, excerpt: "First save" }));
+  await assert.rejects(
+    pages.update(prefix, pagePatchInput({ expectedUpdatedAt: draftVersion, excerpt: "Stale autosave" })),
+    error => error.code === "page_changed",
+  );
+  assert.equal((await pages.get(prefix)).excerpt, edited.excerpt);
+
   const [published, concurrent] = await Promise.all([
     pages.update(prefix, { status: "PUBLISHED" }),
     pages.update(prefix, { status: "PUBLISHED" }),
@@ -36,6 +44,11 @@ try {
     concurrent.linkedMemoryId,
     "Concurrent publishing must create only one mirror",
   );
+  await assert.rejects(
+    pages.update(prefix, pagePatchInput({ expectedUpdatedAt: edited.updatedAt.toISOString(), status: "DRAFT" })),
+    error => error.code === "page_changed",
+  );
+  assert.equal((await pages.get(prefix)).status, "PUBLISHED");
   let mirror = await memories.get(published.linkedMemoryId);
   memoryIds.push(mirror.id);
   assert.equal(mirror.content, draft.bodyMarkdown);

@@ -403,3 +403,9 @@ Current backend/product decisions:
 - On 2026-11-19, the owner selected `duan@songqi.org` as the current public
   contact for submission corrections and removals on `songqi.org`. Keep it
   editable in Settings → Site.
+
+- On 2026-11-19 the owner approved the November admin design study for the
+  Page editor, Navigation and Settings. Use its shared toolbar, quiet grouped
+  controls and writing surface. Autosave private drafts, publish explicitly,
+  and use Save changes for live content and settings. Validate desktop and
+  mobile touch workflows locally and preserve the public galaxy.

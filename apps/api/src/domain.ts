@@ -157,7 +157,7 @@ export type PageInput = {
   navigationVisible?: boolean;
 };
 
-export type PageUpdateInput = Partial<PageInput>;
+export type PageUpdateInput = Partial<PageInput> & { expectedUpdatedAt?: string };
 
 export type CommentRecord = {
   id: string;

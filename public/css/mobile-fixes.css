@@ -409,6 +409,11 @@ html body .add-steps-message-input:focus {
     left: 23px !important;
     top: 23px !important;
   }
+  /* The globe is drawn separately in WebGL. End its invisible tap target at
+     the top of the 44px footer link row, which shares the bottom of this box. */
+  html body:has(.footer-managed-item) .nav-map-btn {
+    clip-path: inset(0 0 28px round 46px 46px 0 0);
+  }
   /* The legacy globe is drawn in WebGL behind the solid footer backdrop. Cut
      one exact circular window for it while keeping the rest of the footer black. */
   html body .footer-bg {

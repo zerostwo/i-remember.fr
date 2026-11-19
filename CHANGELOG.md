@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve newer Page edits across concurrent sessions and keep managed footer
+  links tappable beside the globe on portrait phones.
 - Keep private location labels and coordinates out of public responses and embedded
   memory data. Load card excerpts for discovery and full text when a memory opens.
 - Page large searches in batches of up to 200 selectable stars. Hide submission
@@ -84,6 +86,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Give the Page editor, Navigation and Settings a shared action toolbar. Private
+  Page drafts save automatically. Publishing and archiving require confirmation,
+  and live edits take effect on Save changes.
 - Memory and managed-page bodies no longer have fixed character limits or silent
   truncation. Public submissions preserve paragraphs; content requests have a
   separate configurable 16 MiB transport budget.

@@ -395,6 +395,7 @@ export function pageInput(value: Record<string, unknown>): PageInput {
 
 export function pagePatchInput(value: Record<string, unknown>): PageUpdateInput {
   const input: PageUpdateInput = {};
+  if (has(value, "expectedUpdatedAt")) input.expectedUpdatedAt = String(value.expectedUpdatedAt);
   if (has(value, "navigationVisible")) input.navigationVisible = bool(value.navigationVisible);
   if (has(value, "slug")) {
     input.slug = pageSlugInput(value.slug, "missing_page_slug");

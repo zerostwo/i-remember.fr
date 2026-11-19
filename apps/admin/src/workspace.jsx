@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+import { EditorialLayout } from "./EditorialLayout.jsx";
 import { Dialog } from "radix-ui";
 import {
   ArrowLeft,
@@ -639,7 +640,7 @@ export function EditorAttachments({
     </section>
   );
 }
-export function WritingField({ label, value = "", onChange, assets, queryMedia, onUpload, onBusy = () => {} }) {
+export function WritingField({ titleField, previewTitle, label, value = "", onChange, assets, queryMedia, onUpload, onBusy = () => {} }) {
   const [mediaOpen, setMediaOpen] = useState(false);
   const [query, setQuery] = useState(""), [kind, setKind] = useState("all");
   const library = useMediaPage(queryMedia, query, kind, mediaOpen, assets);
@@ -729,6 +730,7 @@ export function WritingField({ label, value = "", onChange, assets, queryMedia, 
               </Button>
             ) : null}
           </div>
+          {titleField}
           <textarea
             ref={textarea}
             id={id}
@@ -741,6 +743,7 @@ export function WritingField({ label, value = "", onChange, assets, queryMedia, 
         </>
       ) : (
         <div className="markdown-preview admin-writing-preview" aria-label={`${label} preview`}>
+          {titleField && <h2 className="editorial-preview-title">{previewTitle || "Page title"}</h2>}
           {value.trim() ? (
             <div dangerouslySetInnerHTML={{ __html: markdownToHtml(value) }} />
           ) : (
@@ -749,7 +752,7 @@ export function WritingField({ label, value = "", onChange, assets, queryMedia, 
         </div>
       )}
       <div className="admin-writing-footer">
-        {value.length.toLocaleString()} characters · Full content is preserved
+        {value.length.toLocaleString()} characters{!titleField && " · Full content is preserved"}
       </div>
       <Modal
         open={mediaOpen}
@@ -895,6 +898,19 @@ function PageList({ data, editPage, createPage }) {
 export function PagesWorkspace(props) {
   return props.route === "pages" ? <PageList {...props} /> : <PageEditorWorkspace {...props} />;
 }
+const pageStatusLabels = { DRAFT: "Draft", PUBLISHED: "Published", ARCHIVED: "Archived" };
+const pageTransitions = {
+  PUBLISHED: ["Publish page", "Visitors will be able to open the full page."],
+  ARCHIVED: [
+    "Archive page",
+    "The public page and its footer link will be hidden. You can restore it later.",
+  ],
+  DRAFT: [
+    "Move to draft",
+    "Keep editing privately. Visitors will no longer be able to open this page.",
+  ],
+};
+
 function PageEditorWorkspace({
   data,
   selectedPageSlug,
@@ -905,197 +921,333 @@ function PageEditorWorkspace({
   uploadEditorFile,
   queryMedia,
   onUploadingChange,
+  navigationPending,
 }) {
-  const page = data.pages?.find((item) => item.slug === selectedPageSlug);
-  const footerVisible = Boolean(page && data.menu.some(item => item.type === "PAGE" && item.targetValue === page.slug && item.isVisible));
-  const [draft, setDraft] = useState(() =>
-    page
-      ? { ...page, navigationVisible: footerVisible }
-      : {
-          title: "",
-          slug: "",
-          bodyMarkdown: "",
-          excerpt: "",
-          status: "DRAFT",
-          language: data.settings.defaultLanguage,
-          metadata: {},
-          navigationVisible: false,
-        },
+  const page = data.pages.find((item) => item.slug === selectedPageSlug);
+  const footerVisible = Boolean(
+    page &&
+    data.menu.some(
+      (item) => item.type === "PAGE" && item.targetValue === page.slug && item.isVisible,
+    ),
   );
-  const slugTouched = useRef(Boolean(page));
+  const [draft, setDraft] = useState(() => ({
+    title: page?.title || "",
+    bodyMarkdown: page?.bodyMarkdown || "",
+    excerpt: page?.excerpt || "",
+    slug: page?.slug || "",
+    navigationVisible: footerVisible,
+  }));
+  const [baseline, setBaseline] = useState(draft);
+  const [record, setRecord] = useState(page);
+  const [saveMessage, setSaveMessage] = useState("");
   const [error, setError] = useState("");
+  const [intent, setIntent] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const editing = useRef(draft);
+  const inFlight = useRef(false);
+  const slugTouched = useRef(Boolean(page));
+  const status = record?.status || "DRAFT";
+  const dirty = draft !== baseline;
+  const valid = draft.title.trim() && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(draft.slug);
   useEffect(() => () => onUploadingChange(false), [onUploadingChange]);
-  useEffect(() => {
-    if (page) {
-      setDraft({ ...page, navigationVisible: footerVisible });
-      slugTouched.current = true;
-    }
-  }, [page, footerVisible]);
-  const update = (key, value) => {
+
+  function update(fields) {
+    const next = { ...editing.current, ...fields };
+    editing.current = next;
+    setDraft(next);
+    setError("");
     reportDirty(true);
-    setDraft((current) => ({ ...current, [key]: value }));
-  };
-  if (selectedPageSlug && !page)
+  }
+
+  async function persist(nextStatus) {
+    if (inFlight.current || uploading) return;
+    const snapshot = editing.current;
+    if (!valid) {
+      setError("Enter a title and a valid navigation key in Advanced.");
+      return;
+    }
+    if (nextStatus === "PUBLISHED" && !snapshot.bodyMarkdown.trim()) {
+      setError("Write some content before publishing this page.");
+      return;
+    }
+    inFlight.current = true;
+    setError("");
+    try {
+      const saved = await savePage(record, {
+        ...record,
+        language: record?.language || data.settings.defaultLanguage,
+        ...snapshot,
+        status: nextStatus,
+        navigationVisible:
+          snapshot.navigationVisible !== baseline.navigationVisible
+            ? snapshot.navigationVisible
+            : undefined,
+      });
+      setRecord(saved);
+      setSaveMessage(nextStatus === status && nextStatus !== "DRAFT" ? "Changes saved" : "");
+      setBaseline(snapshot);
+      slugTouched.current = true;
+      reportDirty(editing.current !== snapshot);
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      inFlight.current = false;
+    }
+  }
+
+  const savePrivateDraft = useEffectEvent(() => persist("DRAFT"));
+  // Changing the record, opening a confirmation, or editing again cancels the pending timer.
+  useEffect(() => {
+    if (
+      status !== "DRAFT" ||
+      !dirty ||
+      !valid ||
+      savingPage ||
+      uploading ||
+      intent ||
+      navigationPending ||
+      error
+    )
+      return;
+    const timer = setTimeout(savePrivateDraft, 900);
+    return () => clearTimeout(timer);
+  }, [
+    draft,
+    baseline,
+    status,
+    savingPage,
+    uploading,
+    intent,
+    navigationPending,
+    error,
+    valid,
+    dirty,
+  ]);
+
+  if (selectedPageSlug && !page && !record)
     return (
       <div className="admin-workspace-empty">
         <h2>Page not found</h2>
         <Button onClick={() => navigate("pages")}>Back to pages</Button>
       </div>
     );
-  const linked = data.memories?.find((item) => item.id === page?.linkedMemoryId);
-  const publishedUrl =
-    linked?.publicUrl ||
-    (page?.linkedMemoryId ? `/memory/${encodeURIComponent(page.linkedMemoryId)}` : "");
+
+  const statusText = uploading
+    ? "Uploading…"
+    : savingPage
+      ? "Saving…"
+      : error
+        ? "Needs attention"
+        : dirty
+          ? "Edited"
+          : !record
+            ? "New draft"
+            : status === "DRAFT"
+              ? "Draft saved"
+              : saveMessage || pageStatusLabels[status];
+  const changeStatus = (next) => {
+    if (!valid || (next === "PUBLISHED" && !draft.bodyMarkdown.trim())) {
+      setError(
+        !valid
+          ? "Enter a title and a valid navigation key in Advanced."
+          : "Write some content before publishing this page.",
+      );
+      return;
+    }
+    setIntent(next);
+  };
+  const publish = status === "DRAFT";
   return (
-    <div>
-      <Button className="admin-back-link" variant="ghost" onClick={() => navigate("pages")}>
-        <ArrowLeft size={16} />
-        All pages
-      </Button>
+    <EditorialLayout
+      section="Pages"
+      detail={draft.title.trim() || "New page"}
+      onBack={() => navigate("pages")}
+      title={record ? "Edit page" : "New page"}
+      description="Write and publish a page for your site."
+      status={statusText}
+      action={
+        <Button
+          form="page-editor-form"
+          type="submit"
+          disabled={savingPage || uploading || (!publish && !dirty)}
+        >
+          {publish ? "Publish…" : "Save changes"}
+        </Button>
+      }
+    >
+      {error && (
+        <div className="editorial-error" role="alert">
+          {error}
+          {status === "DRAFT" && dirty && valid && (
+            <button type="button" onClick={() => persist("DRAFT")}>
+              Retry draft save
+            </button>
+          )}
+        </div>
+      )}
       <form
         id="page-editor-form"
-        className="admin-editor-grid admin-page-editor"
-        onSubmit={async (event) => {
+        className="editorial-page"
+        noValidate
+        onSubmit={(event) => {
           event.preventDefault();
-          if (savingPage || uploading) return;
-          setError("");
-          if (draft.status === "PUBLISHED" && !draft.bodyMarkdown.trim()) {
-            setError("Write some content before publishing this page.");
-            return;
+          if (!savingPage && !uploading) {
+            if (publish) changeStatus("PUBLISHED");
+            else if (dirty) void persist(status);
           }
-          await savePage(page?.slug, { ...draft, navigationVisible: draft.navigationVisible === footerVisible ? undefined : draft.navigationVisible });
         }}
       >
-        <Card>
-          <CardHeader>
-            <CardTitle>Page content</CardTitle>
-            <CardDescription>Write an article for your public navigation.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-5" inert={savingPage}>
-            <FieldInput
-              label="Title"
-              required
-              maxLength={180}
-              placeholder="Give this page a title"
-              value={draft.title}
-              onChange={(event) => {
-                const title = event.target.value;
-                reportDirty(true);
-                setDraft((current) => ({
-                  ...current,
-                  title,
-                  ...(!slugTouched.current
-                    ? {
-                        slug: title
-                          .toLowerCase()
-                          .normalize("NFKD")
-                          .replace(/[^a-z0-9\s-]/g, "")
-                          .trim()
-                          .replace(/[\s-]+/g, "-")
-                          .slice(0, 120) || (title.trim() ? `page-${crypto.randomUUID().slice(0, 8)}` : ""),
-                      }
-                    : {}),
-                }));
-              }}
-            />
-            <WritingField
-              assets={data.attachments}
-              onUpload={uploadEditorFile}
-              queryMedia={queryMedia}
-              onBusy={value => { setUploading(value); onUploadingChange(value); if (value) reportDirty(true); }}
-              label="Page content"
-              value={draft.bodyMarkdown}
-              onChange={(value) => update("bodyMarkdown", value)}
-            />
-            <details className="admin-secondary-fields">
-              <summary>Summary</summary>
-              <label className="admin-workspace-field">
-                Short description
-                <textarea
-                  rows={3}
-                  maxLength={600}
-                  value={draft.excerpt || ""}
-                  onChange={(event) => update("excerpt", event.target.value)}
-                />
-              </label>
-              <p>Optional. Used in page lists and navigation.</p>
-            </details>
-          </CardContent>
-        </Card>
-        <aside className="admin-editor-rail">
-          <Card id="page-publishing">
-            <CardHeader>
-              <CardTitle>Publishing</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-5" inert={savingPage}>
-              <label className="admin-workspace-field">
-                Status
-                <select
-                  aria-label="Status"
-                  value={draft.status}
-                  onChange={(event) => update("status", event.target.value)}
-                >
-                  <option value="DRAFT">Draft</option>
-                  <option value="PUBLISHED">Published</option>
-                  <option value="ARCHIVED">Archived</option>
-                </select>
-              </label>
-              <p className="admin-field-help">
-                {draft.status === "PUBLISHED"
-                  ? "Visible on the site after you save."
-                  : draft.status === "ARCHIVED"
-                    ? "Hidden from the public site. Select Draft or Published to restore it."
-                    : "Only you can see this draft."}
-              </p>
-              <label className="admin-navigation-choice"><input type="checkbox" checked={draft.navigationVisible} onChange={event => update("navigationVisible", event.target.checked)} /> Show in footer navigation</label>
-              <p className="admin-field-help">The link becomes available when this page is published.</p>
-              <details className="admin-secondary-fields"><summary>Advanced</summary><FieldInput
-                label="Navigation key"
+        <section className="editorial-document">
+          <WritingField
+            previewTitle={draft.title}
+            label="Page content"
+            assets={data.attachments}
+            onUpload={uploadEditorFile}
+            queryMedia={queryMedia}
+            onBusy={(value) => {
+              setUploading(value);
+              onUploadingChange(value);
+            }}
+            value={draft.bodyMarkdown}
+            onChange={(bodyMarkdown) => update({ bodyMarkdown })}
+            titleField={
+              <input
+                aria-label="Title"
+                className="editorial-title"
                 required
-                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-                title="Lowercase letters, numbers and single hyphens"
-                placeholder="about"
-                value={draft.slug}
+                maxLength={180}
+                placeholder="Page title"
+                value={draft.title}
                 onChange={(event) => {
-                  slugTouched.current = true;
-                  update("slug", event.target.value);
+                  const title = event.target.value;
+                  const fields = { title };
+                  if (!slugTouched.current) {
+                    fields.slug =
+                      title
+                        .toLowerCase()
+                        .normalize("NFKD")
+                        .replace(/[^a-z0-9\s-]/g, "")
+                        .trim()
+                        .replace(/[\s-]+/g, "-")
+                        .slice(0, 120)
+                        .replace(/-$/, "") ||
+                      (title.trim()
+                        ? editing.current.slug || `page-${crypto.randomUUID().slice(0, 8)}`
+                        : "");
+                  }
+                  update(fields);
                 }}
               />
-              <p className="admin-field-help">
-                Used to identify this page in Navigation. Existing menu links follow a key change.
-              </p></details>
-              <Button type="submit" disabled={savingPage || uploading}>
-                {savingPage ? "Saving…" : "Save page"}
-              </Button>
-              {error ? <p role="alert">{error}</p> : null}
-              {publishedUrl && page?.status === "PUBLISHED" ? (
-                <Button asChild variant="outline">
-                  <a href={publishedUrl} target="_blank" rel="noreferrer">
-                    Open published page
-                    <ExternalLink size={15} />
-                  </a>
-                </Button>
-              ) : null}
-            </CardContent>
-          </Card>
-          <Card className="admin-page-navigation-help">
-            <CardHeader>
-              <CardTitle>Public navigation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="admin-field-help">
-                Use Navigation for custom labels, ordering and grouped footer links.
-              </p>
-              <Button type="button" variant="ghost" onClick={() => navigate("menus")}>
-                Manage navigation
-                <ArrowRight size={15} />
-              </Button>
-            </CardContent>
-          </Card>
+            }
+          />
+        </section>
+        <aside className="editorial-inspector">
+          <h2>Publishing</h2>
+          <div className="inspector-row">
+            Status <span>{pageStatusLabels[status]}</span>
+          </div>
+          <label className="inspector-row">
+            Show in footer
+            <input
+              className="editorial-toggle"
+              type="checkbox"
+              checked={draft.navigationVisible}
+              onChange={(event) => update({ navigationVisible: event.target.checked })}
+            />
+          </label>
+          <details className="editorial-advanced">
+            <summary>Advanced</summary>
+            <FieldInput
+              label="Navigation key"
+              value={draft.slug}
+              maxLength={120}
+              onChange={(event) => {
+                slugTouched.current = true;
+                update({ slug: event.target.value });
+              }}
+            />
+            <label className="admin-workspace-field">
+              Short description
+              <textarea
+                rows={3}
+                maxLength={600}
+                value={draft.excerpt}
+                onChange={(event) => update({ excerpt: event.target.value })}
+              />
+            </label>
+            {record && (
+              <div className="editorial-lifecycle">
+                {status !== "DRAFT" && (
+                  <button
+                    type="button"
+                    disabled={savingPage || uploading}
+                    onClick={() => changeStatus("DRAFT")}
+                  >
+                    {status === "ARCHIVED" ? "Restore draft…" : "Move to draft…"}
+                  </button>
+                )}
+                {status === "ARCHIVED" && (
+                  <button
+                    type="button"
+                    disabled={savingPage || uploading}
+                    onClick={() => changeStatus("PUBLISHED")}
+                  >
+                    Publish…
+                  </button>
+                )}
+                {status !== "ARCHIVED" && (
+                  <button
+                    type="button"
+                    disabled={savingPage || uploading}
+                    onClick={() => changeStatus("ARCHIVED")}
+                  >
+                    Archive page…
+                  </button>
+                )}
+              </div>
+            )}
+          </details>
+          <p>
+            {status === "PUBLISHED"
+              ? "Saved changes are visible to visitors."
+              : "The footer link appears when the page is published."}
+          </p>
+          {status === "PUBLISHED" && record?.linkedMemoryId && (
+            <a
+              className="editorial-public-link"
+              href={`/memory/${encodeURIComponent(record.linkedMemoryId)}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open published page <ExternalLink size={14} />
+            </a>
+          )}
         </aside>
       </form>
-    </div>
+      <Modal
+        className="editorial-confirm-dialog"
+        open={Boolean(intent)}
+        title={intent ? pageTransitions[intent][0] : ""}
+        description={intent ? pageTransitions[intent][1] : ""}
+        onClose={() => setIntent(null)}
+      >
+        <div className="editorial-confirm">
+          <Button variant="outline" type="button" onClick={() => setIntent(null)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              const next = intent;
+              setIntent(null);
+              void persist(next);
+            }}
+          >
+            {intent && pageTransitions[intent][0]}
+          </Button>
+        </div>
+      </Modal>
+    </EditorialLayout>
   );
 }
 
