@@ -81,6 +81,9 @@ Review **Settings → Site** after installation or upgrade. Set the public domai
 site description, and owner identity for this deployment. See [search engine setup](seo.md)
 for sitemap submission and indexing checks. Saved database settings override initial
 environment defaults.
+For the `songqi.org` deployment, set **Public contact** to `duan@songqi.org`
+for submission corrections and removal requests. Other site owners can use
+their own email address or contact page.
 
 ## Domain, reverse proxy, and TLS
 

@@ -397,3 +397,7 @@ Current backend/product decisions:
 
 - On 2026-11-18, the owner requested that the review fixes preserve the current
   galaxy appearance and interactions and receive a complete local test run.
+
+- On 2026-11-19, the owner selected `duan@songqi.org` as the current public
+  contact for submission corrections and removals on `songqi.org`. Keep it
+  editable in Settings → Site.
