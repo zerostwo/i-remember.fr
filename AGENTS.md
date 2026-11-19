@@ -6,6 +6,8 @@ Before making substantial visual changes, use the Product Design plugin's `get-c
 
 When implementing from a selected generated mock, treat that image as the source of truth for layout, component anatomy, density, spacing, color, typography, visible content, and hierarchy.
 
+On 2026-11-19 the owner requested an Apple-inspired admin design language with consistent controls, clear hierarchy and concise workflows. Present the visual direction for review before a broad admin redesign.
+
 Current backend/product decisions:
 
 - Preserve the archive's core memory-galaxy and anonymous submission interaction
